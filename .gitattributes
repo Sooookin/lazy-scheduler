@@ -4,6 +4,7 @@
 *.css  text eol=lf
 *.html text eol=lf
 *.md   text eol=lf
+*.json text eol=lf
 
 # VBScript 는 한글 때문에 UTF-16 이어야 한다 (변환 금지)
 *.vbs  binary

@@ -1,178 +1,584 @@
 # -*- coding: utf-8 -*-
-"""데이터 저장 + 일정 인스턴스 계산."""
-import json, os, threading, uuid
-from datetime import date, datetime, timedelta
+"""데이터 저장 + 일정 인스턴스 계산.
+
+파일은 둘로 나눈다.
+  data.json   내 일정. 나중에 휴대폰과 동기화할 대상이다.
+  state.json  이 PC 에만 해당하는 상태(띄운 알림 기록). 동기화하지 않는다.
+
+동기화를 위해 지키는 약속
+  · 항목마다 마지막으로 바뀐 시각(updated, UTC)을 남긴다. 어느 쪽이 최신인지 가리는 기준이다.
+  · 지운 항목은 흔적(id · deleted · updated)만 남긴다. 다른 기기에도 지워졌다고 알릴 수 있다.
+  · 파일에 형식 버전(version)을 적는다. 형식이 바뀌면 migrate() 에서 한 번만 옮긴다.
+
+저장 안전
+  · 쓰기는 임시 파일 → fsync → 바꿔 끼우기. 쓰다가 전원이 나가도 이전 내용이 남는다.
+  · 쓰기 전에 직전 파일(.bak)과 하루 한 벌(backups/)을 남긴다.
+  · 파일이 깨졌으면 옆으로 치워 두고 백업에서 되살린다. 빈 데이터로 덮어쓰지 않는다.
+  · 읽기-고치기-쓰기는 transaction() 안에서 한 번에 한다.
+"""
+import json
+import os
+import re
+import shutil
+import threading
+import uuid
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta, timezone
 
 import paths
 import recur
 
 paths.migrate_legacy()
 DATA = paths.DATA_FILE
+STATE = paths.STATE_FILE
 LOCK = threading.RLock()
 
+SCHEMA_VERSION = 2
+BACKUP_KEEP = 14                # 하루 한 벌 백업을 며칠치 남길지
+TOMBSTONE_DAYS = 180            # 지운 흔적을 얼마나 남길지 (다른 기기가 따라잡을 시간)
+FIRED_KEEP_DAYS = 3             # 띄운 알림 기록 (스케줄러는 어제~내일만 본다)
+
+KINDS = ("routine", "deadline", "floating")
 _SETTINGS = {
     "notify_min": 30,
     "brief_time": "08:30",
     "business_only": True,
     "show_weekend": True,          # 달력에 주말 칸을 보여줄지
 }
-_DEFAULT = {"tasks": [], "fired": [], "holidays": [], "settings": dict(_SETTINGS)}
+# 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
+_TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
+                "notify_min", "muted", "pinned", "rule", "tag")
+_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+NOTICE = None                   # 손상 복구처럼 화면에 알려야 할 일
+
+
+class StoreError(Exception):
+    """파일을 읽거나 쓸 수 없다. 이때는 절대 빈 데이터로 덮어쓰지 않는다."""
+
+
+class ValidationError(ValueError):
+    """요청 내용이 잘못됐다. 메시지는 화면에 그대로 보여줄 수 있는 문장이다."""
+
+
+class NotFoundError(LookupError):
+    """그런 항목이 없다 (이미 지웠거나 다른 곳에서 지워졌다)."""
+
+
+def _now_utc():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _blank():
+    return {"version": SCHEMA_VERSION, "tasks": [], "holidays": [],
+            "settings": dict(_SETTINGS)}
+
+
+# ---------- 파일 ----------
+
+def _write_json(path, obj):
+    """임시 파일에 쓰고 디스크에 내린 뒤 한 번에 바꿔 끼운다.
+
+    fsync 없이 바꿔 끼우면 전원이 나갔을 때 내용이 빈 파일이 남을 수 있다.
+    """
+    paths.ensure_data_dir()
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except OSError as e:
+        raise StoreError("저장하지 못했습니다 (%s)" % e) from e
+
+
+def _load_json(path):
+    """(내용, None) · 파일이 없으면 (None, None) · 깨졌으면 (None, 이유)."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f), None
+    except FileNotFoundError:
+        return None, None
+    except (ValueError, UnicodeDecodeError) as e:
+        return None, "%s: %s" % (type(e).__name__, e)
+    except OSError as e:
+        # 잠겨 있거나(백신 검사 등) 권한이 없다. 비었다고 보면 다음 저장이 일정을 지운다.
+        raise StoreError("일정 파일을 읽을 수 없습니다 (%s)" % e) from e
+
+
+def _looks_valid(d):
+    return isinstance(d, dict) and isinstance(d.get("tasks", []), list)
+
+
+def _backup_before_write():
+    """덮어쓰기 전에 지금 파일을 남긴다: 직전 한 벌(.bak) + 하루 한 벌(backups/).
+
+    백업이 실패해도 저장은 계속한다 (로그만 남긴다).
+    """
+    if not os.path.exists(DATA):
+        return
+    try:
+        shutil.copyfile(DATA, DATA + ".bak")
+        os.makedirs(paths.BACKUP_DIR, exist_ok=True)
+        daily = os.path.join(paths.BACKUP_DIR, "data-%s.json" % date.today().isoformat())
+        if not os.path.exists(daily):
+            shutil.copyfile(DATA, daily)
+            olds = sorted(n for n in os.listdir(paths.BACKUP_DIR)
+                          if n.startswith("data-") and n.endswith(".json"))
+            for n in olds[:-BACKUP_KEEP]:
+                os.remove(os.path.join(paths.BACKUP_DIR, n))
+    except OSError as e:
+        paths.log("백업 실패 (저장은 계속): %s" % e)
+
+
+def _backups():
+    """되살릴 후보. 가까운 것부터."""
+    out = [DATA + ".bak"]
+    try:
+        names = sorted((n for n in os.listdir(paths.BACKUP_DIR)
+                        if n.startswith("data-") and n.endswith(".json")), reverse=True)
+        out += [os.path.join(paths.BACKUP_DIR, n) for n in names]
+    except OSError:
+        pass
+    return out
+
+
+def _recover(reason):
+    """깨진 파일을 치워 두고 백업에서 되살린다. 쓸 백업이 없으면 빈 데이터."""
+    global NOTICE
+    kept = "%s.corrupt-%s" % (DATA, datetime.now().strftime("%Y%m%d-%H%M%S"))
+    try:
+        os.replace(DATA, kept)
+    except OSError as e:
+        raise StoreError("손상된 일정 파일을 치우지 못했습니다 (%s)" % e) from e
+    name = os.path.basename(kept)
+    found = None
+    for cand in _backups():
+        try:
+            c, _ = _load_json(cand)
+        except StoreError:
+            continue
+        if _looks_valid(c):
+            found = c
+            NOTICE = ("일정 파일이 손상되어 백업(%s)에서 되살렸습니다. "
+                      "손상된 파일은 %s 로 보관했습니다." % (os.path.basename(cand), name))
+            break
+    if found is None:
+        NOTICE = ("일정 파일이 손상되었고 쓸 만한 백업이 없어 빈 목록으로 시작합니다. "
+                  "손상된 파일은 %s 로 보관했습니다." % name)
+    paths.log("data.json 손상 (%s). %s" % (reason, NOTICE))
+    return found if found is not None else _blank()
 
 
 def _read():
-    if not os.path.exists(DATA):
-        return json.loads(json.dumps(_DEFAULT))
-    try:
-        with open(DATA, "r", encoding="utf-8") as f:
-            d = json.load(f)
-    except Exception:
-        return json.loads(json.dumps(_DEFAULT))
-    for k, v in _DEFAULT.items():
-        d.setdefault(k, json.loads(json.dumps(v)))
-    # settings 는 통째로 있으므로 setdefault 로는 새 항목이 채워지지 않는다.
-    # 나중에 설정을 추가해도 예전 데이터에서 동작하도록 낱개로 채운다.
+    """일정을 읽는다. LOCK 을 잡은 채로 불러야 한다."""
+    d, bad = _load_json(DATA)
+    if d is not None and not _looks_valid(d):
+        bad = "형식이 올바르지 않음"
+    if bad:
+        d = migrate(_recover(bad))
+        _write_json(DATA, d)                 # 되살린 내용을 바로 제자리에
+        return d
+    if d is None:
+        return _blank()
+    ver = d.get("version") or 1
+    if type(ver) is not int or ver > SCHEMA_VERSION:
+        # 더 새로운 앱(또는 다른 기기)이 만든 형식이다. 모르는 형식을 고쳐 쓰면 망가뜨린다.
+        raise StoreError("이 일정 파일은 더 새로운 버전의 앱에서 만들어졌습니다. 앱을 업데이트하세요.")
+    if ver < SCHEMA_VERSION:
+        d = migrate(d)
+        _backup_before_write()
+        _write_json(DATA, d)
+        return d
+    return migrate(d)
+
+
+def migrate(d):
+    """예전 형식을 지금 형식으로 맞춘다. 여러 번 불러도 결과가 같다."""
+    ver = d.get("version") or 1
+    for k, v in _blank().items():
+        d.setdefault(k, v)
+    if not isinstance(d["settings"], dict):
+        d["settings"] = {}
     for k, v in _SETTINGS.items():
         d["settings"].setdefault(k, v)
+    if not isinstance(d["holidays"], list):
+        d["holidays"] = []
+    d["tasks"] = [t for t in d["tasks"] if isinstance(t, dict)]
+
+    if ver < 2:
+        # 띄운 알림 기록은 이 PC 에만 해당하므로 state.json 으로 옮긴다
+        _absorb_fired(d.get("fired") or [])
+        stamp = _now_utc()
+        for t in d["tasks"]:
+            t.setdefault("id", uuid.uuid4().hex)
+            t.setdefault("updated", stamp)
+            r = t.get("rule")
+            try:
+                weekly = (t.get("kind") == "routine" and isinstance(r, dict)
+                          and not r.get("anchor") and recur.normalize(r).get("period") == "week")
+            except (TypeError, ValueError):
+                weekly = False
+            if weekly:
+                # 기준 주가 없던 격주 규칙은 등록한 주를 기준으로 삼는다
+                r["anchor"] = (t.get("created") or "")[:10] or date.today().isoformat()
+    d.pop("fired", None)
+    d["version"] = SCHEMA_VERSION
     return d
 
 
-def _write(d):
-    paths.ensure_data_dir()
-    tmp = DATA + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, DATA)
+# ---------- 이 PC 의 상태 ----------
+
+def _read_state():
+    """없거나 깨졌으면 새로 시작한다 (잃어도 알림 몇 개가 다시 뜨는 정도)."""
+    s, bad = _load_json(STATE)
+    if bad:
+        paths.log("state.json 손상 (%s) - 새로 시작" % bad)
+    if not isinstance(s, dict):
+        s = {}
+    if not isinstance(s.get("fired"), dict):
+        s["fired"] = {}
+    return s
+
+
+def _absorb_fired(keys):
+    keys = [k for k in keys if isinstance(k, str)]
+    if not keys:
+        return
+    s = _read_state()
+    stamp = datetime.now().isoformat(timespec="seconds")
+    for k in keys:
+        s["fired"].setdefault(k, stamp)
+    _write_json(STATE, s)
+
+
+def mark_fired(key, now=None):
+    """이 알림을 처음 띄우는 것이면 기록하고 True, 이미 띄웠으면 False."""
+    now = now or datetime.now()
+    with LOCK:
+        s = _read_state()
+        if key in s["fired"]:
+            return False
+        cutoff = (now - timedelta(days=FIRED_KEEP_DAYS)).isoformat(timespec="seconds")
+        s["fired"] = {k: v for k, v in s["fired"].items() if isinstance(v, str) and v >= cutoff}
+        s["fired"][key] = now.isoformat(timespec="seconds")
+        _write_json(STATE, s)
+        return True
+
+
+def fired_keys():
+    with LOCK:
+        return set(_read_state()["fired"])
+
+
+# ---------- 읽기 · 쓰기 ----------
+
+@contextmanager
+def transaction():
+    """읽기-고치기-쓰기를 한 번에 한다.
+
+    예전에는 스케줄러가 읽어 둔 옛 내용을 저장하면서, 그 사이 창에서 완료한 것을 지웠다.
+    블록 안에서 예외가 나면 쓰지 않는다.
+    """
+    with LOCK:
+        d = _read()
+        yield d
+        _backup_before_write()
+        _write_json(DATA, d)
+        recur.set_holidays(d.get("holidays"))
 
 
 def load():
     with LOCK:
         d = _read()
-        recur.set_holidays(d.get("holidays"))
-        return d
-
-
-def save(d):
-    with LOCK:
-        _write(d)
+    recur.set_holidays(d.get("holidays"))
+    return d
 
 
 def tasks():
-    return load()["tasks"]
+    return [t for t in load()["tasks"] if not t.get("deleted")]
 
 
-def add(t):
-    with LOCK:
-        d = _read()
-        t.setdefault("id", uuid.uuid4().hex[:12])
-        t.setdefault("created", datetime.now().isoformat(timespec="seconds"))
-        t.setdefault("done", False)
-        t.setdefault("done_dates", [])
-        t.setdefault("note", "")
-        t.setdefault("pinned", False)
-        # 격주 이상 반복은 기준 주가 고정돼야 하므로 등록 시점을 anchor 로 박아둔다
-        r = t.get("rule")
-        if r and r.get("kind") == "weekly":
-            r.setdefault("anchor", t["created"][:10])
+# ---------- 요청 확인 ----------
+
+def _clean_text(v, limit, label):
+    if v is None:
+        return ""
+    if not isinstance(v, str):
+        raise ValidationError("%s 형식이 올바르지 않습니다" % label)
+    v = v.strip()
+    if len(v) > limit:
+        raise ValidationError("%s: 최대 %d자까지 쓸 수 있습니다" % (label, limit))
+    return v
+
+
+def _clean_day(v):
+    if v in (None, ""):
+        return None
+    if not isinstance(v, str) or not _DATE.match(v):
+        raise ValidationError("날짜 형식이 올바르지 않습니다")
+    try:
+        date.fromisoformat(v)
+    except ValueError:
+        raise ValidationError("없는 날짜입니다") from None
+    return v
+
+
+def _check_setting(k, v):
+    """설정 한 개가 올바른지. 모르는 항목이면 False, 잘못된 값이면 ValidationError."""
+    if k == "notify_min":
+        if not (type(v) is int and 0 <= v <= 1440):
+            raise ValidationError("기본 알림은 0~1440분 전 사이의 정수여야 합니다")
+    elif k == "brief_time":
+        if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
+            raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
+    elif k in ("business_only", "show_weekend"):
+        if not isinstance(v, bool):
+            raise ValidationError("요청 형식이 올바르지 않습니다")
+    else:
+        return False
+    return True
+
+
+def clean_task(patch, base=None):
+    """요청으로 받은 항목을 확인하고 저장 형식으로 맞춘다.
+
+    base 가 있으면(수정) 기존 항목에 patch 를 덮은 결과 전체를 확인한다.
+    관리 필드와 모르는 필드는 요청에서 받지 않는다.
+    """
+    if not isinstance(patch, dict):
+        raise ValidationError("요청 형식이 올바르지 않습니다")
+    t = dict(base or {})
+    for k in _TASK_FIELDS:
+        if k in patch:
+            t[k] = patch[k]
+
+    t["title"] = _clean_text(t.get("title"), 200, "이름")
+    if not t["title"]:
+        raise ValidationError("이름을 입력하세요")
+    t["note"] = _clean_text(t.get("note"), 2000, "메모")
+    t["tag"] = _clean_text(t.get("tag"), 50, "태그")
+
+    kind = t.get("kind") or "deadline"
+    if kind not in KINDS:
+        raise ValidationError("항목 종류가 올바르지 않습니다")
+    t["kind"] = kind
+
+    tm = t.get("due_time") or ""
+    if not isinstance(tm, str) or (tm and not _TIME.match(tm)):
+        raise ValidationError("시각은 00:00~23:59 형식이어야 합니다")
+    nm = t.get("notify_min")
+    if nm is not None and not (type(nm) is int and 0 <= nm <= 10080):
+        raise ValidationError("알림은 0~10080분 전 사이의 정수여야 합니다")
+    for b in ("muted", "pinned"):
+        v = t.get(b)
+        if v is None:
+            v = False
+        if not isinstance(v, bool):
+            raise ValidationError("요청 형식이 올바르지 않습니다")
+        t[b] = v
+
+    if kind == "routine":
+        try:
+            t["rule"] = recur.validate_rule(t.get("rule"))
+        except recur.RuleError as e:
+            raise ValidationError(str(e)) from None
+        t.update(due_date=None, due_time=tm, notify_min=nm)
+    elif kind == "deadline":
+        t.update(rule=None, due_date=_clean_day(t.get("due_date")), due_time=tm, notify_min=nm)
+    else:
+        t.update(rule=None, due_date=None, due_time="", notify_min=None, muted=False)
+    return t
+
+
+# ---------- 항목 ----------
+
+def _find(d, tid):
+    if isinstance(tid, str) and tid:
+        for t in d["tasks"]:
+            if t.get("id") == tid and not t.get("deleted"):
+                return t
+    raise NotFoundError("항목을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.")
+
+
+def add(patch):
+    t = clean_task(patch)
+    created = datetime.now().isoformat(timespec="seconds")
+    t.update(id=uuid.uuid4().hex, created=created, updated=_now_utc(),
+             done=False, done_at=None, done_dates=[], skip_dates=[])
+    r = t.get("rule")
+    if r and r["period"] == "week":
+        # 격주 이상은 기준 주가 고정돼야 한다. 등록한 날을 기준으로 박아둔다.
+        # (예전에는 옛 형식 kind == "weekly" 만 확인해서 새 규칙에는 기준이 없었다)
+        r.setdefault("anchor", created[:10])
+    with transaction() as d:
         d["tasks"].append(t)
-        _write(d)
-        return t
+    return t
 
 
 def update(tid, patch):
-    with LOCK:
-        d = _read()
-        for t in d["tasks"]:
-            if t["id"] == tid:
-                r = patch.get("rule")
-                if r and r.get("kind") == "weekly" and "anchor" not in r:
-                    old_r = t.get("rule") or {}
-                    r["anchor"] = old_r.get("anchor") or (t.get("created") or "")[:10] or date.today().isoformat()
-                t.update(patch)
-                _write(d)
-                return t
-        return None
+    with transaction() as d:
+        t = _find(d, tid)
+        new = clean_task(patch, base=t)
+        r = new.get("rule")
+        if r and r["period"] == "week" and not r.get("anchor"):
+            try:
+                old = recur.normalize(t["rule"]) if isinstance(t.get("rule"), dict) else {}
+            except (TypeError, ValueError):
+                old = {}
+            r["anchor"] = (old.get("anchor") or (t.get("created") or "")[:10]
+                           or date.today().isoformat())
+        new["updated"] = _now_utc()
+        t.clear()
+        t.update(new)
+        return dict(t)
 
 
 def remove(tid):
-    with LOCK:
-        d = _read()
-        d["tasks"] = [t for t in d["tasks"] if t["id"] != tid]
-        _write(d)
+    """지운다. 다른 기기에 '지워졌다' 를 전할 수 있게 흔적만 남기고 내용은 없앤다."""
+    with transaction() as d:
+        t = _find(d, tid)
+        keep = t["id"]
+        t.clear()
+        t.update(id=keep, deleted=True, updated=_now_utc())
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(days=TOMBSTONE_DAYS)).isoformat(timespec="seconds")
+        d["tasks"] = [x for x in d["tasks"]
+                      if not (x.get("deleted") and (x.get("updated") or "") < cutoff)]
 
 
-def toggle_done(tid, day=None):
-    """일반 할 일은 done 토글, 반복 일정은 해당 날짜만 완료 처리."""
-    with LOCK:
-        d = _read()
-        for t in d["tasks"]:
-            if t["id"] != tid:
-                continue
-            if t.get("kind") == "routine":
-                day = day or date.today().isoformat()
-                dd = set(t.get("done_dates") or [])
-                dd.symmetric_difference_update({day})
-                t["done_dates"] = sorted(dd)
-            else:
-                t["done"] = not t.get("done")
-                t["done_at"] = datetime.now().isoformat(timespec="seconds") if t["done"] else None
-            _write(d)
-            return t
-        return None
+def set_done(tid, day=None, done=True):
+    """완료 상태를 그 값으로 정한다 (뒤집지 않는다).
+
+    예전 toggle 은 창에서 완료한 뒤 알림 카드의 [완료] 를 누르면 도로 미완료가 됐다.
+    반복 일정은 그 날짜 회차만, 나머지는 항목 자체를 완료 처리한다.
+    """
+    if not isinstance(done, bool):
+        raise ValidationError("요청 형식이 올바르지 않습니다")
+    day = _clean_day(day)
+    with transaction() as d:
+        t = _find(d, tid)
+        if t.get("kind") == "routine":
+            dd = set(t.get("done_dates") or [])
+            (dd.add if done else dd.discard)(day or date.today().isoformat())
+            t["done_dates"] = sorted(dd)
+        elif bool(t.get("done")) != done:
+            t["done"] = done
+            t["done_at"] = datetime.now().isoformat(timespec="seconds") if done else None
+        t["updated"] = _now_utc()
+        return dict(t)
+
+
+def _set_skip(tid, day, skipped):
+    day = _clean_day(day) or date.today().isoformat()
+    with transaction() as d:
+        t = _find(d, tid)
+        if t.get("kind") != "routine":
+            raise ValidationError("반복 일정만 회차를 건너뛸 수 있습니다")
+        sk = set(t.get("skip_dates") or [])
+        (sk.add if skipped else sk.discard)(day)
+        t["skip_dates"] = sorted(sk)
+        t["updated"] = _now_utc()
+        return dict(t)
 
 
 def skip(tid, day=None):
-    """반복 일정의 이번 회차만 건너뛴다."""
-    with LOCK:
-        d = _read()
-        for t in d["tasks"]:
-            if t["id"] == tid:
-                day = day or date.today().isoformat()
-                sk = set(t.get("skip_dates") or [])
-                sk.add(day)
-                t["skip_dates"] = sorted(sk)
-                _write(d)
-                return t
-        return None
+    """반복 일정의 그 회차만 건너뛴다."""
+    return _set_skip(tid, day, True)
+
+
+def unskip(tid, day=None):
+    """건너뛴 회차를 되돌린다."""
+    return _set_skip(tid, day, False)
+
+
+# ---------- 설정 ----------
+
+def update_settings(patch):
+    """설정을 확인하고 저장한다. 모르는 항목은 저장하지 않는다.
+
+    예전에는 받은 값을 그대로 넣어서, notify_min 에 글자가 들어가면
+    스케줄러가 20초마다 터지며 알림이 전부 멈췄다.
+    """
+    if not isinstance(patch, dict):
+        raise ValidationError("요청 형식이 올바르지 않습니다")
+    clean = {k: v for k, v in patch.items() if _check_setting(k, v)}
+    with transaction() as d:
+        d["settings"].update(clean)
+        return dict(d["settings"])
+
+
+def settings(data=None):
+    """저장된 설정. 파일에 이상한 값이 있어도 그 항목만 기본값으로 버틴다."""
+    raw = (data if data is not None else load()).get("settings") or {}
+    out = dict(_SETTINGS)
+    for k in _SETTINGS:
+        if k in raw:
+            try:
+                _check_setting(k, raw[k])
+                out[k] = raw[k]
+            except ValidationError:
+                pass
+    return out
 
 
 # ---------- 인스턴스 계산 ----------
+
+_bad_logged = set()
+
 
 def _dt(day, hhmm):
     h, m = (hhmm or "23:59").split(":")
     return datetime.combine(day, datetime.min.time()).replace(hour=int(h), minute=int(m))
 
 
-def instances(back=14, ahead=45, data=None):
-    """화면/알림이 공통으로 쓰는 평면화된 일정 목록."""
-    d = data or load()
-    today = date.today()
+def instances(back=14, ahead=45, data=None, today=None):
+    """화면/알림이 공통으로 쓰는 평면화된 일정 목록.
+
+    항목 하나가 잘못돼 있어도(손으로 고친 파일, 예전 형식) 그 항목만 빼고 계속한다.
+    예전에는 한 항목 때문에 화면이 통째로 비고 알림도 전부 멈췄다.
+    """
+    d = data if data is not None else load()
+    today = today or date.today()
     lo, hi = today - timedelta(days=back), today + timedelta(days=ahead)
     out = []
     for t in d["tasks"]:
-        if t.get("archived"):
+        if t.get("archived") or t.get("deleted"):
             continue
-        kind = t.get("kind", "deadline")
-        if kind == "floating":
-            out.append(_inst(t, None))
-        elif kind == "routine":
-            # 등록 이전 날짜는 밀린 일로 잡지 않는다
-            born = (t.get("created") or "")[:10]
-            start = max(lo, date.fromisoformat(born)) if born else lo
-            skips = set(t.get("skip_dates") or [])
-            for day in recur.occurrences(t.get("rule") or {}, start, hi):
-                if day.isoformat() not in skips:
-                    out.append(_inst(t, day))
-        else:
-            if not t.get("due_date"):
-                out.append(_inst(t, None))
-            else:
-                out.append(_inst(t, date.fromisoformat(t["due_date"])))
+        try:
+            out.extend(_expand(t, lo, hi))
+        except Exception as e:
+            key = (t.get("id"), repr(e))
+            if key not in _bad_logged:
+                _bad_logged.add(key)
+                paths.log("항목을 계산하지 못해 건너뜀 (%s): %s: %s"
+                          % (t.get("id"), type(e).__name__, e))
     return out
 
 
+def _expand(t, lo, hi):
+    kind = t.get("kind", "deadline")
+    if kind == "floating":
+        return [_inst(t, None)]
+    if kind == "routine":
+        # 등록 이전 날짜는 밀린 일로 잡지 않는다
+        born = (t.get("created") or "")[:10]
+        start = max(lo, date.fromisoformat(born)) if born else lo
+        skips = set(t.get("skip_dates") or [])
+        return [_inst(t, day) for day in recur.occurrences(t.get("rule") or {}, start, hi)
+                if day.isoformat() not in skips]
+    if not t.get("due_date"):
+        return [_inst(t, None)]
+    return [_inst(t, date.fromisoformat(t["due_date"]))]
+
+
 def _inst(t, day):
-    done = (day.isoformat() in (t.get("done_dates") or [])) if (t.get("kind") == "routine" and day) else bool(t.get("done"))
+    routine = t.get("kind") == "routine"
+    done = (day.isoformat() in (t.get("done_dates") or [])) if (routine and day) else bool(t.get("done"))
     due_dt = _dt(day, t.get("due_time")) if day else None
+    rule_n = recur.normalize(t["rule"]) if (routine and t.get("rule")) else None
     return {
         "id": t["id"],
         "title": t.get("title", ""),
@@ -184,22 +590,23 @@ def _inst(t, day):
         "time": t.get("due_time") or "",
         "due": due_dt.isoformat(timespec="minutes") if due_dt else None,
         "rule": t.get("rule") or None,
-        "rule_n": recur.normalize(t["rule"]) if (t.get("kind") == "routine" and t.get("rule")) else None,
-        "period": recur.normalize(t["rule"]).get("period") if (t.get("kind") == "routine" and t.get("rule")) else None,
-        "rule_text": recur.describe(t.get("rule")) if t.get("kind") == "routine" else "",
+        "rule_n": rule_n,
+        "period": rule_n.get("period") if rule_n else None,
+        "rule_text": recur.describe(t.get("rule")) if routine else "",
         "muted": bool(t.get("muted")),
         "notify_min": t.get("notify_min", None),
         "done": done,
     }
 
 
-def overview():
+def overview(data=None, now=None):
     """한 화면 개요. 마감 있는 일을 앞세우고, 반복 업무는 따로 묶는다."""
-    d = load()
-    today = date.today()
-    now = datetime.now()
+    d = data if data is not None else load()
+    now = now or datetime.now()
+    today = now.date()
     ti = today.isoformat()
-    ins = instances(back=10, ahead=75, data=d)
+    ins = instances(back=10, ahead=75, data=d, today=today)
+    live = [t for t in d["tasks"] if not t.get("archived") and not t.get("deleted")]
 
     # 마감 우선 → 날짜 → 시각
     def key(i):
@@ -239,12 +646,15 @@ def overview():
         if cur is None or i["date"] < cur["date"]:
             nxt[i["id"]] = i
     routines = []
-    for t in d["tasks"]:
-        if t.get("kind") != "routine" or t.get("archived"):
+    for t in live:
+        if t.get("kind") != "routine":
             continue
         row = nxt.get(t["id"])
         if row is None:
-            row = _inst(t, None)
+            try:
+                row = _inst(t, None)
+            except Exception:
+                continue                     # instances() 가 이미 로그를 남겼다
         routines.append(dict(row, next_date=row.get("date")))
     routines.sort(key=lambda r: (r["next_date"] or "9999", r["time"] or "99:99"))
 
@@ -269,6 +679,7 @@ def overview():
             "done": len(donetoday),
             "total": len(todays),
         },
-        "tasks": [t for t in d["tasks"] if not t.get("archived")],
-        "settings": d.get("settings", {}),
+        "tasks": live,
+        "settings": settings(d),
+        "notice": NOTICE,
     }

@@ -1,8 +1,23 @@
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const api = (u, b) => fetch(u, b ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)} : undefined).then(r => r.json());
+/* 서비스는 비밀값이 없는 요청을 거절한다 (다른 웹 페이지가 일정을 건드리지 못하게).
+   값은 서비스가 index.html 을 내줄 때 meta 태그에 심어 준다. */
+const TOKEN = (document.querySelector('meta[name="tm-token"]') || {}).content || '';
+/* 실패하면 서버가 보낸 문장으로 reject 한다. 예전에는 500 도 성공처럼 처리해서
+   저장이 안 됐는데도 "추가됨" 이 뜨고 입력한 내용이 사라졌다. */
+const api = (u, b) => fetch(u, {
+    method: b ? 'POST' : 'GET',
+    headers: Object.assign({'X-TM-Token': TOKEN}, b ? {'Content-Type': 'application/json'} : {}),
+    body: b ? JSON.stringify(b) : undefined,
+  })
+  .catch(() => { throw new Error('프로그램에 연결할 수 없습니다. 잠시 후 다시 시도하세요.'); })
+  .then(r => r.json().catch(() => ({})).then(d => {
+    if(!r.ok) throw new Error(d.error || ('요청을 처리하지 못했습니다 (' + r.status + ')'));
+    return d;
+  }));
 const WD = ['월','화','수','목','금','토','일'];
-const esc = s => (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = t => +t.slice(0,2)*60 + +t.slice(3);
 
 /* 시각은 모두 5분 단위. 키보드로 직접 입력할 수 있고(09:30, 0930),
@@ -25,6 +40,12 @@ document.addEventListener('change', e => {
 let STATE = null, HOL = new Set();
 
 const say = m => { $('#status').textContent = m; clearTimeout(say._t); say._t = setTimeout(()=>$('#status').textContent='', 2800); };
+/* 처리하지 않은 요청 실패는 아래 상태줄에 보여준다 (조용히 삼키지 않는다).
+   .then 으로 이어 둔 "창 닫기 · 저장됨" 은 실행되지 않으므로 입력한 내용도 그대로 남는다. */
+addEventListener('unhandledrejection', e => {
+  e.preventDefault();
+  say((e.reason && e.reason.message) || '요청을 처리하지 못했습니다');
+});
 
 /* ══════════ 창 버튼 ══════════ */
 const MAX_GLYPH = '';      /* ChromeMaximize - 빈 사각형 */
@@ -89,13 +110,13 @@ function itemEl(i, opt){
   el.className = 'item k-' + (i.kind || 'deadline') + (i.done ? ' done' : '');
   const bits = [];
   const overdue = opt.showOverdue && i.date && i.date < STATE.today;
-  if(overdue) bits.push('<span class="late">'+fmtDay(i.date)+(i.time ? ' '+i.time : '')+'</span>');
-  else if(opt.showDate && i.date) bits.push('<span class="pill">'+fmtDay(i.date)+'</span>');
+  if(overdue) bits.push('<span class="late">'+esc(fmtDay(i.date)+(i.time ? ' '+i.time : ''))+'</span>');
+  else if(opt.showDate && i.date) bits.push('<span class="pill">'+esc(fmtDay(i.date))+'</span>');
   if(i.time && !overdue){
     let cls = '';
     if(i.date === STATE.today && !i.done)
       cls = i.time < STATE.now ? 'late' : (mins(i.time) - mins(STATE.now) <= 90 ? 'soon' : '');
-    bits.push('<span class="'+cls+'">'+i.time+(cls==='late' ? ' 지남' : ' 까지')+'</span>');
+    bits.push('<span class="'+cls+'">'+esc(i.time)+(cls==='late' ? ' 지남' : ' 까지')+'</span>');
   }
   if(i.kind === 'routine') bits.push('<span title="'+esc(i.rule_text)+'">↻</span>');
   if(i.muted) bits.push('<span>알림 끔</span>');
@@ -108,7 +129,9 @@ function itemEl(i, opt){
   el.title = i.title + (i.note ? String.fromCharCode(10) + i.note : '');
   el.querySelector('.dot').onclick = e => {
     e.stopPropagation();
-    api('/api/task/'+i.id+'/toggle', {date:i.date}).then(load);
+    /* 뒤집기가 아니라 "화면에 보이는 상태의 반대" 로 정한다. 알림 카드에서 이미
+       완료했는데 화면이 늦게 갱신됐어도 결과가 누른 사람의 뜻대로 나온다. */
+    api('/api/task/'+encodeURIComponent(i.id)+'/done', {date:i.date, done:!i.done}).then(load);
   };
   el.onclick = () => openEdit(i);
   return el;
@@ -123,7 +146,7 @@ function routineEl(i){
   el.innerHTML = '<div class="t">'+esc(i.title)+'</div>'+
     '<span class="rule" title="'+esc(i.rule_text)+'">↻ '+esc(i.rule_text)+'</span>'+
     (i.muted ? '<span class="tag">알림 끔</span>' : '')+
-    '<span class="when">'+when+'</span>'+
+    '<span class="when">'+esc(when)+'</span>'+
     '<button class="rowbtn" title="수정 / 삭제">✎</button>';
   el.title = i.title + ' · ' + i.rule_text + (isToday && i.done ? ' (오늘 완료)' : '');
   el.onclick = () => openEdit(i);
@@ -139,6 +162,8 @@ function fill(node, list, emptyMsg, opt, maker){
 function render(o){
   STATE = o;
   HOL = new Set(o.holidays || []);
+  /* 일정 파일이 손상돼 백업에서 되살렸다면, 조용히 넘어가지 않고 한 번 알린다 */
+  if(o.notice && o.notice !== render._notice){ render._notice = o.notice; alert(o.notice); }
   const d = dObj(o.today);
   $('#dow').textContent = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일';
   $('#fulldate').textContent = o.is_business_day ? '영업일' : '영업일 아님';
@@ -380,6 +405,7 @@ function Form(box){
   /* ---------- 반복 ---------- */
   function renderRoutine(i){
     const r = i.rule_n || {period:'month', basis:'business_day', n:1};
+    self.anchor = (i.rule_n && i.rule_n.anchor) || null;   /* 격주의 기준 주는 수정해도 유지 */
     box.innerHTML =
       '<span class="step">1 · 얼마나 자주</span>'+ sel('period', PERIODS, r.period)+
       '<div data-f="detail"></div>'+
@@ -440,14 +466,21 @@ function Form(box){
       preview();
     };
 
+    /* 미리보기 요청은 늦게 도착할 수 있다. 주기를 빠르게 바꾸면 이전 요청의 답이
+       나중 것을 덮어써서 "매주" 를 골랐는데 "매월" 날짜가 보였다. 마지막 요청만 반영한다. */
+    let prevSeq = 0;
     const preview = () => {
+      const seq = ++prevSeq;
       const rule = self.readRule();
       if(rule.period === 'week' && !rule.weekdays.length){
         F('prev').innerHTML = '<b>다음 실행 날짜</b>요일을 하나 이상 선택하세요'; return;
       }
+      const show = html => { if(seq === prevSeq && F('prev')) F('prev').innerHTML = html; };
       api('/api/preview', {rule})
-        .then(d => F('prev').innerHTML = '<b>'+esc(d.text)+'</b>'+d.dates.join('   ·   '))
-        .catch(() => {});
+        .then(d => show(d.error
+          ? '<b>다음 실행 날짜</b>'+esc(d.error)
+          : '<b>'+esc(d.text)+'</b>'+esc(d.dates.join('   ·   '))))
+        .catch(e => show('<b>다음 실행 날짜</b>'+esc(e.message)));
     };
 
     F('period').onchange = () => drawDetail(false);
@@ -472,6 +505,7 @@ function Form(box){
     if(p === 'week'){
       r.weekdays = [...box.querySelectorAll('.wd span.on')].map(s=>+s.dataset.w);
       r.interval = +F('iv').value;
+      if(self.anchor) r.anchor = self.anchor;
       return r;
     }
     const k = F('basis').value;
@@ -622,7 +656,7 @@ function chipEl(t){
   el.className = 'chip ' + cls + (wk ? ' wk' : '');
   const d = dObj(t.due_date);
   const head = wk ? d.getDate() + '일(' + WD[(d.getDay() + 6) % 7] + ')' : t.due_time;
-  el.innerHTML = (head ? '<span class="h">' + head + '</span>' : '') +
+  el.innerHTML = (head ? '<span class="h">' + esc(head) + '</span>' : '') +
                  '<span class="n2">' + esc(t.title) + '</span>';
   el.title = fmtDay(t.due_date) + (t.due_time ? ' ' + t.due_time : '') + '  ' + t.title +
              (wk ? String.fromCharCode(10) + '주말 마감이라 앞 영업일 칸에 표시했습니다' : '') +
@@ -656,7 +690,7 @@ function dayModal(key, list){
                    '<button class="rowbtn" title="수정 / 삭제">✎</button>';
     el.querySelector('.dot').onclick = e => {
       e.stopPropagation();
-      api('/api/task/' + t.id + '/toggle', {date: t.due_date})
+      api('/api/task/' + encodeURIComponent(t.id) + '/done', {date: t.due_date, done: !t.done})
         .then(() => api('/api/overview')).then(o => {
           render(o);
           const fresh = deadlines().filter(x => cellDate(x.due_date) === key);

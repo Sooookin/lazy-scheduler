@@ -91,9 +91,13 @@ def hwnd():
 
 def _tell_hidden():
     """서비스에 "창을 숨겼다" 고 알린다 (안내 카드를 한 번 띄우게)."""
+    body = b"{}"
+    head = ("POST /api/hidden HTTP/1.0\r\nHost: %s:%d\r\nContent-Type: application/json\r\n"
+            "X-TM-Token: %s\r\nContent-Length: %d\r\n\r\n"
+            % (HOST, SERVICE_PORT, paths.ipc_token(), len(body)))
     try:
         with socket.create_connection((HOST, SERVICE_PORT), 1.0) as sock:
-            sock.sendall(b"GET /api/hidden HTTP/1.0" + CRLF + CRLF)
+            sock.sendall(head.encode("ascii") + body)
             sock.recv(32)
     except OSError:
         pass
@@ -146,24 +150,43 @@ def _destroy_all():
 
 
 class FocusHandler(BaseHTTPRequestHandler):
+    """서비스가 창을 앞으로 부르거나(/focus) 닫을 때(/quit) 쓴다.
+
+    127.0.0.1 포트는 이 PC 의 웹 페이지도 두드릴 수 있으므로 Host 와 비밀값을 확인한다.
+    (예전에는 아무 사이트나 이 주소를 불러 창을 닫을 수 있었다)
+    """
     def log_message(self, *a):
         pass
 
-    def do_GET(self):
-        quitting = self.path.split("?")[0] == "/quit"
-        if not quitting:
-            focus()
-        self.send_response(200)
-        self.send_header("Content-Length", "2")
+    def _reply(self, code, text):
+        body = text.encode("ascii")
+        self.send_response(code)
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         try:
-            self.wfile.write(b"ok")
+            self.wfile.write(body)
         except Exception:
             pass
-        if quitting:
-            threading.Timer(0.1, _destroy_all).start()
 
-    do_POST = do_GET
+    def do_POST(self):
+        port = self.server.server_address[1]
+        host = (self.headers.get("Host") or "").lower()
+        if (host not in ("127.0.0.1:%d" % port, "localhost:%d" % port)
+                or self.headers.get("Origin") is not None
+                or not paths.token_ok(self.headers.get("X-TM-Token"))):
+            return self._reply(403, "forbidden")
+        path = self.path.split("?")[0]
+        if path == "/focus":
+            focus()
+            return self._reply(200, "ok")
+        if path == "/quit":
+            self._reply(200, "ok")
+            threading.Timer(0.1, _destroy_all).start()
+            return
+        self._reply(404, "not found")
+
+    def do_GET(self):
+        self._reply(405, "use POST")
 
 
 def watch_service():
@@ -185,7 +208,8 @@ def already_open():
     """창이 이미 떠 있으면 그 창을 앞으로 불러오고 True."""
     try:
         with socket.create_connection(("127.0.0.1", UI_PORT), 0.4) as s:
-            s.sendall(b"GET /focus HTTP/1.0\r\n\r\n")
+            s.sendall(("POST /focus HTTP/1.0\r\nHost: 127.0.0.1:%d\r\nX-TM-Token: %s\r\n"
+                       "Content-Length: 0\r\n\r\n" % (UI_PORT, paths.ipc_token())).encode("ascii"))
             s.recv(16)
         return True
     except OSError:

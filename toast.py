@@ -42,6 +42,30 @@ TITLE_LINES, SUB_LINES = 2, 3
 LIST_ROW = 19
 LIST_MAX = 4
 
+# 위 치수는 모두 화면 배율 100% 기준이다. 서비스는 DPI 를 안다고 선언하므로
+# (app._dpi_aware) 125%·150% 화면에서는 이만큼 키워 그려야 같은 크기로 보인다.
+SCALE = 1.0
+
+
+def s(v):
+    """100% 기준 치수 → 실제 화면 픽셀."""
+    return int(round(v * SCALE))
+
+
+def set_scale(scale):
+    """화면 배율에 맞춰 치수를 다시 정한다. 카드를 그리기 전에 한 번 부른다."""
+    global SCALE, PAD, CW, R, GAP, CLOSE, XM, TX, TY, TW
+    global TITLE_PX, SUB_PX, LINE_H, SUB_LINE_H, LIST_ROW
+    SCALE = max(1.0, min(4.0, float(scale)))
+    PAD, CW, R, GAP = s(4), s(340), s(18), s(6)
+    CLOSE = (CW - s(42), s(8), s(28), s(28))
+    XM = s(13)
+    TX, TY = s(40), s(22)
+    TW = CW - TX - s(40)
+    TITLE_PX, SUB_PX = s(13), s(11)
+    LINE_H, SUB_LINE_H = s(18), s(15)
+    LIST_ROW = s(19)
+
 FONTS = [r"C:\Windows\Fonts\malgun.ttf", r"C:\Windows\Fonts\NotoSansKR-VF.ttf"]
 FONTS_BD = [r"C:\Windows\Fonts\malgunbd.ttf", r"C:\Windows\Fonts\malgun.ttf"]
 
@@ -191,19 +215,23 @@ def _shell(h, accent=None, bar=0):
     card = Image.new("RGBA", (CW, h), (0, 0, 0, 0))
     card.paste(Image.new("RGBA", (CW, h), _rgb(CARD) + (255,)), (0, 0),
                _round((CW, h), R))
-    card.alpha_composite(_ring((CW, h), R, EDGE, 255, 1))
+    card.alpha_composite(_ring((CW, h), R, EDGE, 255, max(1, s(1))))
     if bar:
-        card.paste(Image.new("RGBA", (4, bar), _rgb(accent) + (255,)), (22, TY),
-                   _round((4, bar), 2))
+        card.paste(Image.new("RGBA", (s(4), bar), _rgb(accent) + (255,)), (s(22), TY),
+                   _round((s(4), bar), s(2)))
     return img, card, ImageDraw.Draw(card)
 
 
 def _close_mark(card, hover):
+    # 예전에는 이 import 가 빠져 있어서 ✕ 에 마우스를 올리면 NameError 가 났고,
+    # on_move 가 예외를 삼켜 강조 표시가 조용히 안 나왔다.
+    from PIL import Image
     cx, cy, cw, ch = CLOSE
     if hover == "x":
         card.paste(Image.new("RGBA", (cw, ch), _rgb(PALE) + (255,)), (cx, cy),
-                   _round((cw, ch), 9))
-    m = _x_mark(XM, TEXT if hover == "x" else MUTED, 255 if hover == "x" else 200)
+                   _round((cw, ch), s(9)))
+    m = _x_mark(XM, TEXT if hover == "x" else MUTED, 255 if hover == "x" else 200,
+                thick=1.6 * SCALE)
     card.alpha_composite(m, (cx + (cw - XM) // 2, cy + (ch - XM) // 2))
 
 
@@ -217,9 +245,9 @@ def _pill(card, box, label, accent, hover):
                       else (BTN_FACE, ACCENT, EDGE))
     card.paste(Image.new("RGBA", (bw, bh), _rgb(face) + (255,)), (bx, by),
                _round((bw, bh), r))
-    card.alpha_composite(_ring((bw, bh), r, line, 255, 1), (bx, by))
-    ImageDraw.Draw(card).text((bx + bw / 2, by + bh / 2 - 1), label,
-                              font=_font(FONTS_BD, 11), anchor="mm",
+    card.alpha_composite(_ring((bw, bh), r, line, 255, max(1, s(1))), (bx, by))
+    ImageDraw.Draw(card).text((bx + bw / 2, by + bh / 2 - s(1)), label,
+                              font=_font(FONTS_BD, s(11)), anchor="mm",
                               fill=_rgb(fg) + (255,))
 
 
@@ -227,23 +255,23 @@ def _draw_normal(item, hover):
     f_t, f_s = _font(FONTS_BD, TITLE_PX), _font(FONTS, SUB_PX)
     lines = _wrap(item["title"], f_t, TW, TITLE_LINES)
     subs = _wrap(item["sub"], f_s, TW, SUB_LINES) if item.get("sub") else []
-    block = len(lines) * LINE_H + (4 + len(subs) * SUB_LINE_H if subs else 0)
+    block = len(lines) * LINE_H + (s(4) + len(subs) * SUB_LINE_H if subs else 0)
     btn = bool(item.get("on_done"))
-    h = TY + block + (14 + 26 + 14 if btn else 16)
+    h = TY + block + (s(14 + 26 + 14) if btn else s(16))
 
-    img, card, d = _shell(h, item["accent"], block + 2)
+    img, card, d = _shell(h, item["accent"], block + s(2))
     y = TY
     for ln in lines:
         d.text((TX, y), ln, font=f_t, fill=_rgb(TEXT) + (255,))
         y += LINE_H
     if subs:
-        y += 4
+        y += s(4)
         for ln in subs:
             d.text((TX, y), ln, font=f_s, fill=_rgb(MUTED) + (255,))
             y += SUB_LINE_H
     hits = {}
     if btn:
-        box = (20, h - 40, CW - 40, 26)
+        box = (s(20), h - s(40), CW - s(40), s(26))
         _pill(card, box, "완료", item["accent"], hover)
         hits["btn"] = box
     _close_mark(card, hover)
@@ -257,35 +285,35 @@ def _draw_list(item, hover):
     강조 바와 버튼을 두지 않는다. 강조 바는 "이 한 건" 을 가리키는 표시이고,
     버튼은 완료할 대상이 없어 "확인" 이라는 뜻 없는 이름이 되기 때문이다.
     """
-    f_lab, f_ttl = _font(FONTS, 10), _font(FONTS_BD, 14)
-    f_key, f_row = _font(FONTS_BD, 10), _font(FONTS, 11)
+    f_lab, f_ttl = _font(FONTS, s(10)), _font(FONTS_BD, s(14))
+    f_key, f_row = _font(FONTS_BD, s(10)), _font(FONTS, s(11))
     rows = item["rows"][:LIST_MAX]
     more = item.get("more", 0)
-    h = 16 + 13 + 22 + 9 + 1 + 8 + len(rows) * LIST_ROW + (14 if more else 4) + 12
+    h = s(16 + 13 + 22 + 9 + 1 + 8) + len(rows) * LIST_ROW + s(14 if more else 4) + s(12)
 
     img, card, d = _shell(h)
-    L = 22
-    d.text((L, 15), item.get("label", ""), font=f_lab, fill=_rgb(MUTED) + (255,))
-    d.text((L, 30), item["title"], font=f_ttl, fill=_rgb(TEXT) + (255,))
+    L = s(22)
+    d.text((L, s(15)), item.get("label", ""), font=f_lab, fill=_rgb(MUTED) + (255,))
+    d.text((L, s(30)), item["title"], font=f_ttl, fill=_rgb(TEXT) + (255,))
     n = len(item["rows"]) + more
-    d.text((CW - 34, 33), "%d건" % n, font=f_key, anchor="ra",
+    d.text((CW - s(34), s(33)), "%d건" % n, font=f_key, anchor="ra",
            fill=_rgb(ACCENT) + (255,))
     from PIL import Image
-    yy = 61
-    card.paste(Image.new("RGBA", (CW - L * 2, 1), _rgb(PALE) + (255,)), (L, yy))
-    y = yy + 8
+    yy = s(61)
+    card.paste(Image.new("RGBA", (CW - L * 2, max(1, s(1))), _rgb(PALE) + (255,)), (L, yy))
+    y = yy + s(8)
     for key, name, over in rows:
-        d.text((L, y + 1), key or "—", font=f_key,
+        d.text((L, y + s(1)), key or "—", font=f_key,
                fill=_rgb(DEEP if over else MUTED) + (255,))
-        wide = CW - 34 - (L + 42) - (24 if over else 0)
-        d.text((L + 42, y), _wrap(name, f_row, wide, 1)[0], font=f_row,
+        wide = CW - s(34) - (L + s(42)) - (s(24) if over else 0)
+        d.text((L + s(42), y), _wrap(name, f_row, wide, 1)[0], font=f_row,
                fill=_rgb(TEXT) + (255,))
         if over:
-            d.text((CW - 34, y + 1), "지남", font=f_key, anchor="ra",
+            d.text((CW - s(34), y + s(1)), "지남", font=f_key, anchor="ra",
                    fill=_rgb(DEEP) + (255,))
         y += LIST_ROW
     if more:
-        d.text((L + 42, y + 1), "그 외 %d건" % more, font=f_key,
+        d.text((L + s(42), y + s(1)), "그 외 %d건" % more, font=f_key,
                fill=_rgb(MUTED) + (255,))
     _close_mark(card, hover)
     img.alpha_composite(card, (PAD, PAD))
@@ -323,8 +351,11 @@ class BITMAPINFOHEADER(ctypes.Structure):
                 ("biClrImportant", wintypes.DWORD)]
 
 
-U32 = ctypes.windll.user32
-G32 = ctypes.windll.gdi32
+# 이 모듈 전용 핸들을 쓴다. ctypes.windll.user32 는 프로세스 전체가 같이 쓰는 객체라
+# 여기서 argtypes 를 바꾸면 pystray 같은 다른 코드의 호출까지 바뀐다.
+# use_last_error 를 켜야 ctypes.get_last_error() 가 실제 오류 번호를 돌려준다.
+U32 = ctypes.WinDLL("user32", use_last_error=True)
+G32 = ctypes.WinDLL("gdi32", use_last_error=True)
 
 # 핸들은 64비트다. restype 을 지정하지 않으면 c_long(32비트)으로 잘려서 실패한다.
 U32.GetDC.restype = PVOID
@@ -645,13 +676,24 @@ def _work_area():
     return 0, 0, U32.GetSystemMetrics(0), U32.GetSystemMetrics(1)
 
 
+def _system_scale():
+    """시스템 화면 배율. 프로세스가 DPI 를 안다고 선언했을 때만 실제 값이 나온다."""
+    try:
+        dpi = U32.GetDpiForSystem()               # Windows 10 1607+
+        if dpi:
+            return dpi / 96.0
+    except (AttributeError, OSError):
+        pass
+    return 1.0
+
+
 def _layout():
     """오른쪽 아래에서 위로 쌓는다. 높이가 카드마다 달라 실제 높이를 더해 간다."""
     _, _, sw, sh = _work_area()
-    y = sh - 12 + PAD
+    y = sh - s(12) + PAD
     for card in reversed(_live):
         y -= card.h - PAD * 2 + GAP
-        card.place(sw - card.w - 20 + PAD, y - PAD)
+        card.place(sw - card.w - s(20) + PAD, y - PAD)
 
 
 def _set_rate(ms):
@@ -727,7 +769,8 @@ def _safe(fn, tag):
 def run_forever(on_ready=None):
     """메인 스레드에서 호출. Win32 메시지 루프를 돈다."""
     global _ctrl
-    paths.log("toast.run_forever: 창 클래스 등록")
+    set_scale(_system_scale())
+    paths.log("toast.run_forever: 창 클래스 등록 (배율 %.2f)" % SCALE)
     _register()
     _ctrl = U32.CreateWindowExW(0, _CLASS_NAME, "To-Do Manager", WS_POPUP,
                                 0, 0, 0, 0, None, None, None, None)

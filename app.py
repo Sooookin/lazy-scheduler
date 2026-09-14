@@ -3,19 +3,24 @@
 import ctypes, json, os, socket, subprocess, sys, threading, time, traceback, webbrowser
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import unquote
 
 import autostart
 import paths
 import recur, store, toast, tray
 
 BASE = paths.APP_DIR
-WEB = paths.WEB_DIR
+WEB = os.path.normpath(paths.WEB_DIR)
 HOST, PORT = "127.0.0.1", 8777
 UI_PORT = 8779                  # 창 프로세스(ui.py) 가 듣는 포트
 LATE_GRACE = 90                 # 마감이 지난 뒤에도 이 분 안에는 알린다
 CRLF = bytes([13, 10])
 URL = f"http://{HOST}:{PORT}/"
 NO_WINDOW = 0x08000000
+MAX_BODY = 256 * 1024           # 요청 본문 한도. 일정 한 건은 수 KB 를 넘지 않는다
+TOKEN_HEADER = "X-TM-Token"
+TOKEN_SLOT = b"__TM_TOKEN__"    # index.html 에서 비밀값으로 바꿔 끼울 자리
+WEEK = "월화수목금토일"
 
 BROWSERS = [
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -47,10 +52,12 @@ def acquire_single_instance():
     """이미 다른 인스턴스가 돌고 있으면 False."""
     global _lock_handle
     try:
-        k32 = ctypes.windll.kernel32
+        # use_last_error 가 없으면 ctypes 가 중간에 오류 번호를 덮어써 판단이 흔들린다
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
         k32.CreateMutexW.restype = ctypes.c_void_p
+        k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
         h = k32.CreateMutexW(None, False, r"Local\TodoManager.Service")
-        if h and k32.GetLastError() == 183:            # ERROR_ALREADY_EXISTS
+        if h and ctypes.get_last_error() == 183:        # ERROR_ALREADY_EXISTS
             return False
         _lock_handle = h
         return True
@@ -59,20 +66,43 @@ def acquire_single_instance():
         return True
 
 
+def _dpi_aware():
+    """화면 배율(125%·150%)에서 알림 카드가 흐리지 않게 한다.
+
+    DPI 를 모른다고 두면 Windows 가 100% 로 그린 카드를 늘려서 뿌옇게 보인다.
+    선언하고 나면 카드 크기는 toast.py 가 배율에 맞춰 직접 키워 그린다.
+    창을 하나라도 만들기 전에 불러야 한다.
+    """
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)      # PROCESS_SYSTEM_DPI_AWARE
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+
+def _ipc(path, timeout):
+    """창 프로세스(ui.py)에 요청한다. 창이 받아들였으면 True."""
+    head = ("POST %s HTTP/1.0\r\nHost: %s:%d\r\n%s: %s\r\nContent-Length: 0\r\n\r\n"
+            % (path, HOST, UI_PORT, TOKEN_HEADER, paths.ipc_token()))
+    try:
+        with socket.create_connection((HOST, UI_PORT), timeout) as sock:
+            sock.sendall(head.encode("ascii"))
+            # 상태줄만 보면 된다. 본문까지 기다리면 안 된다 - recv 한 번은 헤더만 담고 끝나기도 한다.
+            status = sock.recv(64).split(CRLF, 1)[0].split(b" ")
+            return len(status) > 1 and status[1] == b"200"
+    except OSError:
+        return False
+
+
 def focus_ui():
     """이미 떠 있는 창을 앞으로 불러온다. 창이 없으면 False.
 
     창 프로세스를 새로 띄우는 데 몇 초가 걸리므로, 살아 있는 창이 있으면
     프로세스를 만들지 않고 그 창을 쓴다.
     """
-    try:
-        with socket.create_connection((HOST, UI_PORT), 0.5) as sock:
-            sock.sendall(b"GET /focus HTTP/1.0" + CRLF + CRLF)
-            # 응답이 오면 창이 살아 있는 것이다. 본문("ok")까지 기다리면 안 된다 -
-            # recv 한 번은 헤더만 담고 끝나기도 한다.
-            return bool(sock.recv(64))
-    except OSError:
-        return False
+    return _ipc("/focus", 0.5)
 
 
 def open_window():
@@ -133,23 +163,43 @@ def _hint_hidden():
 
 def close_ui():
     """창 프로세스에 종료를 알린다. 창이 없으면 그냥 넘어간다."""
-    try:
-        with socket.create_connection((HOST, UI_PORT), 0.6) as s:
-            s.sendall(b"GET /quit HTTP/1.0" + CRLF + CRLF)
-            s.recv(32)
-    except OSError:
-        pass
+    _ipc("/quit", 0.6)
 
 
 def shutdown():
     """앱 전체 종료: 창 프로세스를 먼저 닫고 서비스를 내린다.
     서비스와 창은 별도 프로세스라, 서비스만 죽이면 창이 남는다."""
     close_ui()
+    tray.stop()          # 아이콘을 먼저 치운다. 그냥 끝내면 알림영역에 잔상이 남았다
     threading.Timer(0.4, lambda: os._exit(0)).start()
 
 
 # ---------------- HTTP ----------------
+class ApiError(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+STATIC_TYPES = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
+                "js": "text/javascript; charset=utf-8", "png": "image/png",
+                "svg": "image/svg+xml", "ico": "image/x-icon"}
+
+
 class Handler(BaseHTTPRequestHandler):
+    """이 PC 의 모든 웹 페이지가 127.0.0.1 로 요청을 보낼 수 있다는 전제로 막는다.
+
+      · Host 가 우리 주소가 아니면 거절한다. (DNS rebinding: 남의 도메인을
+        127.0.0.1 로 돌려 두고 그 사이트 이름으로 우리 데이터를 읽는 수법)
+      · 다른 출처(Origin)에서 온 요청은 거절한다.
+      · /api/ 는 비밀값(X-TM-Token)이 있어야 한다. 화면은 index.html 에 심어 준 값을 쓴다.
+        다른 사이트는 동일 출처 정책 때문에 index.html 을 읽을 수 없어 값을 모른다.
+      · POST 는 application/json 만 받는다. 다른 사이트가 폼이나 no-cors fetch 로
+        보낼 수 있는 형식(text/plain 등)을 막는다.
+    """
+    server_version = "TodoManager"
+    sys_version = ""
+
     def log_message(self, *a):
         pass
 
@@ -159,105 +209,172 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         try:
             self.wfile.write(data)
         except Exception:
             pass
 
+    def _guard(self, api):
+        port = self.server.server_address[1]
+        hosts = {"127.0.0.1:%d" % port, "localhost:%d" % port}
+        if (self.headers.get("Host") or "").lower() not in hosts:
+            raise ApiError(403, "허용되지 않은 주소입니다")
+        origin = self.headers.get("Origin")
+        if origin is not None and origin.lower() not in {"http://" + h for h in hosts}:
+            raise ApiError(403, "허용되지 않은 출처입니다")
+        if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
+            raise ApiError(403, "인증되지 않은 요청입니다")
+
     def _body(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        return json.loads(self.rfile.read(n) or b"{}")
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            raise ApiError(415, "JSON 요청만 받습니다")
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ApiError(400, "요청 길이가 올바르지 않습니다") from None
+        if n < 0 or n > MAX_BODY:
+            raise ApiError(413, "요청이 너무 큽니다")
+        raw = self.rfile.read(n) if n else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            raise ApiError(400, "요청 형식이 올바르지 않습니다") from None
+        if not isinstance(body, dict):
+            raise ApiError(400, "요청 형식이 올바르지 않습니다")
+        return body
+
+    def _handle(self, fn):
+        """어떤 요청도 연결을 그냥 끊지 않고, 화면에 보여줄 수 있는 문장으로 답한다.
+
+        예전에는 GET 에서 예외가 나면 응답 없이 연결이 끊겨 화면이 통째로 비었다.
+        """
+        try:
+            fn()
+        except ApiError as e:
+            self._send(e.code, {"error": str(e)})
+        except store.ValidationError as e:
+            self._send(400, {"error": str(e)})
+        except store.NotFoundError as e:
+            self._send(404, {"error": str(e)})
+        except store.StoreError as e:
+            log("저장소 오류: %s" % e)
+            self._send(503, {"error": str(e)})
+        except Exception:
+            log("요청 처리 실패 %s %s\n%s" % (self.command, self.path, traceback.format_exc()))
+            self._send(500, {"error": "처리 중 오류가 발생했습니다. 로그를 확인하세요."})
 
     def do_GET(self):
+        self._handle(self._get)
+
+    def do_POST(self):
+        self._handle(self._post)
+
+    def _get(self):
         p = self.path.split("?")[0]
+        if not p.startswith("/api/"):
+            self._guard(api=False)
+            return self._static(p)
+        self._guard(api=True)
         if p == "/api/overview":
             o = store.overview()
-            o["settings"] = dict(o.get("settings", {}), autostart=autostart.is_enabled())
+            o["settings"] = dict(o["settings"], autostart=autostart.is_enabled())
             return self._send(200, o)
         if p == "/api/notify-plan":
             return self._send(200, notify_plan())
+        if p == "/api/ping":
+            return self._send(200, {"ok": True})
+        if p == "/api/all":
+            return self._send(200, {"items": store.instances(back=60, ahead=120)})
+        raise ApiError(404, "없는 경로입니다")
+
+    def _static(self, p):
+        rel = "index.html" if p == "/" else unquote(p).lstrip("/")
+        path = os.path.normpath(os.path.join(WEB, rel))
+        try:
+            inside = os.path.commonpath([WEB, path]) == WEB
+        except ValueError:                       # 다른 드라이브
+            inside = False
+        if not inside or not os.path.isfile(path):
+            raise ApiError(404, "not found")
+        ext = path.rsplit(".", 1)[-1].lower()
+        with open(path, "rb") as f:
+            data = f.read()
+        if ext == "html":
+            data = data.replace(TOKEN_SLOT, paths.ipc_token().encode("ascii"))
+        return self._send(200, data, STATIC_TYPES.get(ext, "application/octet-stream"))
+
+    def _post(self):
+        p = self.path.split("?")[0]
+        self._guard(api=True)
+        body = self._body()
+        if p == "/api/task":
+            return self._send(200, store.add(body))
+        if p == "/api/preview":
+            return self._send(200, preview(body.get("rule")))
+        if p.startswith("/api/task/"):
+            parts = p.split("/")                 # ['', 'api', 'task', <id>, <동작>]
+            if len(parts) > 5:
+                raise ApiError(404, "없는 경로입니다")
+            tid = unquote(parts[3])
+            act = parts[4] if len(parts) == 5 else ""
+            if act == "":
+                return self._send(200, store.update(tid, body))
+            if act == "done":
+                return self._send(200, store.set_done(tid, body.get("date"), body.get("done", True)))
+            if act == "skip":
+                return self._send(200, store.skip(tid, body.get("date")))
+            if act == "unskip":
+                return self._send(200, store.unskip(tid, body.get("date")))
+            if act == "delete":
+                store.remove(tid)
+                return self._send(200, {"ok": True})
+            raise ApiError(404, "없는 경로입니다")
+        if p == "/api/settings":
+            auto = body.pop("autostart", None)
+            if auto is not None and not isinstance(auto, bool):
+                raise store.ValidationError("요청 형식이 올바르지 않습니다")
+            st = store.update_settings(body)     # 확인이 끝난 뒤에만 레지스트리를 건드린다
+            if auto is not None:
+                autostart.set_enabled(auto)
+            return self._send(200, dict(st, autostart=autostart.is_enabled()))
         if p == "/api/hidden":
             _hint_hidden()
-            return self._send(200, {"ok": True})
-        if p == "/api/ping":
             return self._send(200, {"ok": True})
         if p == "/api/open":
             open_window()
             return self._send(200, {"ok": True})
-        if p == "/api/all":
-            return self._send(200, {"items": store.instances(back=60, ahead=120)})
+        if p == "/api/shortcut":
+            link = autostart.make_desktop_shortcut()
+            return self._send(200, {"ok": bool(link), "path": link or ""})
+        if p == "/api/test-toast":
+            toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다")
+            return self._send(200, {"ok": True})
+        if p == "/api/quit":
+            threading.Thread(target=shutdown, daemon=True).start()
+            return self._send(200, {"ok": True})
+        raise ApiError(404, "없는 경로입니다")
 
-        rel = "index.html" if p == "/" else p.lstrip("/")
-        path = os.path.normpath(os.path.join(WEB, rel))
-        if not path.startswith(WEB) or not os.path.isfile(path):
-            return self._send(404, b"not found", "text/plain")
-        ctype = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
-                 "js": "text/javascript; charset=utf-8", "png": "image/png",
-                 "svg": "image/svg+xml"}.get(path.rsplit(".", 1)[-1], "application/octet-stream")
-        with open(path, "rb") as f:
-            return self._send(200, f.read(), ctype)
 
-    def do_POST(self):
-        p = self.path.split("?")[0]
-        try:
-            if p == "/api/task":
-                return self._send(200, store.add(self._body()))
-            if p == "/api/preview":
-                r = self._body().get("rule") or {}
-                today = date.today()
-                ds = recur.occurrences(r, today, today + timedelta(days=430))[:5]
-                W = "월화수목금토일"
-                return self._send(200, {
-                    "text": recur.describe(r),
-                    "dates": [f"{d.month}/{d.day}({W[d.weekday()]})" for d in ds] or ["해당 날짜 없음"],
-                })
-            if p.startswith("/api/task/"):
-                parts = p.split("/")
-                tid = parts[3]
-                act = parts[4] if len(parts) > 4 else ""
-                if act == "toggle":
-                    return self._send(200, store.toggle_done(tid, self._body().get("date")))
-                if act == "delete":
-                    store.remove(tid)
-                    return self._send(200, {"ok": True})
-                if act == "skip":
-                    return self._send(200, store.skip(tid, self._body().get("date")))
-                return self._send(200, store.update(tid, self._body()) or {})
-            if p == "/api/settings":
-                body = self._body()
-                if "autostart" in body:
-                    body["autostart"] = autostart.set_enabled(bool(body["autostart"]))
-                d = store.load()
-                d["settings"].update(body)
-                store.save(d)
-                return self._send(200, d["settings"])
-            if p == "/api/shortcut":
-                link = autostart.make_desktop_shortcut()
-                return self._send(200, {"ok": bool(link), "path": link or ""})
-            if p == "/api/test-toast":
-                toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다")
-                return self._send(200, {"ok": True})
-            if p == "/api/quit":
-                threading.Thread(target=shutdown, daemon=True).start()
-                return self._send(200, {"ok": True})
-        except Exception as e:
-            return self._send(500, {"error": str(e)})
-        return self._send(404, {"error": "no route"})
+def preview(rule):
+    """새 항목 창의 '다음 실행 날짜'. 저장할 때와 같은 확인을 거친다."""
+    try:
+        r = recur.validate_rule(rule)
+    except recur.RuleError as e:
+        return {"text": "", "dates": [], "error": str(e)}
+    today = date.today()
+    if r["period"] == "week":
+        r.setdefault("anchor", today.isoformat())   # 저장하면 오늘이 기준 주가 된다
+    ds = recur.occurrences(r, today, today + timedelta(days=430))[:5]
+    return {"text": recur.describe(r),
+            "dates": [f"{d.month}/{d.day}({WEEK[d.weekday()]})" for d in ds] or ["해당 날짜 없음"]}
 
 
 # ---------------- 알림 스케줄러 ----------------
-def _mark(key):
-    d = store.load()
-    fired = d.get("fired", [])
-    if key in fired:
-        return False
-    fired.append(key)
-    d["fired"] = fired[-800:]
-    store.save(d)
-    return True
-
-
 def scheduler():
     fails = 0
     while True:
@@ -266,8 +383,10 @@ def scheduler():
             fails = 0
         except Exception:
             # 예전에는 여기서 그냥 넘어갔다. 알림이 왜 안 뜨는지 알 방법이 없었다.
+            # 같은 오류가 20초마다 로그를 채우지 않게 처음 몇 번과 이후 한 시간에 한 번만 남긴다.
             fails += 1
-            log("scheduler tick 실패 (%d회째)" % fails + chr(10) + traceback.format_exc())
+            if fails <= 3 or fails % 180 == 0:
+                log("scheduler tick 실패 (%d회째)" % fails + chr(10) + traceback.format_exc())
         time.sleep(20)
 
 
@@ -281,29 +400,37 @@ def _plus(hhmm, minutes):
     return "23:59" if total >= 24 * 60 else "%02d:%02d" % (total // 60, total % 60)
 
 
-def tick():
-    now = datetime.now()
+def _complete(tid, day):
+    """알림 카드의 [완료]. 이미 완료했으면 그대로, 그 사이 지워졌으면 조용히 넘어간다."""
+    try:
+        store.set_done(tid, day, True)
+    except store.NotFoundError:
+        pass
+
+
+def tick(now=None):
+    now = now or datetime.now()
     hm = now.strftime("%H:%M")
     d = store.load()
-    st = d.get("settings", {})
-    default_lead = timedelta(minutes=int(st.get("notify_min", 30)))
+    st = store.settings(d)
+    default_lead = timedelta(minutes=st["notify_min"])
 
     first_tick = not getattr(tick, "_ran", False)
     tick._ran = True
 
-    o = store.overview()
+    o = store.overview(data=d, now=now)
     left = o["stats"]["left"]
     tray.set_title(f"To-Do Manager · {left}건 남음" if left else "To-Do Manager · 급한 일 없음")
 
     # 브리핑은 시각이 지난 뒤 2시간 안에만. 그러지 않으면 저녁에 프로그램을 켰을 때
     # 아침 브리핑이 그제서야 떠오른다.
-    brief = st.get("brief_time", "08:30")
+    brief = st["brief_time"]
     if brief and brief <= hm <= _plus(brief, 120):
-        if (left or o["overdue"]) and _mark(f"brief:{now.date()}"):
+        if (left or o["overdue"]) and store.mark_fired("brief:%s" % now.date(), now):
             _brief(now, o)
 
     missed = []
-    for i in store.instances(back=1, ahead=1, data=d):
+    for i in store.instances(back=1, ahead=1, data=d, today=now.date()):
         # 항목 하나에서 터져도 나머지 알림은 계속 떠야 한다
         try:
             if _maybe_notify(i, now, default_lead, first_tick) == "missed":
@@ -321,7 +448,7 @@ def tick():
             tid, day = head["id"], head["date"]
             toast.notify(head["title"], "마감 시간 지남 · %s" % head["time"],
                          accent="#08202b",
-                         on_done=lambda tid=tid, day=day: store.toggle_done(tid, day),
+                         on_done=lambda tid=tid, day=day: _complete(tid, day),
                          key="missed:%s:%s" % (tid, day))
         else:
             rows = [(i["time"] or "", i["title"], True) for i in missed]
@@ -330,9 +457,6 @@ def tick():
                               max(0, len(rows) - toast.LIST_MAX),
                               accent="#08202b", key="missed:%s" % now.date())
         log("놓친 알림 %d건을 한 장으로 알림" % len(missed))
-
-
-WEEK = "월화수목금토일"
 
 
 def _brief(now, o):
@@ -363,7 +487,11 @@ def _plan(i, now, default_lead):
     점검할 때 이 함수만 보면 "왜 안 떴는지" 를 알 수 있다.
     """
     if not i["due"]:
-        return None, None, "마감 시각 없음"
+        return None, None, "마감 날짜 없음"
+    if not i["time"]:
+        # 시각이 없는 일은 아침 브리핑에서 알린다. 예전에는 23:59 마감으로 보고
+        # 밤 23:29 에 "24분 뒤 마감 · " 처럼 시각이 빈 알림을 띄웠다.
+        return None, None, "마감 시각 없음 (브리핑에 포함)"
     due = datetime.fromisoformat(i["due"])
     lead = timedelta(minutes=i["notify_min"]) if i["notify_min"] is not None else default_lead
     at = due - lead
@@ -381,23 +509,23 @@ def _plan(i, now, default_lead):
 def _maybe_notify(i, now, default_lead, first_tick):
     at, due, skip = _plan(i, now, default_lead)
     if skip:
-        return
+        return None
     key = "%s:%s:%s" % (i["id"], i["date"], i["time"])
     mins = int((due - now).total_seconds() // 60)
     if first_tick and mins <= 0:
-        # 프로그램을 켠 첫 순간에 지나간 것들은 각각 띄우지 않고 모아서 한 장으로
-        # 보여준다 (tick 의 missed 처리). 여기서는 표시만 해둔다.
-        _mark(key)
-        return "missed"
-    if not _mark(key):
-        return
-    sub = ("%d분 뒤 마감 · %s" % (mins, i["time"])) if mins > 0 else           ("마감 시간 지남 · %s" % i["time"])
+        # 프로그램을 켠 첫 순간에 이미 지난 것은 각각 띄우지 않고 모아서 한 장으로
+        # 보여준다 (tick 의 missed 처리). 이미 띄웠던 것은 다시 모으지 않는다 -
+        # 예전에는 프로그램을 켤 때마다 같은 알림이 또 떴다.
+        return "missed" if store.mark_fired(key, now) else None
+    if not store.mark_fired(key, now):
+        return None
+    sub = ("%d분 뒤 마감 · %s" % (mins, i["time"])) if mins > 0 else ("마감 시간 지남 · %s" % i["time"])
     tid, day = i["id"], i["date"]
     toast.notify(i["title"], sub, accent="#08202b" if mins <= 0 else "#4d7572",
-                 on_done=lambda tid=tid, day=day: store.toggle_done(tid, day),
+                 on_done=lambda tid=tid, day=day: _complete(tid, day),
                  key="%s:%s" % (tid, day))
     log("알림 띄움: %s (%s)" % (key, sub))
-
+    return "shown"
 
 
 def notify_plan():
@@ -407,8 +535,8 @@ def notify_plan():
     """
     now = datetime.now()
     d = store.load()
-    default_lead = timedelta(minutes=int(d.get("settings", {}).get("notify_min", 30)))
-    fired = set(d.get("fired", []))
+    default_lead = timedelta(minutes=store.settings(d)["notify_min"])
+    fired = store.fired_keys()
     out = []
     for i in store.instances(back=1, ahead=1, data=d):
         at, due, skip = _plan(i, now, default_lead)
@@ -430,10 +558,10 @@ def notify_plan():
             "rows": out}
 
 
-
 def main():
     paths.log("main: 시작 (frozen=%s)" % paths.FROZEN)
     silent = "--silent" in sys.argv
+    _dpi_aware()
 
     # 이미 백그라운드에 돌고 있으면 서비스를 또 띄우지 않는다.
     # 바탕화면 아이콘을 다시 눌렀을 때 기대하는 동작은 "그 창을 열어라" 이다.
@@ -442,6 +570,7 @@ def main():
         if not silent:
             open_window()
         return
+    paths.ipc_token()                # 창 프로세스가 읽기 전에 만들어 둔다
     try:
         srv = Server((HOST, PORT), Handler)
     except OSError:

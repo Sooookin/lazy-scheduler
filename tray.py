@@ -104,7 +104,12 @@ def set_title(text):
 
 
 def stop():
+    """아이콘을 먼저 숨기고 멈춘다. 그냥 프로세스를 끝내면 알림영역에 잔상이 남는다."""
     if _icon is not None:
+        try:
+            _icon.visible = False
+        except Exception:
+            pass
         try:
             _icon.stop()
         except Exception:
