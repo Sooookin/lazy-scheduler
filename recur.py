@@ -52,15 +52,32 @@ HOLIDAY_NAMES = {
     "2027-12-25": "성탄절",
 }
 
-HOLIDAYS = set(DEFAULT_HOLIDAYS)
+# 스케줄러·HTTP 스레드가 동시에 읽으므로 제자리에서 고치지 않고 통째로 갈아끼운다.
+# 예전에는 clear() 와 update() 사이에 다른 스레드가 빈 집합을 읽어 공휴일을 영업일로 셌다.
+HOLIDAYS = frozenset(DEFAULT_HOLIDAYS)
 W = "월화수목금토일"
 ALL_MONTHS = list(range(1, 13))
 
+PERIODS = ("day", "week", "month", "quarter")
+BASES = ("day", "business_day", "weekday", "before_end", "before_end_bd")
+SHIFTS = ("none", "prev", "next")
+
+# 휴일 보정이 날짜를 옮기는 최대 거리 (next_business_day 의 탐색 한도).
+SHIFT_REACH = 31
+# 기준 주(anchor)가 없는 격주 규칙이 쓰는 고정 기준일 (월요일).
+# 예전에는 계산 구간의 시작일을 기준으로 삼았는데, 구간이 호출마다 달라서
+# (화면은 10일 전부터, 스케줄러는 어제부터) 같은 규칙이 화면과 알림에서 다른 주를 골랐다.
+WEEK_EPOCH = date(2024, 1, 1)
+
+
+class RuleError(ValueError):
+    """규칙이 잘못됐다. 메시지는 화면에 그대로 보여줄 수 있는 문장이다."""
+
 
 def set_holidays(extra):
-    HOLIDAYS.clear()
-    HOLIDAYS.update(DEFAULT_HOLIDAYS)
-    HOLIDAYS.update(extra or [])
+    global HOLIDAYS
+    HOLIDAYS = frozenset(DEFAULT_HOLIDAYS) | frozenset(
+        x for x in (extra or []) if isinstance(x, str))
 
 
 def is_business_day(d):
@@ -70,7 +87,7 @@ def is_business_day(d):
 def next_business_day(d, forward=True):
     step = 1 if forward else -1
     cur = d
-    for _ in range(30):
+    for _ in range(SHIFT_REACH):
         if is_business_day(cur):
             return cur
         cur += timedelta(days=step)
@@ -170,58 +187,51 @@ def _quarter_span(y, q):     # q = 0..3  →  1·4·7·10월 시작
 
 # ---------- 날짜 생성 ----------
 def occurrences(rule, start, end):
+    """휴일 보정을 마친 실행일 중 [start, end] 안에 떨어지는 것.
+
+    후보는 구간보다 SHIFT_REACH 만큼 넓게 만든 뒤 보정하고 나서 자른다.
+    구간 안에서만 후보를 만들면, 구간 밖의 날짜가 보정되어 구간 안으로 들어오는
+    회차를 놓친다. 스케줄러는 어제~내일만 보므로 "11/1(일) → 10/30(금)" 같은
+    회차의 알림이 통째로 빠졌다. 결과는 구간을 어떻게 잡든 같아야 한다.
+    """
     r = normalize(rule)
     period = r.get("period", "day")
     shift = r.get("holiday_shift", "prev")
-    out = []
 
     if period == "day":
-        for d in _span_days(start, end):
-            if not r.get("business_only", True) or is_business_day(d):
-                out.append(d)
-        return out
+        return [d for d in _span_days(start, end)
+                if not r.get("business_only", True) or is_business_day(d)]
+
+    lo = start - timedelta(days=SHIFT_REACH)
+    hi = end + timedelta(days=SHIFT_REACH)
+    raw = []
 
     if period == "week":
         wd = set(r.get("weekdays") or [])
         every = max(1, int(r.get("interval", 1)))
-        anchor = date.fromisoformat(r["anchor"]) if r.get("anchor") else start
+        anchor = date.fromisoformat(r["anchor"]) if r.get("anchor") else WEEK_EPOCH
         a_mon = anchor - timedelta(days=anchor.weekday())
-        for d in _span_days(start, end):
+        for d in _span_days(lo, hi):
             if d.weekday() in wd:
                 weeks = ((d - timedelta(days=d.weekday())) - a_mon).days // 7
-                if every == 1 or weeks % every == 0:
-                    out.append(_shift(d, shift))
-        return sorted(set(out))
-
-    if period == "quarter":
-        y = start.year
-        while date(y, 1, 1) <= end + timedelta(days=370):
+                if weeks % every == 0:
+                    raw.append(d)
+    elif period == "quarter":
+        for y in range(lo.year, hi.year + 1):
             for q in range(4):
                 d0, d1 = _quarter_span(y, q)
-                if d1 < start or d0 > end + timedelta(days=95):
-                    continue
-                d = _by_basis(r, d0, d1)
-                if d:
-                    d = _shift(d, shift)
-                    if start <= d <= end:
-                        out.append(d)
-            y += 1
-        return sorted(set(out))
+                if d1 >= lo and d0 <= hi:
+                    raw.append(_by_basis(r, d0, d1))
+    else:                                               # month
+        months = set(int(x) for x in (r.get("months") or ALL_MONTHS))
+        y, m = lo.year, lo.month
+        while date(y, m, 1) <= hi:
+            if m in months:
+                raw.append(_by_basis(r, *_month_span(y, m)))
+            y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
-    # month
-    months = set(int(x) for x in (r.get("months") or ALL_MONTHS))
-    y, m = start.year, start.month
-    while date(y, m, 1) <= end:
-        if m in months:
-            d = _by_basis(r, *_month_span(y, m))
-            if d:
-                d = _shift(d, shift)
-                if start <= d <= end:
-                    out.append(d)
-        m += 1
-        if m == 13:
-            y, m = y + 1, 1
-    return sorted(set(out))
+    shifted = {_shift(d, shift) for d in raw if d}
+    return sorted(d for d in shifted if start <= d <= end)
 
 
 # ---------- 설명 문구 ----------
@@ -275,3 +285,85 @@ def describe(rule):
     if len(months) == 1:
         return f"매년 {months[0]}월 " + body
     return "·".join(str(x) for x in months) + "월 " + body
+
+
+# ---------- 저장 전 확인 ----------
+def _is_int(v, lo, hi):
+    return type(v) is int and lo <= v <= hi
+
+
+def validate_rule(rule):
+    """규칙을 확인하고 표준 형식(모르는 키 없음)으로 돌려준다. 잘못되면 RuleError.
+
+    화면은 올바른 값만 보내지만 서버는 화면을 믿지 않는다. 잘못된 규칙이 한 번
+    저장되면 목록 계산과 알림이 매번 그 항목에서 터진다.
+    """
+    if not isinstance(rule, dict):
+        raise RuleError("반복 규칙을 정하세요")
+    try:
+        r = normalize(rule)
+    except (TypeError, ValueError):
+        raise RuleError("반복 규칙 형식이 올바르지 않습니다") from None
+    period = r.get("period")
+    if period not in PERIODS:
+        raise RuleError("반복 주기를 선택하세요")
+    shift = r.get("holiday_shift", "prev")
+    if shift not in SHIFTS:
+        raise RuleError("휴일 보정 방식이 올바르지 않습니다")
+    out = {"period": period, "holiday_shift": shift}
+
+    if period == "day":
+        if not isinstance(r.get("business_only", True), bool):
+            raise RuleError("주말·공휴일 제외 값이 올바르지 않습니다")
+        out["business_only"] = r.get("business_only", True)
+        return out
+
+    if period == "week":
+        wds = r.get("weekdays")
+        if not isinstance(wds, list) or not wds or not all(_is_int(x, 0, 6) for x in wds):
+            raise RuleError("요일을 하나 이상 선택하세요")
+        out["weekdays"] = sorted(set(wds))
+        iv = r.get("interval", 1)
+        if not _is_int(iv, 1, 52):
+            raise RuleError("반복 간격은 1~52주 사이여야 합니다")
+        out["interval"] = iv
+        a = r.get("anchor")
+        if a is not None:
+            try:
+                if not (isinstance(a, str) and len(a) == 10):
+                    raise ValueError
+                date.fromisoformat(a)
+            except ValueError:
+                raise RuleError("기준 주 날짜가 올바르지 않습니다") from None
+            out["anchor"] = a
+        return out
+
+    q = period == "quarter"
+    basis = r.get("basis", "day")
+    if basis not in BASES:
+        raise RuleError("어느 날에 할지 기준을 선택하세요")
+    out["basis"] = basis
+    if basis in ("day", "business_day", "weekday"):
+        top = {"day": 92 if q else 31, "business_day": 66 if q else 23,
+               "weekday": 13 if q else 5}[basis]
+        n = r.get("n", 1)
+        if not (type(n) is int and (n == -1 or 1 <= n <= top)):
+            raise RuleError("몇 번째인지는 1~%d 사이여야 합니다" % top)
+        out["n"] = n
+        if basis == "weekday":
+            wd = r.get("weekday", 0)
+            if not _is_int(wd, 0, 6):
+                raise RuleError("요일이 올바르지 않습니다")
+            out["weekday"] = wd
+    else:
+        top = 60 if q else 27
+        k = r.get("k", 0)
+        if not _is_int(k, 0, top):
+            raise RuleError("말일 기준 일수는 0~%d 사이여야 합니다" % top)
+        out["k"] = k
+    if not q and r.get("months") is not None:
+        ms = r["months"]
+        if not isinstance(ms, list) or not ms or not all(_is_int(x, 1, 12) for x in ms):
+            raise RuleError("실행할 달을 하나 이상 선택하세요")
+        out["months"] = sorted(set(ms))
+    return out

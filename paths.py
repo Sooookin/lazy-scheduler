@@ -26,7 +26,10 @@ ICON = os.path.join(RES_DIR, "app.ico")
 _base = os.environ.get("APPDATA") or os.path.expanduser("~")
 DATA_DIR = os.path.join(_base, "To-Do Manager")
 OLD_DATA_DIRS = [os.path.join(_base, "오늘")]   # 예전 이름
-DATA_FILE = os.path.join(DATA_DIR, "data.json")
+DATA_FILE = os.path.join(DATA_DIR, "data.json")      # 내 일정 (나중에 다른 기기와 동기화할 대상)
+STATE_FILE = os.path.join(DATA_DIR, "state.json")    # 이 PC 에만 해당하는 상태 (띄운 알림 기록)
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+TOKEN_FILE = os.path.join(DATA_DIR, "ipc.key")
 
 
 UNBLOCKED = None        # unblock() 이 떼어낸 파일 수 (점검에서 보여주려고 기억한다)
@@ -119,3 +122,45 @@ def exe_path():
     pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     runner = pyw if os.path.exists(pyw) else sys.executable
     return f'"{runner}" "{os.path.join(APP_DIR, "main.py")}"'
+
+
+_token = None
+
+
+def ipc_token():
+    """서비스 · 앱 창 · 화면(웹 페이지)이 서로를 확인하는 비밀값.
+
+    127.0.0.1 에서 듣는 서버에는 이 PC 의 모든 웹 페이지가 요청을 보낼 수 있다.
+    예전에는 브라우저에 열린 아무 사이트나 일정을 지우고 자동 실행을 켤 수 있었다.
+    이 값을 모르는 요청은 받지 않는다. 사용자 폴더에 두므로 창 프로세스도 같은 값을 읽는다.
+    """
+    global _token
+    if _token:
+        return _token
+    ensure_data_dir()
+    try:
+        with open(TOKEN_FILE, "r", encoding="ascii") as f:
+            t = f.read().strip()
+        if len(t) >= 32:
+            _token = t
+            return t
+    except (OSError, UnicodeDecodeError):
+        pass
+    t = os.urandom(32).hex()
+    tmp = TOKEN_FILE + ".tmp"
+    with open(tmp, "w", encoding="ascii") as f:
+        f.write(t)
+    os.replace(tmp, TOKEN_FILE)
+    _token = t
+    return t
+
+
+def token_ok(value):
+    """요청에 실려 온 비밀값이 맞는지. 글자마다 걸리는 시간이 같게 비교한다."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        from _operator import _compare_digest
+    except ImportError:
+        return value == ipc_token()
+    return _compare_digest(value.encode("ascii", "replace"), ipc_token().encode("ascii"))
