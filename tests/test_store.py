@@ -251,6 +251,22 @@ def test_settings_are_validated():
     assert out["notify_min"] == 10 and out["brief_time"] == "" and "whatever" not in out
 
 
+def test_hold_when_busy_defaults_on_and_is_validated():
+    """발표 중 알림 미룰기. 기본값은 켜져 있어야 한다
+    (사고가 나는 쪽이 기본이 되면 안 된다)."""
+    assert store.settings()["hold_when_busy"] is True
+    with pytest.raises(store.ValidationError):
+        store.update_settings({"hold_when_busy": "yes"})
+    assert store.update_settings({"hold_when_busy": False})["hold_when_busy"] is False
+
+
+def test_old_file_without_hold_setting_gets_the_default():
+    """이전 버전이 적은 파일에는 이 항목이 없다. 읽을 때 채워 넣는다."""
+    write_raw({"version": 2, "tasks": [], "holidays": [],
+               "settings": {"notify_min": 15}})
+    assert store.settings()["hold_when_busy"] is True
+
+
 def test_settings_reader_survives_bad_stored_values():
     write_raw({"version": 2, "tasks": [], "holidays": [],
                "settings": {"notify_min": "abc", "brief_time": None, "business_only": False}})

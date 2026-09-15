@@ -399,3 +399,146 @@ input,textarea{user-select:text}
 code{font-family:Consolas,"Courier New",monospace; font-size:11px; background:var(--bg);
   padding:1px 5px; border-radius:5px;
   box-shadow:inset 1px 1px 3px var(--dark), inset -1px -1px 3px var(--light)}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   화면 크기에 따른 배치
+   기본(900–1500px)은 위에서 정한 2단 그대로다. 아래 두 구간만 손본다.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ---------- 넓은 화면: 3단 ----------
+   예전에는 .app 이 1140px 에서 멈춰 2560px 모니터에서도 가운데 띠만 썼다.
+   상한을 올리고, 접혀 있던 반복 업무를 자기 칼럼으로 꺼낸다.
+   (칼럼을 늘리는 대신 오른쪽 칸 안에서 2열로 나눈다 - HTML 구조는 그대로) */
+@media (min-width:1500px){
+  .app{max-width:1720px; padding-left:34px; padding-right:34px}
+  .grid{grid-template-columns:1.05fr 1.75fr}
+  #col-right{display:grid; grid-template-columns:1fr 1fr;
+    grid-template-rows:auto minmax(0,1fr); gap:14px 18px}
+  /* fitCards 가 넣어 둔 인라인 높이는 app.js 가 이 구간에서 지운다 */
+  #col-right > .card{flex:none; min-height:0}
+  #card-up{grid-column:1; grid-row:1}
+  #card-memo{grid-column:1; grid-row:2}
+  /* margin-top:auto 를 끄려면 기본 규칙(#col-right > .card.fold)보다 세야 한다.
+     그냥 #card-rt 로 쓰면 규칙이 약해서 칸이 아래로 밀린 채 남는다. */
+  #col-right > #card-rt{grid-column:2; grid-row:1 / span 2; margin-top:0; padding-bottom:11px}
+  #card-rt .list{display:flex}
+  #card-rt h2{margin-bottom:9px; cursor:default}
+  #card-rt .caret{display:none}
+  /* 펼침(inset:0 으로 칼럼을 덮는 상태)은 3단에서는 의미가 없다 */
+  #card-rt.open{position:static; inset:auto; z-index:auto; padding-bottom:11px;
+    box-shadow:7px 7px 16px var(--dark), -7px -7px 16px var(--light)}
+}
+
+/* ---------- 좁은 창: 1단 ----------
+   .views 와 .acts 는 헤더에 절대배치라 760px 에서 가운데 시계와 겹쳤다.
+   좁을 때는 절대배치를 풀고 한 줄로 흐르게 한다. */
+@media (max-width:900px){
+  .app{padding:4px 16px 10px; gap:10px}
+  .top{height:auto; flex:0 0 auto; min-height:56px; justify-content:flex-start; gap:12px;
+    flex-wrap:nowrap}
+  .views, .acts{position:static; transform:none}
+  .acts{margin-left:auto; gap:7px}
+  .date{text-align:left}
+  .d-day{font-size:15px; letter-spacing:-.4px}
+  .d-full{font-size:10.5px; margin-top:2px}
+  .clock{font-size:30px; letter-spacing:-1.4px}
+  .ring-wrap{width:48px; height:48px}
+  .ring-wrap::before{inset:-4px; box-shadow:3px 3px 7px var(--dark), -3px -3px 7px var(--light)}
+  .ring-bg, .ring-fg{stroke-width:9}
+  .ring-txt b{font-size:14px}
+  .ring-txt span{display:none}
+  .views button{padding:7px 12px; font-size:11.5px}
+  .ico{width:34px; height:34px; border-radius:11px}
+  /* ＋ 새 항목 → 글자를 버리고 ＋ 만 남긴다 */
+  .pill-btn{width:34px; height:34px; padding:0; border-radius:11px; font-size:17px;
+    display:grid; place-items:center}
+  .pill-btn .lbl{display:none}
+  /* 두 칼럼을 위아래로 잇고, 넘치면 전체를 굴린다 */
+  .grid{grid-template-columns:1fr; grid-template-rows:auto; gap:12px;
+    overflow-y:auto; padding:2px 4px; margin:-2px -4px}
+  .col{min-height:0}
+  .grid .card{flex:0 0 auto}
+  .card.f06{flex:0 0 auto}
+  /* 이 구간에서는 fitCards 가 높이를 정하지 않는다. 목록이 스스로 커진다 */
+  .grid .list{height:auto !important; max-height:46vh}
+  #col-right > .card.fold{margin-top:0}
+  .foot{height:auto; padding-bottom:2px}
+}
+
+/* ---------- 고대비 모드 ----------
+   뉴모피즘은 그림자로만 경계를 만든다. forced-colors 에서는 그림자가 통째로
+   지워져 버튼과 배경이 구분되지 않는다. 깊이를 버리고 선으로 바꾼다. */
+@media (forced-colors: active){
+  *{box-shadow:none !important}
+  body{background:Canvas !important; background-image:none !important}
+  .card, .modal, .item, .day, .mg-row, .preview, .badge, .views, .tabs button,
+  .btns button, .ico, .pill-btn, .cbtn, .rowbtn, .wd span, .quick button,
+  .warn-line button, .meta .pill, .item.rt .rule, .item.rt .when, code{
+    border:1px solid ButtonBorder !important}
+  .card, .modal{border-radius:12px}
+  .item, .mg-row, .day{border-radius:8px}
+  .dot{border:1.5px solid ButtonBorder !important; border-radius:50%}
+  .item.done .dot::after, .day-row.off .dot::after{background:Highlight}
+  /* 선택된 것은 색이 아니라 시스템 강조색으로 */
+  .views button.on, .tabs button.on{border-color:Highlight !important; color:Highlight !important}
+  .item::before{forced-color-adjust:none}
+  .chip{border:1px solid ButtonBorder !important; forced-color-adjust:none}
+  .veil{background:Canvas !important; backdrop-filter:none !important}
+  .ring-bg{stroke:GrayText} .ring-fg{stroke:Highlight}
+}
+
+/* ---------- 동작 줄이기 ----------
+   링 채우기 · 카드 전환은 장식이다. 끄라고 한 사람에게는 끈다. */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    transition-duration:.01ms !important; animation-duration:.01ms !important;
+    animation-iteration-count:1 !important; scroll-behavior:auto !important}
+}
+
+/* ---------- 알림 띠 (연결 끊김 · 데이터 복구) ----------
+   조용히 넘어가면 사용자는 낡은 내용을 지금 것으로 믿는다. */
+.strip{display:flex; align-items:center; gap:11px; padding:10px 14px; border-radius:14px;
+  font-size:12px; font-weight:600; color:var(--ink2); background:var(--bg);
+  border-left:3px solid var(--mint); flex:0 0 auto; margin-top:-6px;
+  box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light)}
+.strip.bad{border-left-color:var(--deep)}
+.strip .s-ico{width:18px; height:18px; border-radius:50%; flex:0 0 auto; display:grid;
+  place-items:center; font-size:11px; font-weight:800; color:var(--deep-fg); background:var(--mid)}
+.strip.bad .s-ico{background:var(--deep)}
+.strip .s-msg{flex:1; min-width:0; line-height:1.5}
+.strip .s-btn{border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:700;
+  color:var(--ink2); background:var(--bg); border-radius:9px; padding:6px 11px; white-space:nowrap;
+  flex:0 0 auto; box-shadow:3px 3px 6px var(--dark), -3px -3px 6px var(--light)}
+.strip .s-btn:hover{color:var(--accent)}
+.strip .s-btn:active{box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
+/* 연결이 끊긴 동안에는 완료 · 수정을 막는다 (낙관적 갱신이 조용히 사라지지 않게) */
+body.offline .item, body.offline .dot, body.offline .chip, body.offline .mg-row{
+  pointer-events:none}
+body.offline .item, body.offline .day .chips{opacity:.6}
+
+/* ---------- 빈 상태 ----------
+   "없음" 만 보여주면 다음에 뭘 할지 알 수 없다. 할 일을 하나 권한다. */
+.empty-rich{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:11px; text-align:center; padding:16px 12px; min-height:150px}
+.empty-rich .ill{width:64px; height:64px; border-radius:50%; display:grid; place-items:center;
+  color:var(--mid); font-size:25px; flex:0 0 auto;
+  box-shadow:inset 5px 5px 10px var(--dark), inset -5px -5px 10px var(--light)}
+.empty-rich .eh{font-size:14px; font-weight:700; color:var(--ink2)}
+.empty-rich .ep{font-size:11.5px; color:var(--muted); line-height:1.75; max-width:320px}
+.empty-rich .ec{display:flex; gap:8px; margin-top:3px; flex-wrap:wrap; justify-content:center}
+.empty-rich .ec button{border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:700;
+  color:var(--ink2); background:var(--bg); border-radius:12px; padding:9px 15px; white-space:nowrap;
+  box-shadow:4px 4px 9px var(--dark), -4px -4px 9px var(--light)}
+.empty-rich .ec button.ghost{color:var(--muted); font-weight:600}
+.empty-rich .ec button:active{box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light)}
+
+/* ---------- 불러오는 중 ----------
+   빈 화면 대신 실제 줄 높이와 같은 뼈대를 둬야 내용이 들어올 때 화면이 튀지 않는다. */
+.sk-row{height:40px; border-radius:14px; background:var(--card); flex:0 0 auto;
+  position:relative; overflow:hidden;
+  box-shadow:4px 4px 9px var(--dark), -4px -4px 9px var(--light)}
+.sk-row::after{content:""; position:absolute; inset:0; transform:translateX(-100%);
+  background:linear-gradient(90deg, transparent, rgba(246,249,248,.75), transparent);
+  animation:sk-sheen 1.4s infinite}
+@keyframes sk-sheen{100%{transform:translateX(100%)}}

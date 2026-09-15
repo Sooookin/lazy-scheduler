@@ -77,6 +77,9 @@ LIFE_MS = 11000               # 카드가 화면에 머무는 시간
 HOLD_MAX = 25                 # 마우스를 올려두면 이 초까지는 기다린다
 HARD_LIFE = 32                # 이 초를 넘긴 카드는 무조건 없앤다
 MAX_CARDS = 3
+# 발표 · 화면 공유 중에는 카드를 띄우지 않고 모아 둔다. 설정에서 끌 수 있다.
+HOLD_WHEN_BUSY = True
+_held = []                    # 보류해 둔 알림 (버리지 않는다)
 
 _seen = {}                    # key -> 마지막으로 띄운 시각
 
@@ -665,8 +668,65 @@ def _register():
             raise OSError("RegisterClass 실패 (%d)" % err)
 
 
+# ---------------- 어느 화면에 · 지금 띄워도 되는가 ----------------
+
+MONITOR_DEFAULTTONEAREST = 2
+QUNS_ACCEPTS_NOTIFICATIONS = 5     # 이 값일 때만 "지금 알려도 된다"
+
+# 핸들을 돌려주는 함수는 restype 을 밝혀 둬야 한다.
+# 기본값(c_int)이면 64비트에서 핸들 위쪽 절반이 잘려 엉뚱한 값이 된다.
+try:
+    U32.GetForegroundWindow.restype = wintypes.HWND
+    U32.GetShellWindow.restype = wintypes.HWND
+    U32.MonitorFromWindow.restype = ctypes.c_void_p
+    U32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+    U32.MonitorFromPoint.restype = ctypes.c_void_p
+except AttributeError:
+    pass
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+
+def _monitor_info(mon):
+    mi = _MONITORINFO()
+    mi.cbSize = ctypes.sizeof(_MONITORINFO)
+    if mon and U32.GetMonitorInfoW(ctypes.c_void_p(mon), ctypes.byref(mi)):
+        return mi
+    return None
+
+
+def _active_monitor():
+    """지금 보고 있는 화면. 앞에 있는 창의 모니터, 없으면 마우스가 있는 모니터."""
+    try:
+        h = U32.GetForegroundWindow()
+        if h:
+            return U32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST)
+        pt = wintypes.POINT()
+        if U32.GetCursorPos(ctypes.byref(pt)):
+            return U32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+    except Exception:
+        pass
+    return None
+
+
 def _work_area():
-    """작업표시줄을 뺀 화면 영역. 화면 크기로 계산하면 카드가 작업표시줄에 가린다."""
+    """작업표시줄을 뺀 화면 영역. 화면 크기로 계산하면 카드가 작업표시줄에 가린다.
+
+    예전에는 SPI_GETWORKAREA 로 주 모니터만 봤다. 노트북에 외장 모니터를 붙이면
+    지금 보고 있는 화면이 아니라 늘 주 모니터에 카드가 떠서, 다른 화면을 보고
+    있으면 알림을 통째로 놓쳤다. 이제는 활성 창이 있는 모니터에 띄운다.
+    """
+    try:
+        mi = _monitor_info(_active_monitor())
+        if mi is not None:
+            w = mi.rcWork
+            if w.right > w.left and w.bottom > w.top:
+                return w.left, w.top, w.right, w.bottom
+    except Exception:
+        pass
     try:
         r = wintypes.RECT()
         if U32.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0):   # SPI_GETWORKAREA
@@ -674,6 +734,70 @@ def _work_area():
     except Exception:
         pass
     return 0, 0, U32.GetSystemMetrics(0), U32.GetSystemMetrics(1)
+
+
+def _foreground_is_fullscreen():
+    """앞에 있는 창이 모니터를 통째로 덮고 있는가 (발표 · 영상 · 게임)."""
+    try:
+        h = U32.GetForegroundWindow()
+        if not h or h == U32.GetShellWindow():
+            return False
+        cls = ctypes.create_unicode_buffer(64)
+        U32.GetClassNameW(h, cls, 64)
+        # 바탕화면 · 작업표시줄은 전체 화면이어도 방해가 아니다
+        if cls.value in ("Progman", "WorkerW", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow"):
+            return False
+        r = wintypes.RECT()
+        if not U32.GetWindowRect(h, ctypes.byref(r)):
+            return False
+        mi = _monitor_info(U32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST))
+        if mi is None:
+            return False
+        m = mi.rcMonitor
+        return (r.left <= m.left and r.top <= m.top
+                and r.right >= m.right and r.bottom >= m.bottom)
+    except Exception:
+        return False
+
+
+def _should_hold():
+    """지금 카드를 띄우면 안 되는 상황인가.
+
+    발표 중에 개인 일정이 화면에 뜨는 것이 이 프로그램에서 가장 곤란한 사고다.
+    화면 공유 · 전체 화면 발표 · 집중 지원(방해 금지) · 잠금 화면이 모두 여기 걸린다.
+    Windows 가 알려주는 상태를 먼저 믿고, 그것이 없으면 직접 전체 화면을 본다.
+    """
+    if not HOLD_WHEN_BUSY:
+        return False
+    try:
+        st = ctypes.c_int()
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(st)) == 0:
+            return st.value != QUNS_ACCEPTS_NOTIFICATIONS
+    except Exception:
+        pass
+    return _foreground_is_fullscreen()
+
+
+def _flush_held():
+    """보류해 둔 알림을 한 장으로 묶는다. 밀린 것을 한꺼번에 쏟아내지 않는다."""
+    global _held
+    items, _held = _held, []
+    if not items:
+        return
+    rows = [(it.get("hold_at", ""), it.get("title", ""), True) for it in items[:LIST_MAX]]
+    paths.log("toast: 보류했던 알림 %d건을 묶어 띄운다" % len(items))
+    _queue.put({
+        "title": "자리를 비운 동안 %d건" % len(items),
+        "sub": "", "accent": DEEP, "on_done": None,
+        "key": "held-%d" % int(time.time()),
+        "label": "밀린 알림", "rows": rows,
+        "more": max(0, len(items) - LIST_MAX),
+    })
+
+
+def held_count():
+    """보류 중인 알림 수 (트레이 아이콘 표시용)."""
+    return len(_held)
 
 
 def _system_scale():
@@ -714,11 +838,26 @@ def _pump():
         paths.log("toast._pump: 첫 실행")
     try:
         moved = False
+        # 발표 · 전체 화면 · 방해 금지 중에는 띄우지 않고 모아 둔다.
+        # 매 틱 물어보기에는 비싸지 않지만, 1초에 한 번이면 충분하다.
+        now0 = time.time()
+        if now0 - getattr(_pump, "_hold_at", 0) > 1.0:
+            _pump._hold_at = now0
+            _pump._holding = _should_hold()
+        holding = getattr(_pump, "_holding", False)
+
         while True:                                     # 새 알림
             try:
                 item = _queue.get_nowait()
             except queue.Empty:
                 break
+            if holding and not item.get("rows"):
+                # 묶음 카드(rows)는 이미 보류를 푼 뒤에 만든 것이라 다시 잡지 않는다
+                item.setdefault("hold_at", time.strftime("%H:%M"))
+                _held.append(item)
+                if len(_held) > 40:                     # 무한히 쌓이지 않게
+                    del _held[:-40]
+                continue
             try:
                 while len(_live) >= MAX_CARDS:
                     _live[0].destroy()
@@ -726,6 +865,10 @@ def _pump():
                 moved = True
             except Exception:
                 paths.log("toast: " + traceback.format_exc())
+
+        # 평소 화면으로 돌아왔다면 밀린 것을 한 장으로 묶어 내보낸다
+        if not holding and _held:
+            _flush_held()
 
         now = time.time()
         for card in list(_live):                        # 수명

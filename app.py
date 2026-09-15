@@ -414,6 +414,8 @@ def tick(now=None):
     d = store.load()
     st = store.settings(d)
     default_lead = timedelta(minutes=st["notify_min"])
+    # 발표 중 알림을 미룰지는 설정에서 바꿀 수 있다. 매 틱 반영한다.
+    toast.HOLD_WHEN_BUSY = st.get("hold_when_busy", True)
 
     first_tick = not getattr(tick, "_ran", False)
     tick._ran = True

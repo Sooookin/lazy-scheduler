@@ -44,6 +44,7 @@ _SETTINGS = {
     "brief_time": "08:30",
     "business_only": True,
     "show_weekend": True,          # 달력에 주말 칸을 보여줄지
+    "hold_when_busy": True,        # 발표 · 화면 공유 중에는 알림을 미뤘다가 나중에
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
@@ -334,7 +335,7 @@ def _check_setting(k, v):
     elif k == "brief_time":
         if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
             raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
-    elif k in ("business_only", "show_weekend"):
+    elif k in ("business_only", "show_weekend", "hold_when_busy"):
         if not isinstance(v, bool):
             raise ValidationError("요청 형식이 올바르지 않습니다")
     else:

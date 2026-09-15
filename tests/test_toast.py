@@ -24,3 +24,31 @@ def test_cards_scale_with_display_dpi():
     for small, big in ((base_card, big_card), (base_list, big_list)):
         assert abs(big.height - small.height * 1.5) <= 4
     assert big_hits["btn"][2] == round(hits["btn"][2] * 1.5)
+
+
+# ---------- 발표 중 알림 보류 ----------
+
+def test_hold_switch_off_means_never_hold(monkeypatch):
+    """설정을 끄면 전체 화면이든 아니든 묻지 않고 띄운다."""
+    monkeypatch.setattr(toast, "HOLD_WHEN_BUSY", False)
+    monkeypatch.setattr(toast, "_foreground_is_fullscreen", lambda: True)
+    assert toast._should_hold() is False
+
+
+def test_work_area_is_a_sane_rectangle():
+    """모니터를 못 찾아도 화면 크기로 되돌아와야 한다 (0 넓이를 돌려주면 카드가 사라진다)."""
+    left, top, right, bottom = toast._work_area()
+    assert right > left and bottom > top
+
+
+def test_held_notifications_are_kept_not_dropped(monkeypatch):
+    """보류는 버리는 것이 아니다. 묶음 카드 한 장으로 다시 나와야 한다."""
+    monkeypatch.setattr(toast, "_held", [
+        {"title": "보고서 제출", "hold_at": "10:20"},
+        {"title": "회의 준비", "hold_at": "10:35"},
+    ])
+    toast._flush_held()
+    assert toast._held == []
+    item = toast._queue.get_nowait()
+    assert item["rows"][0][1] == "보고서 제출"
+    assert "2건" in item["title"]

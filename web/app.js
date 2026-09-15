@@ -10,8 +10,12 @@ const api = (u, b) => fetch(u, {
     headers: Object.assign({'X-TM-Token': TOKEN}, b ? {'Content-Type': 'application/json'} : {}),
     body: b ? JSON.stringify(b) : undefined,
   })
-  .catch(() => { throw new Error('프로그램에 연결할 수 없습니다. 잠시 후 다시 시도하세요.'); })
+  .catch(() => {
+    setOffline(true);
+    throw new Error('프로그램에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
+  })
   .then(r => r.json().catch(() => ({})).then(d => {
+    setOffline(false);          /* 답이 왔다는 것만으로 연결은 살아 있다 */
     if(!r.ok) throw new Error(d.error || ('요청을 처리하지 못했습니다 (' + r.status + ')'));
     return d;
   }));
@@ -46,6 +50,42 @@ addEventListener('unhandledrejection', e => {
   e.preventDefault();
   say((e.reason && e.reason.message) || '요청을 처리하지 못했습니다');
 });
+
+/* ══════════ 알림 띠 ══════════
+   상태줄(say)은 2.8초 뒤 사라진다. 계속 알려야 하는 일 - 연결이 끊겼다,
+   손상된 파일을 되살렸다 - 은 창 위쪽 띠에 남긴다. */
+function strip(msg, opt){
+  const el = $('#strip');
+  if(!el) return;
+  if(!msg){ el.hidden = true; return; }
+  opt = opt || {};
+  $('#strip-msg').textContent = msg;
+  el.classList.toggle('bad', !!opt.bad);
+  const b = $('#strip-btn');
+  if(opt.action){
+    b.hidden = false;
+    b.textContent = opt.action;
+    b.onclick = opt.onClick || null;
+  }else b.hidden = true;
+  el.hidden = false;
+}
+
+/* 연결이 끊긴 동안에는 목록을 그대로 두되 손대지 못하게 막는다.
+   낙관적으로 그려 두면 저장되지 않은 완료 표시가 조용히 사라진다. */
+let OFFLINE = false;
+function setOffline(on){
+  if(OFFLINE === on) return;
+  OFFLINE = on;
+  document.body.classList.toggle('offline', on);
+  clearInterval(setOffline._t);
+  if(on){
+    strip('서비스와 연결이 끊겼습니다. 아래 내용은 마지막으로 읽은 것입니다.',
+      { bad: true, action: '다시 연결', onClick: () => load().catch(() => {}) });
+    setOffline._t = setInterval(() => load().catch(() => {}), 5000);
+  }else{
+    strip('');
+  }
+}
 
 /* ══════════ 창 버튼 ══════════ */
 const MAX_GLYPH = '';      /* ChromeMaximize - 빈 사각형 */
@@ -155,15 +195,50 @@ function routineEl(i){
 
 function fill(node, list, emptyMsg, opt, maker){
   node.innerHTML = '';
-  if(!list.length){ node.innerHTML = '<div class="empty">'+emptyMsg+'</div>'; return; }
+  if(!list.length){
+    /* '<' 로 시작하면 이미 완성된 마크업이다 (아래 emptyToday 같은 안내 화면) */
+    node.innerHTML = emptyMsg.charAt(0) === '<'
+      ? emptyMsg : '<div class="empty">'+emptyMsg+'</div>';
+    return;
+  }
   list.forEach(i => node.appendChild((maker||itemEl)(i, opt)));
+}
+
+/* 오늘 칸이 비는 경우는 두 가지고, 사용자가 할 일도 서로 다르다.
+   ① 아직 아무것도 등록하지 않았다  → 반복 업무부터 넣도록 권한다
+   ② 등록은 했는데 오늘은 없다      → 다음 마감이 언제인지 알려준다
+   둘 다 "없습니다" 한 줄로 끝내면 다음에 뭘 해야 할지 알 수 없다. */
+function emptyToday(o){
+  const none = !(o.upcoming || []).length && !(o.floating || []).length
+            && !(o.routines || []).length;
+  const tick = '<div class="ill">✓</div>';
+  if(none)
+    return '<div class="empty-rich">' + tick
+      + '<div class="eh">아직 등록한 일정이 없습니다</div>'
+      + '<div class="ep">매일 · 매주 반복되는 업무를 먼저 넣어 두면,'
+      + ' 아침마다 오늘 할 일이 저절로 채워집니다.</div>'
+      + '<div class="ec"><button data-new="routine">＋ 반복 업무 추가</button>'
+      + '<button class="ghost" data-new="deadline">마감 하나 넣어보기</button></div></div>';
+  const n = (o.upcoming || [])[0];
+  /* 날짜 표기는 목록과 같은 함수를 쓴다 ("내일" · "9/17 (목)") */
+  const when = n && n.date ? fmtDay(n.date) : '';
+  return '<div class="empty-rich">' + tick
+    + '<div class="eh">오늘 할 일이 없습니다</div>'
+    + '<div class="ep">' + (n
+        ? '다음 마감은 ' + esc(when) + ' ' + esc(n.title) + ' 입니다.'
+        : '다가오는 7일에도 마감이 없습니다.') + '</div>'
+    + '<div class="ec"><button data-new="deadline">＋ 새 항목</button></div></div>';
 }
 
 function render(o){
   STATE = o;
   HOL = new Set(o.holidays || []);
   /* 일정 파일이 손상돼 백업에서 되살렸다면, 조용히 넘어가지 않고 한 번 알린다 */
-  if(o.notice && o.notice !== render._notice){ render._notice = o.notice; alert(o.notice); }
+  /* alert 는 창을 막고 알림 처리까지 멈춰 세운다. 띠로 남겨 두고 직접 닫게 한다. */
+  if(o.notice && o.notice !== render._notice){
+    render._notice = o.notice;
+    strip(o.notice, { action: '확인', onClick: () => strip('') });
+  }
   const d = dObj(o.today);
   $('#dow').textContent = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일';
   $('#fulldate').textContent = o.is_business_day ? '영업일' : '영업일 아님';
@@ -178,7 +253,7 @@ function render(o){
   const all = o.overdue.concat(o.todays).sort((a,b) =>
     rank(a)-rank(b) || (a.date||'').localeCompare(b.date||'') ||
     (a.time||'99:99').localeCompare(b.time||'99:99'));
-  fill($('#today'), all, '오늘 할 일이 없습니다 ✓', {showOverdue:true});
+  fill($('#today'), all, emptyToday(o), {showOverdue:true});
   const undone = all.filter(i => !i.done).length;
   $('#c-today').textContent = all.length;
   $('#c-today').classList.toggle('hot', undone > 0);
@@ -195,6 +270,7 @@ function render(o){
   $('#s-brief').value = o.settings.brief_time || '08:30';
   $('#s-biz').checked = bizOn();
   $('#s-auto').checked = !!o.settings.autostart;
+  $('#s-hold').checked = o.settings.hold_when_busy !== false;
   if($('#m-manage').classList.contains('on')) drawManage();
   if(view === 'cal') drawCal();
   queueFit();
@@ -207,10 +283,25 @@ function render(o){
 const COL_GAP = 14;          /* .col 의 gap 과 같아야 한다 */
 const MIN_ROWS = 4;          /* 다가오는 마감·메모는 네 줄 자리를 잡아 둔다 */
 
+/* 배치는 세 구간이다. 가운데(2단)에서만 높이를 계산한다.
+   넓은 화면은 CSS 그리드가, 좁은 창은 스크롤이 알아서 한다. */
+const WIDE = () => matchMedia('(min-width:1500px)').matches;
+const NARROW = () => matchMedia('(max-width:900px)').matches;
+
 function fitCards(){
   const col = $('#col-right');
   if(!col || $('#v-home').hidden) return;
   const cards = [...col.querySelectorAll('.card')];
+  /* 이 두 구간에서는 높이를 정하지 않는다. 예전에 넣어 둔 인라인 높이가
+     남아 있으면 그리드 배치가 어긋나므로 반드시 지우고 나간다. */
+  if(WIDE() || NARROW()){
+    cards.forEach(c => {
+      c.style.height = '';
+      const l = c.querySelector('.list');
+      if(l) l.style.height = '';
+    });
+    return;
+  }
   /* 반복 업무 칸이 펼쳐지면 칼럼 전체를 덮으므로(position:absolute) 건드리지 않는다 */
   if(!cards.length || cards.some(c => c.classList.contains('open'))) return;
 
@@ -290,6 +381,8 @@ setInterval(tickClock, 10000);
 const rtCard = $('#card-rt');
 if(localStorage.getItem('rt-open') === '1') rtCard.classList.add('open');
 function toggleRt(){
+  /* 3단 배치에서는 반복 업무가 이미 자기 칼럼에 펼쳐져 있다. 접을 것이 없다. */
+  if(WIDE()) return;
   rtCard.classList.toggle('open');
   localStorage.setItem('rt-open', rtCard.classList.contains('open') ? '1' : '0');
   // 화살표 방향은 CSS 가 회전으로 처리한다 (여기서 글리프까지 바꾸면 두 번 뒤집힌다)
@@ -562,6 +655,11 @@ function openAdd(kind, seed){
   setTimeout(() => $('#a-title').focus(), 90);
 }
 $('#btn-add').onclick = () => openAdd('routine', {});
+/* 빈 상태 안내의 버튼. 목록은 그릴 때마다 새로 만들어지므로 칸에 위임해 둔다. */
+$('#today').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-new]');
+  if(b) openAdd(b.dataset.new, {});
+});
 $('#a-save').onclick = () => {
   const title = $('#a-title').value.trim();
   if(!title){ say('이름을 입력하세요'); return $('#a-title').focus(); }
@@ -867,7 +965,8 @@ function drawManage(){
 $('#btn-settings').onclick = () => openM('#m-settings');
 $('#s-save').onclick = () => api('/api/settings', {
     notify_min:+$('#s-lead').value, brief_time:$('#s-brief').value,
-    business_only:$('#s-biz').checked, autostart:$('#s-auto').checked
+    business_only:$('#s-biz').checked, autostart:$('#s-auto').checked,
+    hold_when_busy:$('#s-hold').checked
   }).then(() => { closeM('#m-settings'); say('설정 저장됨'); load(); });
 $('#s-shortcut').onclick = () => api('/api/shortcut', {})
   .then(r => say(r.ok ? '바탕화면에 바로가기를 만들었습니다' : '바로가기를 만들지 못했습니다'));
@@ -876,5 +975,11 @@ $('#s-quit').onclick = () => confirmBox('완전히 종료할까요?',
   '알림도 함께 멈춥니다. 바탕화면 아이콘으로 다시 시작할 수 있습니다.',
   () => { api('/api/quit', {}); setTimeout(() => window.pywebview ? window.pywebview.api.close() : window.close(), 400); });
 
+/* 첫 그림이 오기 전에는 뾈대를 세워 둔다. 빈 화면보다 낫고,
+   줄 높이가 같아서 내용이 들어올 때 화면이 튀지 않는다. */
+['#today', '#upcoming', '#floating'].forEach(sel => {
+  const el = $(sel);
+  if(el && !el.children.length) el.innerHTML = '<div class="sk-row"></div>'.repeat(4);
+});
 load();
 setInterval(load, 45000);
