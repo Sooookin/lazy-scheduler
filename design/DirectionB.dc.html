@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@500;700&display=swap">
+  <style>
+    /* 방향 B — 종이 편집
+       그림자를 전부 걷고 얇은 선과 여백으로만 구조를 만든다.
+       날짜 · 숫자에 명조를 써서 "잘 짜인 문서" 처럼 읽히게 한다.
+       고대비 모드에서도 그대로 산다 (원래 선으로 만든 화면이라). */
+    :root{
+      --paper:#f7f6f2; --surface:#fffefb; --line:#e2ded3; --line2:#cfcabb;
+      --ink:#221f1a; --body:#4a453c; --faint:#7c7466;
+      --accent:#1d4b46;      /* 딥 그린 - 표시는 이 한 색만 */
+      --warn:#8a3324;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; color:var(--ink); background:var(--paper);
+      font-family:"Noto Sans KR","Segoe UI",sans-serif; font-size:13px;
+      -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1;
+      height:800px; overflow:hidden}
+    a{color:#1d4b46} a:hover{color:#221f1a}
+    .wrap{height:100%; display:flex; flex-direction:column; padding:26px 30px 18px; gap:20px}
+    .top{display:flex; align-items:baseline; gap:18px; flex:0 0 auto;
+      border-bottom:1px solid var(--line2); padding-bottom:16px}
+    .d1{font-family:"Noto Serif KR",serif; font-size:25px; font-weight:700; letter-spacing:-.5px;
+      color:var(--ink); line-height:1}
+    .d2{font-size:11px; color:var(--faint); letter-spacing:.5px}
+    .clock{font-family:"Noto Serif KR",serif; font-size:25px; font-weight:500; color:var(--body);
+      font-variant-numeric:tabular-nums; letter-spacing:-.5px}
+    .gap{flex:1}
+    /* 남은 건수: 링 대신 분수로. 문서에는 계기판보다 숫자가 어울린다 */
+    .score{font-family:"Noto Serif KR",serif; font-size:23px; font-weight:700; color:var(--accent);
+      font-variant-numeric:tabular-nums; letter-spacing:-.5px}
+    .score small{font-size:12px; color:var(--faint); font-weight:500; font-family:"Noto Sans KR",sans-serif}
+    .tabs{display:flex; gap:20px; align-self:flex-end}
+    .tabs button{border:0; background:none; cursor:pointer; font-family:inherit; font-size:12px;
+      font-weight:600; color:var(--faint); padding:0 0 3px; letter-spacing:.3px}
+    .tabs button.on{color:var(--ink); border-bottom:2px solid var(--accent)}
+    .add{border:1px solid var(--accent); background:var(--accent); color:#f7f6f2; cursor:pointer;
+      font-family:inherit; font-size:11.5px; font-weight:600; padding:8px 15px; letter-spacing:.3px;
+      border-radius:2px; align-self:flex-end}
+    .grid{flex:1; display:grid; grid-template-columns:1.35fr 1fr; gap:36px; min-height:0}
+    .col{display:flex; flex-direction:column; gap:26px; min-height:0}
+    section{display:flex; flex-direction:column; min-height:0}
+    /* 칸 제목: 규칙선 한 줄. 상자를 만들지 않는다 */
+    .h{display:flex; align-items:baseline; gap:10px; padding-bottom:7px;
+      border-bottom:1px solid var(--line2); margin-bottom:2px}
+    .h .ttl{font-size:12px; font-weight:700; letter-spacing:.6px; color:var(--ink)}
+    .h .cnt{font-family:"Noto Serif KR",serif; font-size:12px; color:var(--accent); font-weight:700}
+    .h .rt{margin-left:auto; font-size:10px; color:var(--faint); letter-spacing:.4px}
+    .rows{display:flex; flex-direction:column}
+    .row{display:flex; align-items:center; gap:12px; padding:11px 2px;
+      border-bottom:1px solid var(--line)}
+    .row:last-child{border-bottom:0}
+    .box{width:15px; height:15px; border:1.5px solid var(--line2); border-radius:2px; flex:0 0 auto;
+      position:relative}
+    .row.done .box{background:var(--accent); border-color:var(--accent)}
+    .row.done .box::after{content:""; position:absolute; left:4px; top:1px; width:4px; height:8px;
+      border:solid #f7f6f2; border-width:0 1.6px 1.6px 0; transform:rotate(42deg)}
+    .row.done .t{color:var(--faint); text-decoration:line-through}
+    .t{flex:1; min-width:0; font-size:13px; font-weight:500; color:var(--body);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-.1px}
+    .tm{font-family:"Noto Serif KR",serif; font-size:12.5px; color:var(--body); flex:0 0 auto;
+      font-variant-numeric:tabular-nums; letter-spacing:.2px}
+    .tag{font-size:10px; font-weight:700; letter-spacing:.6px; flex:0 0 auto; text-transform:uppercase}
+    .tag.late{color:var(--warn)}
+    .tag.soon{color:var(--accent)}
+    .rule{font-size:11px; color:var(--faint); flex:0 0 auto; max-width:160px; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis}
+    .foot{flex:0 0 auto; border-top:1px solid var(--line2); padding-top:11px; font-size:10.5px;
+      color:var(--faint); display:flex; gap:16px; letter-spacing:.3px}
+  </style>
+</helmet>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="d1">9월 15일 화요일</div>
+      <div class="d2" style="margin-top:6px">영업일 · 2026년</div>
+    </div>
+    <div class="clock">16:24</div>
+    <div class="gap"></div>
+    <div class="score">4<small> / 6 남음</small></div>
+    <div class="tabs">
+      <button class="on">오늘</button>
+      <button>달력</button>
+    </div>
+    <button class="add">새 항목</button>
+  </header>
+
+  <div class="grid">
+    <section class="col">
+      <section>
+        <div class="h"><span class="ttl">오늘</span><span class="cnt">6</span><span class="rt">4건 남음</span></div>
+        <div class="rows">
+          <div class="row"><span class="box"></span><span class="t">아침운용현황 출력(대표님 전달) 및 부문 메일 송부</span><span class="tm">08:30</span></div>
+          <div class="row"><span class="box"></span><span class="t">교보생명 802807 컴플 체크리스트 송부</span><span class="tm">08:40</span></div>
+          <div class="row done"><span class="box"></span><span class="t">팀장님 해외통합 업데이트</span><span class="tm">10:35</span></div>
+          <div class="row"><span class="box"></span><span class="t">국내 일임 매매</span><span class="tag soon">임박</span><span class="tm">15:00</span></div>
+          <div class="row"><span class="box"></span><span class="t">퇴직 · 연금 아침현황</span><span class="tag late">지남</span><span class="tm">09:00</span></div>
+          <div class="row"><span class="box"></span><span class="t">퇴직 · CA 모니터링 및 선물 가주문</span><span class="tm">—</span></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="col">
+      <section>
+        <div class="h"><span class="ttl">다가오는 마감</span><span class="cnt">1</span><span class="rt">7일</span></div>
+        <div class="rows">
+          <div class="row"><span class="box"></span><span class="t">휴넷 교육 듣기</span><span class="tm">내일</span></div>
+        </div>
+      </section>
+      <section>
+        <div class="h"><span class="ttl">반복 업무</span><span class="cnt">9</span><span class="rt">다음 실행일</span></div>
+        <div class="rows">
+          <div class="row"><span class="t">아침운용현황 출력</span><span class="rule">매 영업일</span><span class="tag late">오늘</span></div>
+          <div class="row"><span class="t">iM증권 8U3150 주간 코멘트</span><span class="rule">매주 월요일</span><span class="tm">9/21</span></div>
+          <div class="row"><span class="t">퇴연 RA 비즈니스 미팅</span><span class="rule">매월 마지막 목</span><span class="tm">9/24</span></div>
+          <div class="row"><span class="t">RA18 자기평가서</span><span class="rule">매 분기 말</span><span class="tm">9/30</span></div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <footer class="foot"><span>전체 항목 관리</span><span>자동 저장됨</span></footer>
+</div>
+</x-dc>
+</body>
+</html>

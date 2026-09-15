@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+  <style>
+    :root{
+      --card:#dde3e2; --edge:#aebbb9; --pale:#cfd6d5; --text:#08202b; --muted:#4d7572;
+      --accent:#4d7572; --deep:#08202b; --mint:#85bdb3; --btn:#e7ecea; --faint:#516764;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:"Noto Sans KR","Segoe UI","Malgun Gothic",sans-serif;
+      font-size:13px; letter-spacing:-.15px; -webkit-font-smoothing:antialiased;
+      font-feature-settings:"tnum" 1; color:var(--text); user-select:none;
+      background:#1b2b31; height:800px; overflow:hidden}
+    a{color:#4d7572} a:hover{color:#08202b}
+    /* 바탕화면을 흉내 내는 면 - 카드가 실제로 어디에 뜨는지 보이게 */
+    .screen{position:absolute; inset:0;
+      background:linear-gradient(145deg,#24383f 0%,#1b2b31 55%,#16242a 100%)}
+    .tbar{position:absolute; left:0; right:0; bottom:0; height:44px; background:rgba(9,17,20,.82);
+      display:flex; align-items:center; gap:14px; padding:0 16px; color:#8fa3a8; font-size:11px}
+    .tbtn{width:26px; height:26px; border-radius:7px; background:rgba(255,255,255,.07)}
+    .tray{margin-left:auto; display:flex; align-items:center; gap:10px; position:relative}
+    .trayico{width:20px; height:20px; border-radius:5px; background:var(--mint); position:relative}
+    .traybadge{position:absolute; top:-5px; right:-6px; min-width:15px; height:15px; padding:0 4px;
+      border-radius:8px; background:#08202b; color:#dde3e2; font-size:9px; font-weight:800;
+      display:grid; place-items:center; box-shadow:0 0 0 1.5px #85bdb3}
+    .ctl{position:absolute; left:20px; top:20px; display:flex; flex-direction:column; gap:8px; width:206px}
+    .ctl-h{font-size:10px; font-weight:800; letter-spacing:.9px; color:#7f959b; text-transform:uppercase}
+    .ctl button{border:0; cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:700;
+      text-align:left; color:#b9c9cd; background:rgba(255,255,255,.06); border-radius:10px;
+      padding:9px 12px; transition:.14s}
+    .ctl button:hover{background:rgba(255,255,255,.12); color:#e6eeef}
+    .ctl button.on{background:var(--card); color:var(--text)}
+    .note{font-size:10.5px; line-height:1.65; color:#8fa3a8; margin-top:2px}
+    /* 알림이 쌓이는 자리: 작업 표시줄 위 오른쪽 */
+    .dock{position:absolute; right:14px; bottom:58px; display:flex; flex-direction:column;
+      align-items:flex-end; gap:6px}
+    .toast{width:340px; border-radius:18px; background:var(--card); border:1px solid var(--edge);
+      padding:22px 40px 18px 40px; position:relative; box-shadow:0 10px 30px rgba(0,0,0,.45)}
+    .toast .bar{position:absolute; left:22px; top:22px; width:4px; border-radius:2px;
+      background:var(--accent)}
+    .toast .x{position:absolute; right:14px; top:8px; width:28px; height:28px; display:grid;
+      place-items:center; color:var(--muted); cursor:pointer; border-radius:8px}
+    .toast .x:hover{background:var(--pale)}
+    .toast .ttl{font-size:13px; font-weight:700; line-height:18px; color:var(--text)}
+    .toast .sub{font-size:11px; line-height:15px; color:var(--muted); margin-top:4px}
+    .toast .acts{display:flex; gap:7px; margin-top:13px}
+    .toast .acts button{border:1px solid var(--edge); background:var(--btn); border-radius:9px;
+      padding:6px 11px; font-family:inherit; font-size:11px; font-weight:700; color:var(--muted);
+      cursor:pointer}
+    .toast .acts button.main{background:var(--deep); border-color:var(--deep); color:#dde3e2}
+    .toast.late .bar{background:var(--deep)}
+    .toast.brief{padding-top:15px}
+    .lab{font-size:10px; color:var(--muted)}
+    .btitle{font-size:14px; font-weight:700; margin-top:3px}
+    .bcount{position:absolute; right:34px; top:33px; font-size:10px; font-weight:700; color:var(--muted)}
+    .rule{height:1px; background:var(--pale); margin:10px 0 8px}
+    .brow{display:flex; align-items:center; gap:0; height:19px; font-size:11px}
+    .brow .k{width:42px; font-size:10px; font-weight:700; color:var(--accent); flex:0 0 42px}
+    .brow .n{flex:1; min-width:0; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .brow .s{font-size:10px; font-weight:700; color:#08202b; background:var(--pale);
+      padding:1px 6px; border-radius:6px}
+    .more{font-size:10px; font-weight:700; color:var(--muted); padding-left:42px; margin-top:2px}
+    /* 3장을 넘어가면 한 줄로 접는다 */
+    .fold{width:340px; border-radius:14px; background:rgba(221,227,226,.93); border:1px solid var(--edge);
+      padding:9px 14px; display:flex; align-items:center; gap:9px; font-size:11.5px; font-weight:700;
+      color:var(--muted); cursor:pointer; box-shadow:0 8px 22px rgba(0,0,0,.4)}
+    .fold .c{margin-left:auto; font-size:10px; background:var(--deep); color:#dde3e2;
+      padding:2px 8px; border-radius:7px; font-weight:800}
+    /* 전체 화면일 때 - 카드를 띄우지 않고 보류한다 */
+    .fs{position:absolute; inset:0; background:#0c1417;
+      display:flex; align-items:center; justify-content:center}
+    .fs-in{text-align:center; color:#5d7278}
+    .fs-t{font-size:13px; font-weight:700; letter-spacing:.4px}
+    .fs-s{font-size:11px; margin-top:6px; line-height:1.7}
+    .fs-slide{width:430px; height:250px; border-radius:10px; margin:0 auto 22px;
+      background:linear-gradient(140deg,#1d2f35,#16262b); border:1px solid #223a41;
+      display:flex; align-items:center; justify-content:center; color:#33505a; font-size:11px}
+    .hint-pill{position:absolute; right:14px; bottom:58px; display:flex; align-items:center; gap:8px;
+      background:rgba(221,227,226,.9); border:1px solid var(--edge); border-radius:12px;
+      padding:8px 13px; font-size:11px; font-weight:700; color:var(--muted)}
+    .cap{position:absolute; left:20px; bottom:58px; width:230px; font-size:10.5px; line-height:1.7;
+      color:#8fa3a8}
+    .cap b{color:#cfe0e3; display:block; margin-bottom:3px; font-size:11px}
+  </style>
+</helmet>
+
+<div class="screen">
+  <sc-if value="{{isFull}}" hint-placeholder-val="{{ false }}">
+    <div class="fs">
+      <div class="fs-in">
+        <div class="fs-slide">발표 중인 다른 프로그램 (전체 화면)</div>
+        <div class="fs-t">알림을 띄우지 않는다</div>
+        <div class="fs-s">전체 화면 · 화면 공유 · 방해 금지 중에는 카드를 보류하고,<br>
+          평소 화면으로 돌아오면 밀린 알림을 한 장으로 묶어 보여준다.</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div class="ctl">
+    <div class="ctl-h">상황</div>
+    <sc-for list="{{scenes}}" as="sc" hint-placeholder-count="5">
+      <button class="{{sc.cls}}" onClick="{{sc.pick}}">{{sc.name}}</button>
+    </sc-for>
+    <div class="note">{{noteText}}</div>
+  </div>
+
+  <div class="cap"><b>{{capTitle}}</b>{{capBody}}</div>
+
+  <div class="dock">
+    <sc-if value="{{showFold}}" hint-placeholder-val="{{ true }}">
+      <div class="fold">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 15l6-6 6 6"></path></svg>
+        밀린 알림 펼치기 <span class="c">+{{foldCount}}</span>
+      </div>
+    </sc-if>
+
+    <sc-for list="{{cards}}" as="c" hint-placeholder-count="2">
+      <div class="toast {{c.cls}}">
+        <div class="bar" style="height:{{c.barH}}px"></div>
+        <div class="x">
+          <svg width="13" height="13" viewBox="0 0 13 13"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" stroke-width="1.6"></path></svg>
+        </div>
+        <div class="ttl">{{c.title}}</div>
+        <div class="sub">{{c.sub}}</div>
+        <div class="acts">
+          <button class="main">완료</button>
+          <button>10분 뒤</button>
+          <button>열기</button>
+        </div>
+      </div>
+    </sc-for>
+
+    <sc-if value="{{showBrief}}" hint-placeholder-val="{{ false }}">
+      <div class="toast brief">
+        <div class="bar" style="height:30px"></div>
+        <div class="x">
+          <svg width="13" height="13" viewBox="0 0 13 13"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" stroke-width="1.6"></path></svg>
+        </div>
+        <div class="lab">아침 브리핑 · 08:35</div>
+        <div class="btitle">오늘 할 일</div>
+        <div class="bcount">6건</div>
+        <div class="rule"></div>
+        <div class="brow"><span class="k">08:40</span><span class="n">아침운용현황 출력</span></div>
+        <div class="brow"><span class="k">10:00</span><span class="n">퇴연 RA 비즈니스 미팅</span></div>
+        <div class="brow"><span class="k">15:00</span><span class="n">주간 운용 보고서 초안</span></div>
+        <div class="brow"><span class="k">—</span><span class="n">리스크 한도 점검표 회신</span><span class="s">지남</span></div>
+        <div class="more">그 외 2건</div>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{isFull}}" hint-placeholder-val="{{ false }}">
+    <div class="hint-pill">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v6l4 2"></path><circle cx="12" cy="12" r="9"></circle></svg>
+      알림 2건 보류 중
+    </div>
+  </sc-if>
+
+  <div class="tbar">
+    <div class="tbtn"></div>
+    <div class="tbtn"></div>
+    <div class="tbtn"></div>
+    <div class="tray">
+      <span>16:24</span>
+      <div class="trayico">
+        <sc-if value="{{isFull}}" hint-placeholder-val="{{ false }}">
+          <span class="traybadge">2</span>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":900,"height":800}}'>
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.state = { scene: 'one' };
+  }
+  renderVals(){
+    const self = this;
+    const scenes = [
+      { k:'one',   name:'알림 한 장' },
+      { k:'stack', name:'여러 장 쌓임' },
+      { k:'over',  name:'3장 초과 · 접기' },
+      { k:'brief', name:'아침 브리핑' },
+      { k:'full',  name:'전체 화면 · 보류' },
+    ];
+    const s = this.state.scene;
+    const one = { title:'퇴연 RA 비즈니스 미팅', sub:'10분 뒤 시작 · 10:00', cls:'', barH:40 };
+    const two = { title:'리스크 한도 점검표 회신', sub:'마감이 지났습니다 · 어제 17:00', cls:'late', barH:40 };
+    const three = { title:'월간 성과 데이터 수취 확인', sub:'30분 뒤 마감 · 16:30', cls:'', barH:40 };
+    const map = {
+      one:   { cards:[one], fold:0, brief:false, full:false },
+      stack: { cards:[two, one], fold:0, brief:false, full:false },
+      over:  { cards:[three, two, one], fold:2, brief:false, full:false },
+      brief: { cards:[], fold:0, brief:true, full:false },
+      full:  { cards:[], fold:0, brief:false, full:true },
+    };
+    const cur = map[s] || map.one;
+    const notes = {
+      one:   '카드는 화면 오른쪽 아래, 작업 표시줄 위에 뜬다. 마우스를 올리면 최대 25초까지 기다린다.',
+      stack: '여러 건은 아래에서 위로 쌓는다. 가장 급한 것이 가장 아래(눈에 가까운 쪽)에 온다.',
+      over:  '3장을 넘으면 더 쌓지 않고 한 줄로 접는다. 화면을 덮지 않게 한다.',
+      brief: '아침 브리핑은 목록형 한 장으로. 4건까지 보여주고 나머지는 세어서 알린다.',
+      full:  '전체 화면을 감지하면 띄우지 않고 모아 둔다. 트레이 아이콘에 건수를 표시한다.',
+    };
+    const caps = {
+      one:   { t:'지금', b:'단일 알림. 완료 · 미루기 · 열기를 카드에서 바로 처리한다.' },
+      stack: { t:'쌓임', b:'지난 마감은 짙은 띠로 구분한다. 색만으로 구분하지 않고 글자로도 알린다.' },
+      over:  { t:'넘칠 때', b:'접힌 줄을 누르면 전체 목록이 앱 창에서 열린다.' },
+      brief: { t:'브리핑', b:'하루 한 번. 시각 순으로 정렬하고 지난 건은 따로 표시한다.' },
+      full:  { t:'방해 금지', b:'발표 · 화면 공유 · 게임 중에는 보류. 돌아오면 묶어서 한 번만 알린다.' },
+    };
+    return {
+      scenes: scenes.map(function(x){
+        return { name:x.name, cls: s === x.k ? 'on' : '', pick: function(){ self.setState({ scene:x.k }); } };
+      }),
+      cards: cur.cards,
+      showFold: cur.fold > 0,
+      foldCount: cur.fold,
+      showBrief: cur.brief,
+      isFull: cur.full,
+      noteText: notes[s],
+      capTitle: caps[s].t,
+      capBody: caps[s].b,
+    };
+  }
+}
+</script>
+</body>
+</html>

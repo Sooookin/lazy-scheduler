@@ -18,3 +18,8 @@ data.json
 data.json.*
 *.log
 selftest.txt
+
+# 디자인 캔버스 생성물 (design/make-fonts.py 와 .dc.html 에서 다시 만들 수 있다)
+design/todo-manager-*.html
+design/_fontface.css
+design/fonts/

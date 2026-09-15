@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+  <style>
+    :root{
+      --bg:#dde3e2; --card:#dde3e2; --dark:#b3c0be; --light:#f6f9f8;
+      --pale:#cfd6d5; --mint:#85bdb3; --mid:#4d7572; --ink2:#0b2c36; --deep:#08202b;
+      --ink:#0b2c36; --muted:#365350; --faint:#516764; --deep-fg:#dde3e2; --tb:34px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; color:var(--ink); user-select:none; background:var(--bg);
+      background-image:radial-gradient(130% 130% at 12% 6%, #e2e8e7 0%, #dde3e2 45%, #d8dfde 100%);
+      font-family:"Noto Sans KR","Segoe UI","Malgun Gothic",sans-serif;
+      font-size:13.5px; letter-spacing:-.15px; -webkit-font-smoothing:antialiased;
+      font-feature-settings:"tnum" 1; overflow:hidden; height:620px}
+    a{color:#3d6b67} a:hover{color:#0b2c36}
+    .titlebar{height:var(--tb); display:flex; align-items:center; gap:8px; padding:0 0 0 12px}
+    .tb-icon{width:16px; height:16px; border-radius:4px; background:var(--mid); opacity:.9}
+    .tb-name{font-size:12px; font-weight:800; letter-spacing:.3px; color:var(--muted)}
+    .tb-gap{flex:1}
+    .wbtn{width:40px; height:var(--tb); border:0; background:transparent; cursor:pointer;
+      color:var(--faint); display:grid; place-items:center}
+    .wbtn.close:hover{background:#0b2c36; color:#fff}
+    .app{height:calc(100% - var(--tb)); display:flex; flex-direction:column;
+      padding:4px 16px 10px; gap:10px}
+    /* 좁은 창: 절대배치를 버리고 한 줄 흐름으로. 시계·링을 줄인다 */
+    .top{display:flex; align-items:center; gap:12px; height:64px; flex:0 0 64px}
+    .date{line-height:1.15}
+    .d-day{font-size:15px; font-weight:800; letter-spacing:-.4px; color:var(--ink2)}
+    .d-full{font-size:10.5px; color:var(--muted); margin-top:2px}
+    .clock{font-size:30px; font-weight:200; letter-spacing:-1.4px; line-height:1; color:var(--deep);
+      font-variant-numeric:tabular-nums; margin-left:2px}
+    .top-gap{flex:1}
+    .ring-wrap{position:relative; width:46px; height:46px; display:grid; place-items:center; flex:0 0 auto}
+    .ring-wrap::before{content:""; position:absolute; inset:-4px; border-radius:50%;
+      box-shadow:3px 3px 7px var(--dark), -3px -3px 7px var(--light)}
+    .ring{position:absolute; inset:0; transform:rotate(-90deg)}
+    .ring-bg{fill:none; stroke:var(--pale); stroke-width:8}
+    .ring-fg{fill:none; stroke:var(--mid); stroke-width:8; stroke-linecap:round;
+      stroke-dasharray:188.5; stroke-dashoffset:63}
+    .ring-txt{text-align:center; line-height:1}
+    .ring-txt b{font-size:14px; color:var(--deep)}
+    .views{display:flex; gap:3px; padding:3px; border-radius:12px; background:var(--bg); flex:0 0 auto;
+      box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light)}
+    .views button{border:0; cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:700;
+      color:var(--faint); background:transparent; border-radius:9px; padding:6px 11px}
+    .views button.on{color:var(--ink2); background:var(--card);
+      box-shadow:3px 3px 6px var(--dark), -3px -3px 6px var(--light)}
+    .ico,.pill-btn{border:0; cursor:pointer; font-family:inherit; background:var(--card); flex:0 0 auto;
+      color:var(--muted); box-shadow:4px 4px 8px var(--dark), -4px -4px 8px var(--light)}
+    .ico{width:34px; height:34px; border-radius:11px; display:grid; place-items:center}
+    /* 좁을 때 "＋ 새 항목" 은 글자를 버리고 아이콘만 남긴다 */
+    .pill-btn{width:34px; height:34px; border-radius:11px; font-size:17px; font-weight:700;
+      color:var(--ink2); display:grid; place-items:center}
+    .seg{display:flex; gap:3px; padding:3px; border-radius:12px; background:var(--bg); margin:0 0 2px;
+      box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light)}
+    .seg button{flex:1; border:0; cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:700;
+      color:var(--faint); background:transparent; border-radius:9px; padding:7px 4px;
+      display:flex; align-items:center; justify-content:center; gap:6px}
+    .seg button.on{color:var(--ink2); background:var(--card);
+      box-shadow:3px 3px 6px var(--dark), -3px -3px 6px var(--light)}
+    .seg .b{font-size:10px; padding:1px 6px; border-radius:7px; background:var(--pale); color:var(--muted)}
+    .seg button.on .b{background:var(--mint); color:var(--deep); font-weight:800}
+    .card{background:var(--card); border-radius:18px; padding:12px 14px 10px; display:flex;
+      flex-direction:column; min-height:0; flex:1;
+      box-shadow:6px 6px 14px var(--dark), -6px -6px 14px var(--light)}
+    .card h2{margin:1px 2px 8px; font-size:11.5px; letter-spacing:.4px; color:var(--ink2);
+      font-weight:700; display:flex; align-items:center; gap:7px}
+    .h-note{font-style:normal; font-size:10px; color:var(--faint); font-weight:500; margin-left:auto}
+    .badge{background:var(--bg); color:var(--faint); font-size:10px; padding:2px 7px; border-radius:8px;
+      box-shadow:inset 2px 2px 4px var(--dark), inset -2px -2px 4px var(--light)}
+    .badge.hot{background:var(--mint); color:var(--deep); font-weight:800; box-shadow:none}
+    .list{overflow-y:auto; display:flex; flex-direction:column; gap:9px; padding:3px 4px 4px; margin:-3px -4px}
+    .item{position:relative; overflow:hidden; cursor:pointer; flex:0 0 auto;
+      display:flex; align-items:center; gap:9px; padding:8px 9px 8px 14px; border-radius:13px;
+      background:var(--card); box-shadow:4px 4px 8px var(--dark), -4px -4px 8px var(--light)}
+    .item::before{content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px;
+      border-radius:0 3px 3px 0; background:var(--bar, transparent)}
+    .item.k-deadline{--bar:var(--ink2)}
+    .item.k-routine{--bar:var(--mid)}
+    .item.k-floating{--bar:var(--mint)}
+    .item.done{opacity:.55; --bar:var(--mint)}
+    .item.done .t{text-decoration:line-through}
+    .dot{width:19px; height:19px; border-radius:50%; flex:0 0 auto; position:relative;
+      background:var(--card); box-shadow:inset 3px 3px 6px var(--dark), inset -3px -3px 6px var(--light)}
+    .item.done .dot::after{content:""; position:absolute; inset:5px; border-radius:50%; background:var(--mint)}
+    .t{flex:1; min-width:0; font-size:12.5px; font-weight:600;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .meta{font-size:10.5px; color:var(--muted); flex:0 0 auto; white-space:nowrap}
+    .meta .late{background:var(--deep); color:var(--deep-fg); font-weight:700;
+      padding:2px 7px; border-radius:7px}
+    .foot{display:flex; align-items:center; gap:12px; height:16px; font-size:10.5px; color:var(--faint)}
+    .link{border:0; background:transparent; color:var(--faint); font-family:inherit; font-size:10.5px;
+      cursor:pointer; padding:0; text-decoration:underline; text-underline-offset:3px}
+  </style>
+</helmet>
+
+<div class="titlebar">
+  <div class="tb-icon"></div>
+  <span class="tb-name">To-Do Manager</span>
+  <div class="tb-gap"></div>
+  <button class="wbtn"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" stroke-width="1.2"></path></svg></button>
+  <button class="wbtn"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="1.5" width="7" height="7"></rect></svg></button>
+  <button class="wbtn close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.2"></path></svg></button>
+</div>
+
+<div class="app">
+  <header class="top">
+    <div class="date">
+      <div class="d-day">화요일</div>
+      <div class="d-full">9월 15일</div>
+    </div>
+    <div class="clock">16:24</div>
+    <div class="top-gap"></div>
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 72 72">
+        <circle class="ring-bg" cx="36" cy="36" r="30"></circle>
+        <circle class="ring-fg" cx="36" cy="36" r="30"></circle>
+      </svg>
+      <div class="ring-txt"><b>4</b></div>
+    </div>
+    <div class="views">
+      <button class="on">오늘</button>
+      <button>달력</button>
+    </div>
+    <button class="pill-btn" title="새 항목">＋</button>
+    <button class="ico" title="설정">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <circle cx="12" cy="12" r="3.2"></circle>
+        <path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.7 1.7 0 008.9 19a1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1A1.7 1.7 0 005 8.9a1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3h.1a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <!-- 좁은 창: 칼럼을 나누는 대신 탭 하나로 묶는다 -->
+  <div class="seg">
+    <sc-for list="{{tabs}}" as="tab" hint-placeholder-count="4">
+      <button class="{{tab.cls}}" onClick="{{tab.pick}}">{{tab.name}} <span class="b">{{tab.count}}</span></button>
+    </sc-for>
+  </div>
+
+  <div class="card">
+    <h2>{{headTitle}} <span class="badge hot">{{headCount}}</span><i class="h-note">{{headNote}}</i></h2>
+    <div class="list">
+      <sc-for list="{{rows}}" as="item" hint-placeholder-count="7">
+        <div class="item {{item.cls}}">
+          <div class="dot"></div>
+          <div class="t">{{item.title}}</div>
+          <div class="meta">{{item.meta}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <button class="link">전체 항목 관리</button>
+    <span>자동 저장됨</span>
+  </footer>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":760,"height":620}}'>
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.state = { tab: 'today' };
+  }
+  renderVals(){
+    const self = this;
+    const data = {
+      today: { name:'오늘', note:'눌러서 완료', rows:[
+        { title:'아침운용현황 출력(대표님 전달)', cls:'k-routine', meta:'08:40' },
+        { title:'퇴연 RA 비즈니스 미팅', cls:'k-routine', meta:'10:00' },
+        { title:'주간 운용 보고서 초안', cls:'k-deadline done', meta:'15:00' },
+        { title:'리스크 한도 점검표 회신', cls:'k-deadline', meta:'지남' },
+        { title:'월간 성과 데이터 수취 확인', cls:'k-routine', meta:'16:30' },
+        { title:'팀 주간회의 안건 정리', cls:'k-floating', meta:'' },
+      ]},
+      up: { name:'마감', note:'7일 이내', rows:[
+        { title:'분기 리밸런싱 자료 제출', cls:'k-deadline', meta:'9/17' },
+        { title:'외부 감사 자료 1차 회신', cls:'k-deadline', meta:'9/18' },
+        { title:'상품설명서 개정본 검토', cls:'k-deadline', meta:'9/21' },
+        { title:'月 결산 마감 자료', cls:'k-deadline', meta:'9/22' },
+      ]},
+      memo: { name:'메모', note:'기한 없음', rows:[
+        { title:'AURORA 접속 권한 갱신 문의', cls:'k-floating', meta:'' },
+        { title:'백테스트 파이프라인 문서화', cls:'k-floating', meta:'' },
+        { title:'신규 팀원 온보딩 체크리스트', cls:'k-floating', meta:'' },
+      ]},
+      rt: { name:'반복', note:'다음 실행일', rows:[
+        { title:'아침운용현황 출력', cls:'k-routine', meta:'오늘' },
+        { title:'주간 운용 보고서', cls:'k-routine', meta:'9/21' },
+        { title:'월간 성과 집계', cls:'k-routine', meta:'10/02' },
+        { title:'분기 리밸런싱 점검', cls:'k-routine', meta:'9/26' },
+        { title:'리스크 한도 점검', cls:'k-routine', meta:'9/18' },
+      ]},
+    };
+    const keys = ['today','up','memo','rt'];
+    const cur = data[this.state.tab] || data.today;
+    return {
+      tabs: keys.map(function(k){
+        return {
+          name: data[k].name,
+          count: data[k].rows.length,
+          cls: self.state.tab === k ? 'on' : '',
+          pick: function(){ self.setState({ tab: k }); },
+        };
+      }),
+      headTitle: cur.name,
+      headNote: cur.note,
+      headCount: cur.rows.length,
+      rows: cur.rows,
+    };
+  }
+}
+</script>
+</body>
+</html>

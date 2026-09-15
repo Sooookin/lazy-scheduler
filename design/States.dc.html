@@ -1,0 +1,257 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+  <style>
+    :root{
+      --bg:#dde3e2; --card:#dde3e2; --dark:#b3c0be; --light:#f6f9f8;
+      --pale:#cfd6d5; --mint:#85bdb3; --mid:#4d7572; --ink2:#0b2c36; --deep:#08202b;
+      --ink:#0b2c36; --muted:#365350; --faint:#516764; --deep-fg:#dde3e2;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; color:var(--ink); user-select:none; background:var(--bg);
+      background-image:radial-gradient(130% 130% at 12% 6%, #e2e8e7 0%, #dde3e2 45%, #d8dfde 100%);
+      font-family:"Noto Sans KR","Segoe UI","Malgun Gothic",sans-serif;
+      font-size:13.5px; letter-spacing:-.15px; -webkit-font-smoothing:antialiased;
+      overflow:hidden; height:720px}
+    a{color:#3d6b67} a:hover{color:#0b2c36}
+    .wrap{display:flex; height:100%; padding:20px; gap:18px}
+    .side{width:186px; flex:0 0 186px; display:flex; flex-direction:column; gap:7px}
+    .side-h{font-size:10px; font-weight:800; letter-spacing:.9px; color:var(--faint);
+      text-transform:uppercase; margin:2px 2px 3px}
+    .side button{border:0; cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:700;
+      text-align:left; color:var(--muted); background:var(--bg); border-radius:11px; padding:9px 12px;
+      box-shadow:3px 3px 7px var(--dark), -3px -3px 7px var(--light); transition:.14s}
+    .side button:hover{color:var(--ink2)}
+    .side button.on{color:var(--ink2);
+      box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light)}
+    .stage{flex:1; min-width:0; display:flex; flex-direction:column; gap:12px}
+    .card{background:var(--card); border-radius:20px; padding:16px 20px 14px; display:flex;
+      flex-direction:column; flex:1; min-height:0;
+      box-shadow:7px 7px 16px var(--dark), -7px -7px 16px var(--light)}
+    .card h2{margin:1px 2px 12px; font-size:12px; letter-spacing:.5px; color:var(--ink2);
+      font-weight:700; display:flex; align-items:center; gap:8px}
+    .badge{background:var(--bg); color:var(--faint); font-size:10.5px; padding:2px 8px; border-radius:9px;
+      box-shadow:inset 2px 2px 4px var(--dark), inset -2px -2px 4px var(--light)}
+    .body{flex:1; min-height:0; display:flex; flex-direction:column}
+    /* 빈 상태 - 가운데에 할 일을 하나 제안한다 */
+    .empty{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:13px; text-align:center; padding:12px}
+    .empty .ill{width:76px; height:76px; border-radius:50%; display:grid; place-items:center;
+      color:var(--mid); box-shadow:inset 5px 5px 10px var(--dark), inset -5px -5px 10px var(--light)}
+    .empty .h{font-size:14.5px; font-weight:700; color:var(--ink2)}
+    .empty .p{font-size:11.5px; color:var(--muted); line-height:1.8; max-width:330px}
+    .empty .cta{display:flex; gap:8px; margin-top:4px}
+    .empty .cta button{border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:700;
+      color:var(--ink2); background:var(--bg); border-radius:12px; padding:10px 16px;
+      box-shadow:4px 4px 9px var(--dark), -4px -4px 9px var(--light)}
+    .empty .cta button.ghost{color:var(--muted); font-weight:600}
+    /* 불러오는 중 - 뼈대만 */
+    .sk{display:flex; flex-direction:column; gap:11px}
+    .sk .r{height:40px; border-radius:14px; background:var(--card);
+      box-shadow:4px 4px 9px var(--dark), -4px -4px 9px var(--light); position:relative; overflow:hidden}
+    .sk .r::after{content:""; position:absolute; inset:0;
+      background:linear-gradient(90deg, transparent, rgba(246,249,248,.75), transparent);
+      transform:translateX(-100%); animation:sh 1.4s infinite}
+    @keyframes sh{100%{transform:translateX(100%)}}
+    @media (prefers-reduced-motion: reduce){ .sk .r::after{animation:none} }
+    /* 알림 띠 - 창 위쪽에 붙는다 */
+    .strip{display:flex; align-items:center; gap:11px; padding:11px 15px; border-radius:14px;
+      font-size:12px; font-weight:600; color:var(--ink2); background:var(--bg);
+      box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+      border-left:3px solid var(--mint)}
+    .strip.bad{border-left-color:var(--deep)}
+    .strip .g{flex:1}
+    .strip button{border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:700;
+      color:var(--ink2); background:var(--bg); border-radius:9px; padding:6px 11px; white-space:nowrap;
+      box-shadow:3px 3px 6px var(--dark), -3px -3px 6px var(--light)}
+    .ico-w{flex:0 0 auto; color:var(--mid); display:grid; place-items:center}
+    .strip.bad .ico-w{color:var(--deep)}
+    /* 고대비 모드 - 그림자를 버리고 선으로 */
+    .hc{background:#000; color:#fff; border-radius:20px; padding:16px 20px; flex:1;
+      display:flex; flex-direction:column; border:1px solid #fff; box-shadow:none}
+    .hc h2{color:#fff; margin:0 0 12px; font-size:12px; letter-spacing:.5px; display:flex; gap:8px;
+      align-items:center; font-weight:700}
+    .hc .badge{background:#000; color:#fff; border:1px solid #fff; box-shadow:none}
+    .hc .row{display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid #fff;
+      border-radius:0; margin-bottom:9px; box-shadow:none; background:#000}
+    .hc .row .dot{width:18px; height:18px; border-radius:50%; border:1.5px solid #fff; flex:0 0 auto}
+    .hc .row .dot.on{background:#ffff00; border-color:#ffff00}
+    .hc .row .t{flex:1; font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap}
+    .hc .row .m{font-size:11px; color:#ffff00; font-weight:700}
+    .hc .lead{font-size:11px; color:#00ffff; margin-top:auto; line-height:1.7; padding-top:10px}
+    .cap{font-size:11px; color:var(--muted); line-height:1.75; padding:0 3px}
+    .cap b{color:var(--ink2)}
+    /* 목록 한 줄 (정상 상태 비교용) */
+    .item{position:relative; overflow:hidden; display:flex; align-items:center; gap:10px;
+      padding:9px 10px 9px 16px; border-radius:14px; background:var(--card); margin-bottom:11px;
+      box-shadow:4px 4px 9px var(--dark), -4px -4px 9px var(--light)}
+    .item::before{content:""; position:absolute; left:0; top:8px; bottom:8px; width:3px;
+      border-radius:0 3px 3px 0; background:var(--mid)}
+    .item .dot{width:20px; height:20px; border-radius:50%; flex:0 0 auto;
+      box-shadow:inset 3px 3px 6px var(--dark), inset -3px -3px 6px var(--light)}
+    .item .t{flex:1; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap}
+    .item .m{font-size:11px; color:var(--muted)}
+  </style>
+</helmet>
+
+<div class="wrap">
+  <div class="side">
+    <div class="side-h">상태</div>
+    <sc-for list="{{scenes}}" as="sc" hint-placeholder-count="6">
+      <button class="{{sc.cls}}" onClick="{{sc.pick}}">{{sc.name}}</button>
+    </sc-for>
+  </div>
+
+  <div class="stage">
+    <sc-if value="{{hasStrip}}" hint-placeholder-val="{{ false }}">
+      <div class="strip {{stripCls}}">
+        <div class="ico-w">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01"></path>
+          </svg>
+        </div>
+        <div class="g">{{stripText}}</div>
+        <button>{{stripBtn}}</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isHC}}" hint-placeholder-val="{{ false }}">
+      <div class="hc">
+        <h2>오늘 <span class="badge">6</span></h2>
+        <div class="row"><span class="dot on"></span><span class="t">아침운용현황 출력(대표님 전달)</span><span class="m">08:40</span></div>
+        <div class="row"><span class="dot"></span><span class="t">퇴연 RA 비즈니스 미팅</span><span class="m">10:00</span></div>
+        <div class="row"><span class="dot"></span><span class="t">리스크 한도 점검표 회신</span><span class="m">지남</span></div>
+        <div class="lead">Windows 고대비 모드에서는 그림자가 모두 사라진다.<br>
+          깊이 대신 1px 테두리로 경계를 세우고, 시스템 색을 그대로 쓴다.</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isNormal}}" hint-placeholder-val="{{ true }}">
+      <div class="card">
+        <h2>{{cardTitle}} <span class="badge">{{cardCount}}</span></h2>
+        <div class="body">
+          <sc-if value="{{isEmpty}}" hint-placeholder-val="{{ true }}">
+            <div class="empty">
+              <div class="ill">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M20 6L9 17l-5-5"></path>
+                </svg>
+              </div>
+              <div class="h">{{emptyHead}}</div>
+              <div class="p">{{emptyBody}}</div>
+              <div class="cta">
+                <button>{{emptyCta}}</button>
+                <button class="ghost">{{emptyCta2}}</button>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{isLoading}}" hint-placeholder-val="{{ false }}">
+            <div class="sk">
+              <div class="r"></div><div class="r"></div><div class="r"></div><div class="r"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{isList}}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div class="item"><span class="dot"></span><span class="t">아침운용현황 출력(대표님 전달)</span><span class="m">08:40</span></div>
+              <div class="item"><span class="dot"></span><span class="t">퇴연 RA 비즈니스 미팅</span><span class="m">10:00</span></div>
+              <div class="item"><span class="dot"></span><span class="t">리스크 한도 점검표 회신</span><span class="m">지남</span></div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <div class="cap">{{capText}}</div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":900,"height":720}}'>
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.state = { scene: 'first' };
+  }
+  renderVals(){
+    const self = this;
+    const scenes = [
+      { k:'first',  name:'첫 실행' },
+      { k:'clear',  name:'오늘 다 끝냄' },
+      { k:'load',   name:'불러오는 중' },
+      { k:'down',   name:'서비스 끊김' },
+      { k:'recover',name:'데이터 복구됨' },
+      { k:'hc',     name:'고대비 모드' },
+    ];
+    const s = this.state.scene;
+    const map = {
+      first: {
+        title:'오늘', count:0, empty:true,
+        head:'아직 등록한 일정이 없습니다',
+        body:'매일 · 매주 반복되는 업무를 먼저 넣어 두면, 아침마다 오늘 할 일이 저절로 채워집니다.',
+        cta:'＋ 반복 업무 추가', cta2:'마감 하나만 넣어보기',
+        cap:'첫 화면에서 "비어 있음" 만 보여주면 다음에 뭘 할지 알 수 없다. 이 앱에서 가장 값어치 있는 행동(반복 업무 등록)을 바로 권한다.',
+      },
+      clear: {
+        title:'오늘', count:0, empty:true,
+        head:'오늘 할 일을 모두 마쳤습니다',
+        body:'다음 일정은 내일 08:40 아침운용현황 출력입니다.',
+        cta:'달력 보기', cta2:'＋ 새 항목',
+        cap:'"할 일 없음" 과 "다 끝냄" 은 다른 상태다. 끝낸 사람에게는 빈 목록이 아니라 다음 일정을 알려준다.',
+      },
+      load: {
+        title:'오늘', count:'—', loading:true,
+        cap:'서비스에 붙는 데 시간이 걸릴 때. 빈 화면이나 회전판 대신 실제 줄 높이와 같은 뼈대를 보여 줘야 내용이 들어올 때 화면이 튀지 않는다.',
+      },
+      down: {
+        title:'오늘', count:6, list:true,
+        strip:'bad', stripText:'서비스와 연결이 끊겼습니다. 표시된 내용은 마지막으로 읽은 것입니다.',
+        stripBtn:'다시 연결',
+        cap:'연결이 끊겨도 마지막 내용을 지우지 않는다. 다만 "지금 것이 아님" 을 분명히 알리고, 이 상태에서는 완료 · 수정을 막는다.',
+      },
+      recover: {
+        title:'오늘', count:6, list:true,
+        strip:'', stripText:'일정 파일이 손상되어 9월 15일 백업에서 되살렸습니다.',
+        stripBtn:'손상본 열기',
+        cap:'store.py 가 이미 백업에서 복구한다. 조용히 넘어가지 말고 무엇을 되살렸는지 알려 주고, 손상본을 열어 볼 길을 남긴다.',
+      },
+      hc: {
+        hc:true,
+        cap:'뉴모피즘은 그림자로만 경계를 만든다. forced-colors 모드에서 그림자가 지워지면 화면이 통째로 평면이 되어 버튼과 배경을 구분할 수 없다. 이 모드에서는 테두리로 바꾼다.',
+      },
+    };
+    const cur = map[s];
+    return {
+      scenes: scenes.map(function(x){
+        return { name:x.name, cls: s === x.k ? 'on' : '', pick: function(){ self.setState({ scene:x.k }); } };
+      }),
+      isHC: !!cur.hc,
+      isNormal: !cur.hc,
+      isEmpty: !!cur.empty,
+      isLoading: !!cur.loading,
+      isList: !!cur.list,
+      hasStrip: !!cur.stripText,
+      stripCls: cur.strip || '',
+      stripText: cur.stripText || '',
+      stripBtn: cur.stripBtn || '',
+      cardTitle: cur.title || '',
+      cardCount: cur.count,
+      emptyHead: cur.head || '',
+      emptyBody: cur.body || '',
+      emptyCta: cur.cta || '',
+      emptyCta2: cur.cta2 || '',
+      capText: cur.cap,
+    };
+  }
+}
+</script>
+</body>
+</html>
