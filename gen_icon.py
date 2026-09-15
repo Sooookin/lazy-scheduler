@@ -13,10 +13,10 @@ from PIL import Image, ImageDraw, ImageFilter
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 
-TILE_HI = (240, 243, 242, 255)      # 타일 윗면 (빛)
-TILE_LO = (214, 221, 220, 255)      # 타일 아랫면 (그늘)
-EDGE    = (150, 166, 164, 90)       # 아주 얇은 경계선
-CHECK   = (11, 44, 54, 255)         # 체크 - 팔레트 진한 청록. 16px 에서도 읽힌다
+TILE_HI = (243, 239, 232, 255)      # 타일 윗면 (빛) - 점토 바탕의 밝은 쪽
+TILE_LO = (225, 218, 208, 255)      # 타일 아랫면 (그늘)
+EDGE    = (160, 146, 128, 96)       # 아주 얇은 경계선 (따뜻한 회갈)
+CHECK   = (58, 94, 91, 255)         # 체크 - 앱의 청록보다 한 단계 짙게. 16px 에서도 읽힌다
 
 
 def _round_rect(size, radius, fill):

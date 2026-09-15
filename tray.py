@@ -95,6 +95,48 @@ def available():
     return _icon is not None
 
 
+_base_image = None
+_badge = 0
+
+
+def _badge_image(base, n):
+    """보류 중인 알림 수를 아이콘 오른쪽 위에 얹는다. 크게 그린 뒤 줄여 16px 에서도 또렷하게."""
+    from PIL import Image, ImageDraw, ImageFont
+    size = base.width
+    big = size * 4
+    img = base.resize((big, big), Image.LANCZOS)
+    d = ImageDraw.Draw(img)
+    r = int(big * 0.30)
+    cx, cy = big - r, r
+    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(8, 32, 43, 255), outline=(133, 189, 179, 255),
+              width=max(2, big // 24))
+    label = "9+" if n > 9 else str(n)
+    font = None
+    for path in (os.path.join(paths.RES_DIR, "fonts", "Paperlogy-5Medium.ttf"),
+                 os.path.join(paths.APP_DIR, "Paperlogy-5Medium.ttf"), r"C:\Windows\Fonts\malgun.ttf"):
+        try:
+            font = ImageFont.truetype(path, int(r * (1.15 if len(label) == 1 else 0.9)))
+            break
+        except Exception:
+            continue
+    d.text((cx, cy), label, font=font, anchor="mm", fill=(238, 243, 241, 255))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def set_badge(n):
+    """알림영역 아이콘에 보류 건수를 표시한다. 0 이면 원래 아이콘으로."""
+    global _base_image, _badge
+    if _icon is None or n == _badge:
+        return
+    try:
+        if _base_image is None:
+            _base_image = _image()
+        _icon.icon = _badge_image(_base_image, n) if n else _base_image
+        _badge = n
+    except Exception:
+        paths.log("tray: 배지 표시 실패" + chr(10) + traceback.format_exc())
+
+
 def set_title(text):
     if _icon is not None:
         try:

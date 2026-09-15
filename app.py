@@ -352,12 +352,19 @@ class Handler(BaseHTTPRequestHandler):
             link = autostart.make_desktop_shortcut()
             return self._send(200, {"ok": bool(link), "path": link or ""})
         if p == "/api/test-toast":
-            toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다")
+            _preview_toast()
             return self._send(200, {"ok": True})
         if p == "/api/quit":
             threading.Thread(target=shutdown, daemon=True).start()
             return self._send(200, {"ok": True})
         raise ApiError(404, "없는 경로입니다")
+
+
+def _preview_toast():
+    """설정 · 트레이의 [알림 미리보기]. 실제 카드와 같은 모양, 버튼은 아무 일도 하지 않는다."""
+    toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다 · 10:00",
+                 on_done=lambda: None, on_snooze=lambda: None,
+                 key="preview:%d" % int(time.time()))
 
 
 def preview(rule):
@@ -408,6 +415,37 @@ def _complete(tid, day):
         pass
 
 
+SNOOZE_MIN = 10
+
+
+def _snooze(i):
+    """알림 카드의 [10분 뒤]. 10분 뒤에 같은 알림을 한 번 더 띄운다.
+
+    그 사이 완료했거나 지웠으면 띄우지 않는다. 프로그램을 끄면 미룬 알림도 사라진다.
+    """
+    tid, day, title, at = i["id"], i["date"], i["title"], i.get("time") or ""
+
+    def again():
+        try:
+            for cur in store.instances(back=1, ahead=1):
+                if cur["id"] == tid and cur["date"] == day:
+                    if cur["done"]:
+                        return
+                    break
+            else:
+                return
+        except Exception:
+            log("미룬 알림 확인 실패: " + traceback.format_exc())
+            return
+        toast.notify(title, "10분 전에 미룬 알림" + (" · %s" % at if at else ""), late=True,
+                     on_done=lambda: _complete(tid, day), on_snooze=lambda: _snooze(i),
+                     key="snooze:%s:%s:%d" % (tid, day, int(time.time())))
+
+    t = threading.Timer(SNOOZE_MIN * 60, again)
+    t.daemon = True
+    t.start()
+
+
 def tick(now=None):
     now = now or datetime.now()
     hm = now.strftime("%H:%M")
@@ -423,6 +461,7 @@ def tick(now=None):
     o = store.overview(data=d, now=now)
     left = o["stats"]["left"]
     tray.set_title(f"To-Do Manager · {left}건 남음" if left else "To-Do Manager · 급한 일 없음")
+    tray.set_badge(toast.held_count())      # 발표 중 보류한 알림 수
 
     # 브리핑은 시각이 지난 뒤 2시간 안에만. 그러지 않으면 저녁에 프로그램을 켰을 때
     # 아침 브리핑이 그제서야 떠오른다.
@@ -448,9 +487,9 @@ def tick(now=None):
         head = missed[0]
         if len(missed) == 1:
             tid, day = head["id"], head["date"]
-            toast.notify(head["title"], "마감 시간 지남 · %s" % head["time"],
-                         accent="#08202b",
+            toast.notify(head["title"], "마감 시간 지남 · %s" % head["time"], late=True,
                          on_done=lambda tid=tid, day=day: _complete(tid, day),
+                         on_snooze=lambda head=head: _snooze(head),
                          key="missed:%s:%s" % (tid, day))
         else:
             rows = [(i["time"] or "", i["title"], True) for i in missed]
@@ -523,8 +562,9 @@ def _maybe_notify(i, now, default_lead, first_tick):
         return None
     sub = ("%d분 뒤 마감 · %s" % (mins, i["time"])) if mins > 0 else ("마감 시간 지남 · %s" % i["time"])
     tid, day = i["id"], i["date"]
-    toast.notify(i["title"], sub, accent="#08202b" if mins <= 0 else "#4d7572",
+    toast.notify(i["title"], sub, late=mins <= 0,
                  on_done=lambda tid=tid, day=day: _complete(tid, day),
+                 on_snooze=lambda i=i: _snooze(i),
                  key="%s:%s" % (tid, day))
     log("알림 띄움: %s (%s)" % (key, sub))
     return "shown"
@@ -583,8 +623,9 @@ def main():
     threading.Thread(target=scheduler, daemon=True).start()
     paths.log("main: 서버·스케줄러 시작, tray 진입")
     tray.start(on_open=open_window,
-               on_test=lambda: toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다"),
+               on_test=_preview_toast,
                on_quit=shutdown)
+    toast.set_open_handler(open_window)
     paths.log("main: tray 완료, toast.run_forever 진입")
     toast.run_forever(on_ready=(prewarm_window if silent else open_window))
 

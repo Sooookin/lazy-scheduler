@@ -24,6 +24,16 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = t => +t.slice(0,2)*60 + +t.slice(3);
 
+/* 아이콘은 모두 SVG. 글꼴 기호(✎ ▲ ✓)는 Paperlogy 에 없어 다른 글꼴로 바뀌고, 배율에 따라 흐려진다 */
+const ICON = {
+  repeat: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 013-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 01-3 3H3"/></svg>',
+  max: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg>',
+  restore: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="3" width="5.5" height="5.5" rx="1"/><path d="M3.5 3v-.5a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H7"/></svg>',
+  check: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  plusBig: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path pathLength="1" d="M12 5v14"/><path pathLength="1" d="M5 12h14"/></svg>',
+  plus: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+};
+
 /* 시각은 모두 5분 단위. 키보드로 직접 입력할 수 있고(09:30, 0930),
    5분 배수가 아닌 값이 들어오면 가장 가까운 5분으로 맞춘다. */
 const STEP = 5;
@@ -88,15 +98,13 @@ function setOffline(on){
 }
 
 /* ══════════ 창 버튼 ══════════ */
-const MAX_GLYPH = '';      /* ChromeMaximize - 빈 사각형 */
-const RESTORE_GLYPH = '';  /* ChromeRestore  - 겹친 사각형 = "창 화면" */
 
 /* 최대화 여부는 창에 직접 물어본다(Win32 IsZoomed). 창 크기를 재서 짐작해
    봤더니 테두리 없는 창은 최대화 범위가 작업 영역과 딱 맞지 않아 어긋났다.
    Win+Up 이나 제목줄 두 번 누르기로 최대화해도 resize 는 오므로 여기서 잡힌다. */
 function paintMax(m){
   const b = $('#w-max');
-  b.textContent = m ? RESTORE_GLYPH : MAX_GLYPH;
+  b.innerHTML = m ? ICON.restore : ICON.max;
   b.title = m ? '창 화면으로' : '최대화';
 }
 function syncMax(){
@@ -149,23 +157,21 @@ function itemEl(i, opt){
   const el = document.createElement('div');
   el.className = 'item k-' + (i.kind || 'deadline') + (i.done ? ' done' : '');
   const bits = [];
-  const overdue = opt.showOverdue && i.date && i.date < STATE.today;
-  if(overdue) bits.push('<span class="late">'+esc(fmtDay(i.date)+(i.time ? ' '+i.time : ''))+'</span>');
-  else if(opt.showDate && i.date) bits.push('<span class="pill">'+esc(fmtDay(i.date))+'</span>');
-  if(i.time && !overdue){
-    let cls = '';
-    if(i.date === STATE.today && !i.done)
-      cls = i.time < STATE.now ? 'late' : (mins(i.time) - mins(STATE.now) <= 90 ? 'soon' : '');
-    bits.push('<span class="'+cls+'">'+esc(i.time)+(cls==='late' ? ' 지남' : ' 까지')+'</span>');
+  if(i.kind === 'routine') bits.push('<span class="rt-ico" title="'+esc(i.rule_text)+'">'+ICON.repeat+'</span>');
+  if(i.muted) bits.push('<span class="tag">알림 끔</span>');
+  /* 상태는 알약 하나로: 지난 날짜 · 지난 시각은 짙게, 90분 안이면 민트 */
+  const overdue = opt.showOverdue && i.date && i.date < STATE.today && !i.done;
+  if(overdue) bits.push('<span class="st late">'+esc(fmtDay(i.date))+'</span>');
+  else if(i.date === STATE.today && i.time && !i.done){
+    if(i.time < STATE.now) bits.push('<span class="st late">지남</span>');
+    else if(mins(i.time) - mins(STATE.now) <= 90) bits.push('<span class="st soon">임박</span>');
   }
-  if(i.kind === 'routine') bits.push('<span title="'+esc(i.rule_text)+'">↻</span>');
-  if(i.muted) bits.push('<span>알림 끔</span>');
-  /* 한 줄: 제목은 늘어나고 마감 정보는 오른쪽에 붙는다.
-     두 줄이면 한 화면에 절반밖에 안 들어간다. */
-  el.innerHTML = '<div class="dot" title="완료"></div>'+
+  const when = opt.showDate && i.date ? fmtDay(i.date) + (i.time ? ' ' + i.time : '') : (i.time || '');
+  if(when) bits.push('<span class="tm">'+esc(when)+'</span>');
+  /* 한 줄: 체크 · 제목(늘어남) · 상태 · 시각. 줄을 누르면 수정 창이 열린다 */
+  el.innerHTML = '<div class="dot" role="checkbox" aria-checked="'+(i.done ? 'true' : 'false')+'" title="완료"></div>'+
     '<div class="t">'+esc(i.title)+'</div>'+
-    (bits.length ? '<div class="meta">'+bits.join('')+'</div>' : '')+
-    '<button class="rowbtn" title="수정 / 삭제">✎</button>';
+    (bits.length ? '<div class="meta">'+bits.join('')+'</div>' : '');
   el.title = i.title + (i.note ? String.fromCharCode(10) + i.note : '');
   el.querySelector('.dot').onclick = e => {
     e.stopPropagation();
@@ -181,13 +187,15 @@ function itemEl(i, opt){
 function routineEl(i){
   const el = document.createElement('div');
   const isToday = i.next_date === STATE.today;
-  el.className = 'item rt k-routine' + (isToday ? (i.done ? ' cleared' : ' today') : '');
-  const when = i.next_date ? fmtDay(i.next_date) + (i.time ? ' '+i.time : '') : '예정 없음';
+  el.className = 'item rt k-routine';
+  let when;
+  if(!i.next_date) when = '<span class="tm">예정 없음</span>';
+  else if(isToday) when = (i.done ? '<span class="st ok">완료</span>' : '<span class="st late">오늘</span>') +
+                          (i.time ? '<span class="tm">'+esc(i.time)+'</span>' : '');
+  else when = '<span class="tm">'+esc(fmtDay(i.next_date))+'</span>';
   el.innerHTML = '<div class="t">'+esc(i.title)+'</div>'+
-    '<span class="rule" title="'+esc(i.rule_text)+'">↻ '+esc(i.rule_text)+'</span>'+
-    (i.muted ? '<span class="tag">알림 끔</span>' : '')+
-    '<span class="when">'+esc(when)+'</span>'+
-    '<button class="rowbtn" title="수정 / 삭제">✎</button>';
+    '<span class="rule-t" title="'+esc(i.rule_text)+'">'+esc(i.rule_text)+'</span>'+
+    '<div class="meta">'+(i.muted ? '<span class="tag">알림 끔</span>' : '')+when+'</div>';
   el.title = i.title + ' · ' + i.rule_text + (isToday && i.done ? ' (오늘 완료)' : '');
   el.onclick = () => openEdit(i);
   return el;
@@ -211,23 +219,22 @@ function fill(node, list, emptyMsg, opt, maker){
 function emptyToday(o){
   const none = !(o.upcoming || []).length && !(o.floating || []).length
             && !(o.routines || []).length;
-  const tick = '<div class="ill">✓</div>';
   if(none)
-    return '<div class="empty-rich">' + tick
+    return '<div class="empty-rich"><div class="ill">' + ICON.plusBig + '</div>'
       + '<div class="eh">아직 등록한 일정이 없습니다</div>'
-      + '<div class="ep">매일 · 매주 반복되는 업무를 먼저 넣어 두면,'
-      + ' 아침마다 오늘 할 일이 저절로 채워집니다.</div>'
-      + '<div class="ec"><button data-new="routine">＋ 반복 업무 추가</button>'
+      + '<div class="ep">매일 · 매주 반복되는 업무를 먼저 넣어 두면,<br>'
+      + '아침마다 오늘 할 일이 저절로 채워집니다.</div>'
+      + '<div class="ec"><button data-new="routine">' + ICON.plus + '반복 업무 추가</button>'
       + '<button class="ghost" data-new="deadline">마감 하나 넣어보기</button></div></div>';
   const n = (o.upcoming || [])[0];
   /* 날짜 표기는 목록과 같은 함수를 쓴다 ("내일" · "9/17 (목)") */
-  const when = n && n.date ? fmtDay(n.date) : '';
-  return '<div class="empty-rich">' + tick
+  const when = n && n.date ? fmtDay(n.date) + (n.time ? ' ' + n.time : '') : '';
+  return '<div class="empty-rich"><div class="ill">' + ICON.check + '</div>'
     + '<div class="eh">오늘 할 일이 없습니다</div>'
     + '<div class="ep">' + (n
-        ? '다음 마감은 ' + esc(when) + ' ' + esc(n.title) + ' 입니다.'
+        ? '다음 마감은 <b>' + esc(when) + ' · ' + esc(n.title) + '</b> 입니다.'
         : '다가오는 7일에도 마감이 없습니다.') + '</div>'
-    + '<div class="ec"><button data-new="deadline">＋ 새 항목</button></div></div>';
+    + '<div class="ec"><button data-new="deadline">' + ICON.plus + '새 항목</button></div></div>';
 }
 
 function render(o){
@@ -784,8 +791,7 @@ function dayModal(key, list){
     el.innerHTML = '<span class="dot" title="완료"></span>' +
                    '<span class="n">' + esc(t.title) + '</span>' +
                    (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') +
-                   '<span class="w">' + esc(when.trim()) + '</span>' +
-                   '<button class="rowbtn" title="수정 / 삭제">✎</button>';
+                   '<span class="w">' + esc(when.trim()) + '</span>';
     el.querySelector('.dot').onclick = e => {
       e.stopPropagation();
       api('/api/task/' + encodeURIComponent(t.id) + '/done', {date: t.due_date, done: !t.done})
@@ -945,7 +951,7 @@ function drawManage(){
   rows.forEach(t => {
     const kind = t.kind || 'deadline';
     const rt = byId[t.id];
-    const when = kind === 'routine' ? '↻ ' + (rt ? rt.rule_text : '반복')
+    const when = kind === 'routine' ? (rt ? rt.rule_text : '반복')
                : kind === 'floating' ? '기한 없음'
                : (t.due_date ? fmtDay(t.due_date) : '날짜 없음') + (t.due_time ? ' ' + t.due_time : '');
     const el = document.createElement('div');
@@ -979,7 +985,10 @@ $('#s-quit').onclick = () => confirmBox('완전히 종료할까요?',
    줄 높이가 같아서 내용이 들어올 때 화면이 튀지 않는다. */
 ['#today', '#upcoming', '#floating'].forEach(sel => {
   const el = $(sel);
-  if(el && !el.children.length) el.innerHTML = '<div class="sk-row"></div>'.repeat(4);
+  if(el && !el.children.length)
+    el.innerHTML = [58, 42, 50, 36].map(w =>
+      '<div class="sk-row"><span class="sk c"></span><span class="sk l" style="width:' + w + '%"></span>' +
+      '<span class="sk r"></span></div>').join('');
 });
 load();
 setInterval(load, 45000);

@@ -234,7 +234,7 @@ def main():
     webview.create_window(
         "To-Do Manager", SERVICE_URL, js_api=Api(),
         width=1020, height=880, min_size=(760, 620),
-        frameless=True, easy_drag=False, background_color="#DDE3E2",
+        frameless=True, easy_drag=False, background_color="#E9E4DD",
         hidden="--hidden" in sys.argv,      # 자동 실행 때 미리 만들어만 둔다
     )
     if "--hidden" not in sys.argv:
