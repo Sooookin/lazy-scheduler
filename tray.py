@@ -112,8 +112,7 @@ def _badge_image(base, n):
               width=max(2, big // 24))
     label = "9+" if n > 9 else str(n)
     font = None
-    for path in (os.path.join(paths.RES_DIR, "fonts", "Paperlogy-5Medium.ttf"),
-                 os.path.join(paths.APP_DIR, "Paperlogy-5Medium.ttf"), r"C:\Windows\Fonts\malgun.ttf"):
+    for path in paths.font_paths("Paperlogy-5Medium.ttf"):
         try:
             font = ImageFont.truetype(path, int(r * (1.15 if len(label) == 1 else 0.9)))
             break

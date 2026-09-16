@@ -45,7 +45,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     stale = []
     for name, out_name, weight in FACES:
-        src = os.path.join(ROOT, name)
+        src = os.path.join(ROOT, "assets", "fonts", name)
         dst = os.path.join(OUT, out_name)
         if not os.path.exists(src):
             sys.exit("원본 글꼴이 없다: %s" % src)

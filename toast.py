@@ -106,8 +106,7 @@ def _font_paths(weight):
     # 300 은 큰 글자에만. Bold 는 한글에서 획이 붙어 뭉툭해 보여 쓰지 않는다.
     name = {300: "Paperlogy-3Light.ttf",
             400: "Paperlogy-4Regular.ttf"}.get(weight, "Paperlogy-5Medium.ttf")
-    return [os.path.join(paths.RES_DIR, "fonts", name), os.path.join(paths.APP_DIR, name),
-            r"C:\Windows\Fonts\malgun.ttf"]
+    return paths.font_paths(name)
 
 
 @functools.lru_cache(maxsize=256)

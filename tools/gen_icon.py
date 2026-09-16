@@ -10,7 +10,7 @@ import os
 
 from PIL import Image, ImageDraw, ImageFilter
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 
 TILE_HI = (243, 239, 232, 255)      # 타일 윗면 (빛) - 점토 바탕의 밝은 쪽
@@ -84,11 +84,11 @@ def main():
     for n in WEB_PNGS:
         img = by_size.get(n) or draw(n)
         name = "icon.png" if n == 256 else f"icon-{n}.png"
-        img.save(os.path.join(HERE, "web", name))
+        img.save(os.path.join(ROOT, "web", name))
         print("web/" + name)
     # Pillow 의 ICO 저장은 sizes 로 넘긴 크기를 스스로 축소하므로,
     # 크기별로 따로 그린 프레임을 append_images 로 직접 넣는다.
-    frames[-1].save(os.path.join(HERE, "app.ico"), format="ICO",
+    frames[-1].save(os.path.join(ROOT, "assets", "app.ico"), format="ICO",
                     sizes=[(s, s) for s in SIZES],
                     append_images=frames[:-1])
     print("app.ico:", ", ".join(str(s) for s in SIZES))
