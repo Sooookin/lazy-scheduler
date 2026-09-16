@@ -66,8 +66,25 @@ def test_no_stray_hex_colours_in_python():
         assert not stray, "%s 에 tokens 에 없는 색이 있다: %s" % (name, sorted(stray))
 
 
-def test_weights_are_only_the_three_we_ship():
-    """Paperlogy 는 300 · 500 · 700 뿐이다. 없는 굵기를 부르면 가짜 볼드가 된다."""
-    assert sorted(tokens.WEIGHT.values()) == [300, 500, 700]
+def test_weights_match_the_fonts_we_actually_ship():
+    """없는 굵기를 부르면 브라우저가 가짜 볼드를 만들어 한글 획이 뭉개진다.
+
+    실제로 내보내는 글꼴 목록(tools/build_fonts.py)에서 값을 가져온다.
+    글꼴을 더하거나 뺄 때 이 목록만 고치면 되고, 손으로 적어 둔 숫자가
+    남아 어긋나는 일이 없다.
+    """
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import build_fonts
+
+    shipped = {w for _, _, w in build_fonts.FACES}
+    assert set(tokens.WEIGHT.values()) <= shipped, (
+        "tokens 가 내보내지 않는 굵기를 쓴다: %s" % sorted(set(tokens.WEIGHT.values()) - shipped))
+
+    # @font-face 선언도 실제 파일과 맞아야 한다
+    declared = set(int(w) for w in re.findall(r"@font-face\{[^}]*?font-weight:(\d{3})", css_text()))
+    assert declared == shipped, "선언 %s · 실제 %s" % (sorted(declared), sorted(shipped))
+    for _, name, _ in build_fonts.FACES:
+        assert os.path.exists(os.path.join(ROOT, "web", "fonts", name)), "%s 가 없다" % name
+
     used = set(int(w) for w in re.findall(r"font-weight:(\d{3})", css_text()))
-    assert used <= {300, 500, 700}, "쓸 수 없는 굵기: %s" % sorted(used - {300, 500, 700})
+    assert used <= shipped, "쓸 수 없는 굵기: %s" % sorted(used - shipped)

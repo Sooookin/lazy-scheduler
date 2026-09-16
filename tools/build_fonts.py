@@ -26,9 +26,9 @@ OUT = os.path.join(ROOT, "web", "fonts")
 
 # (원본, 내놓을 이름, CSS 의 font-weight)
 FACES = [
-    ("Paperlogy-3Light.ttf",  "paperlogy-300.woff2", 300),
-    ("Paperlogy-5Medium.ttf", "paperlogy-500.woff2", 500),
-    ("Paperlogy-7Bold.ttf",   "paperlogy-700.woff2", 700),
+    ("Paperlogy-3Light.ttf",   "paperlogy-300.woff2", 300),
+    ("Paperlogy-4Regular.ttf", "paperlogy-400.woff2", 400),
+    ("Paperlogy-5Medium.ttf",  "paperlogy-500.woff2", 500),
 ]
 
 

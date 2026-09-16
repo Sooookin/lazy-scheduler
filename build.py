@@ -237,7 +237,7 @@ def main():
             # 알림 카드(toast.py)가 Pillow 로 직접 그리므로 글꼴 파일이 필요하다 (SIL OFL 1.1)
             "--add-data", f"Paperlogy-3Light.ttf{os.pathsep}fonts",
             "--add-data", f"Paperlogy-5Medium.ttf{os.pathsep}fonts",
-            "--add-data", f"Paperlogy-7Bold.ttf{os.pathsep}fonts",
+            "--add-data", f"Paperlogy-4Regular.ttf{os.pathsep}fonts",
             ]
     # 지연 임포트되는 것들
     for m in ("pystray._win32", "clr",

@@ -31,6 +31,7 @@ const ICON = {
   restore: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="3" width="5.5" height="5.5" rx="1"/><path d="M3.5 3v-.5a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H7"/></svg>',
   check: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   plusBig: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path pathLength="1" d="M12 5v14"/><path pathLength="1" d="M5 12h14"/></svg>',
+  pencil: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
   plus: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
 };
 
@@ -168,18 +169,22 @@ function itemEl(i, opt){
   }
   const when = opt.showDate && i.date ? fmtDay(i.date) + (i.time ? ' ' + i.time : '') : (i.time || '');
   if(when) bits.push('<span class="tm">'+esc(when)+'</span>');
-  /* 한 줄: 체크 · 제목(늘어남) · 상태 · 시각. 줄을 누르면 수정 창이 열린다 */
-  el.innerHTML = '<div class="dot" role="checkbox" aria-checked="'+(i.done ? 'true' : 'false')+'" title="완료"></div>'+
+  /* 한 줄: 체크 · 제목(늘어남) · 상태 · 시각 · 연필.
+     줄을 누르면 "다 했다" 이다. 하루에도 몇 번씩 하는 일이므로 줄 전체가
+     과녁이 된다. 수정은 드물게 하는 일이라 연필에만 맡긴다.
+     (예전에는 반대였다 - 완료하려면 18px 동그라미를 정확히 눌러야 했고,
+      빗나가면 수정 창이 열렸다) */
+  el.innerHTML = '<div class="dot" role="checkbox" aria-checked="'+(i.done ? 'true' : 'false')+'"></div>'+
     '<div class="t">'+esc(i.title)+'</div>'+
-    (bits.length ? '<div class="meta">'+bits.join('')+'</div>' : '');
-  el.title = i.title + (i.note ? String.fromCharCode(10) + i.note : '');
-  el.querySelector('.dot').onclick = e => {
-    e.stopPropagation();
-    /* 뒤집기가 아니라 "화면에 보이는 상태의 반대" 로 정한다. 알림 카드에서 이미
-       완료했는데 화면이 늦게 갱신됐어도 결과가 누른 사람의 뜻대로 나온다. */
+    (bits.length ? '<div class="meta">'+bits.join('')+'</div>' : '')+
+    '<button class="edit" type="button" title="수정" aria-label="수정">'+ICON.pencil+'</button>';
+  el.title = i.title + (i.note ? String.fromCharCode(10) + i.note : '') +
+             String.fromCharCode(10) + (i.done ? '눌러서 완료 취소' : '눌러서 완료');
+  /* 뒤집기가 아니라 "화면에 보이는 상태의 반대" 로 정한다. 알림 카드에서 이미
+     완료했는데 화면이 늦게 갱신됐어도 결과가 누른 사람의 뜻대로 나온다. */
+  el.onclick = () =>
     api('/api/task/'+encodeURIComponent(i.id)+'/done', {date:i.date, done:!i.done}).then(load);
-  };
-  el.onclick = () => openEdit(i);
+  el.querySelector('.edit').onclick = e => { e.stopPropagation(); openEdit(i); };
   return el;
 }
 
@@ -832,19 +837,22 @@ function dayModal(key, list){
     const when = (isWeekend(t.due_date)
         ? d.getDate() + '일(' + WD[(d.getDay() + 6) % 7] + ') ' : '') +
       (t.due_time || (isWeekend(t.due_date) ? '' : '시각 없음'));
-    el.innerHTML = '<span class="dot" title="완료"></span>' +
+    el.innerHTML = '<span class="dot"></span>' +
                    '<span class="n">' + esc(t.title) + '</span>' +
                    (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') +
-                   '<span class="w">' + esc(when.trim()) + '</span>';
-    el.querySelector('.dot').onclick = e => {
-      e.stopPropagation();
+                   '<span class="w">' + esc(when.trim()) + '</span>' +
+                   '<button class="edit" type="button" title="수정" aria-label="수정">' + ICON.pencil + '</button>';
+    el.title = t.done ? '눌러서 완료 취소' : '눌러서 완료';
+    el.onclick = () => {
       api('/api/task/' + encodeURIComponent(t.id) + '/done', {date: t.due_date, done: !t.done})
         .then(() => api('/api/overview')).then(o => {
           render(o);
           dayModal(key, dayItems(key));    /* 반복도 그대로 남는다 */
         });
     };
-    el.onclick = () => { closeM('#m-day'); openEdit(t._rt ? t : asItem(t)); };
+    el.querySelector('.edit').onclick = e => {
+      e.stopPropagation(); closeM('#m-day'); openEdit(t._rt ? t : asItem(t));
+    };
     box.appendChild(el);
   });
   $('#day-add').onclick = () => { closeM('#m-day'); openAdd('deadline', {date:key}); };

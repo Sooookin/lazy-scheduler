@@ -13,10 +13,10 @@
 
 @font-face{font-family:"Paperlogy"; font-style:normal; font-weight:300; font-display:swap;
   src:url(fonts/paperlogy-300.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-style:normal; font-weight:400; font-display:swap;
+  src:url(fonts/paperlogy-400.woff2) format("woff2")}
 @font-face{font-family:"Paperlogy"; font-style:normal; font-weight:500; font-display:swap;
   src:url(fonts/paperlogy-500.woff2) format("woff2")}
-@font-face{font-family:"Paperlogy"; font-style:normal; font-weight:700; font-display:swap;
-  src:url(fonts/paperlogy-700.woff2) format("woff2")}
 
 :root{
   /* >>> tokens.py 가 만든다. 여기서 직접 고치지 말 것 (tools/gen_tokens.py) */
@@ -28,7 +28,7 @@
   --deep:#08202b; --deep-hi:#123140; --onmid:#eef3f1;
   --midshadow:rgba(77,117,114,.30);
   /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않아 큰 글자에만 남긴다. */
-  --w-thin:300; --w-sec:500; --w-pri:700;
+  --w-thin:300; --w-sec:400; --w-pri:500;
   --rowpad:12px; --tb:34px;
   --ease:cubic-bezier(.2,.8,.2,1); --t-fast:140ms; --t-med:220ms; --t-slow:320ms;
   /* <<< tokens.py */
@@ -48,7 +48,7 @@ body{
   background-blend-mode:multiply, multiply, multiply, normal;
   background-attachment:fixed;
   font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:var(--w-pri);
-  font-size:13px; letter-spacing:-.2px; -webkit-font-smoothing:antialiased;
+  font-size:13.5px; letter-spacing:-.2px; -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
 input,textarea{user-select:text}
@@ -79,8 +79,8 @@ svg{display:block}
    space-between 으로 나누면 같은 공간이 네 틈에 고르게 퍼진다.
    gap 은 창이 좁아졌을 때의 최소 간격으로만 남는다. */
 .top{display:flex; align-items:center; justify-content:space-between; gap:24px; flex:0 0 84px}
-.d-day{font-size:21px; font-weight:var(--w-pri); letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
-.d-full{font-size:10.5px; font-weight:var(--w-sec); color:var(--faint); margin-top:5px; letter-spacing:.3px}
+.d-day{font-size:25px; font-weight:var(--w-pri); letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
+.d-full{font-size:11.5px; font-weight:var(--w-sec); color:var(--faint); margin-top:5px; letter-spacing:.3px}
 /* 큰 글자일수록 가는 획 */
 .clock{font-size:42px; font-weight:var(--w-thin); letter-spacing:-2px; line-height:1; color:var(--deep);
   font-variant-numeric:tabular-nums}
@@ -140,7 +140,7 @@ svg{display:block}
 #col-right > .card.fold{margin-top:auto}
 /* 칸 제목: 굵기 대신 자간과 색으로 세운다 */
 .card h2{margin:0 0 2px; padding-bottom:9px; border-bottom:1px solid var(--rule2);
-  font-size:12px; font-weight:var(--w-pri); letter-spacing:.2px; color:var(--ink2);
+  font-size:12.5px; font-weight:var(--w-pri); letter-spacing:.2px; color:var(--ink2);
   display:flex; align-items:baseline; gap:9px; flex:0 0 auto}
 .badge{font-size:12.5px; font-weight:var(--w-pri); color:var(--mid-ink); font-variant-numeric:tabular-nums}
 .badge.hot{color:var(--mid-ink)}
@@ -192,20 +192,34 @@ svg{display:block}
 .dot:active{box-shadow:inset 3px 3px 6px var(--dark), inset -1px -1px 3px var(--light)}
 .item.done .dot::after{opacity:1; transform:scale(1)}
 .item.done .t{color:var(--faint); text-decoration:line-through; text-decoration-color:var(--dim)}
-.t{flex:1; min-width:0; font-size:14px; font-weight:var(--w-pri); color:var(--body);
+.t{flex:1; min-width:0; font-size:15px; font-weight:var(--w-pri); color:var(--body);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .meta{display:flex; align-items:center; gap:8px; flex:0 0 auto; white-space:nowrap}
-.tm{font-size:13.5px; font-weight:var(--w-pri); color:var(--body); font-variant-numeric:tabular-nums; letter-spacing:0}
+/* 수정 연필. 줄을 누르는 것은 "다 했다" 이므로, 수정은 따로 과녁을 둔다.
+   평소에는 비워 두고 마우스를 올리거나 키보드로 짚었을 때만 드러낸다 -
+   줄마다 연필이 떠 있으면 스물여섯 줄에 연필이 스물여섯 개다. */
+.item .edit, .day-row .edit{width:28px; height:28px; flex:0 0 auto; padding:0; border:0;
+  cursor:pointer; background-color:transparent; color:var(--dim); border-radius:9px;
+  display:grid; place-items:center; opacity:0;
+  transition:opacity var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+             background-color var(--t-fast) var(--ease)}
+.item:hover .edit, .day-row:hover .edit,
+.item .edit:focus-visible, .day-row .edit:focus-visible{opacity:1}
+.item .edit:hover, .day-row .edit:hover{color:var(--ink2); background-color:rgba(56,46,32,.08)}
+.item .edit:focus-visible, .day-row .edit:focus-visible{outline:2px solid rgba(77,117,114,.55); outline-offset:1px}
+/* 마우스가 없는 화면(터치)에서는 숨으면 닿을 길이 없다 */
+@media (hover: none){ .item .edit, .day-row .edit{opacity:.55} }
+.tm{font-size:14px; font-weight:var(--w-pri); color:var(--body); font-variant-numeric:tabular-nums; letter-spacing:0}
 .item.done .tm{color:var(--faint)}
-.st{font-size:10.5px; font-weight:var(--w-pri); letter-spacing:.6px; padding:2px 7px; border-radius:6px; flex:0 0 auto}
+.st{font-size:11px; font-weight:var(--w-pri); letter-spacing:.6px; padding:2px 7px; border-radius:6px; flex:0 0 auto}
 .st.late{background-color:var(--deep); color:var(--onmid)}
 .st.soon{background-color:var(--mint); color:var(--deep)}
 .st.ok{background-color:var(--pale); color:var(--muted)}
-.tag{font-size:11px; font-weight:var(--w-sec); color:var(--faint)}
+.tag{font-size:11.5px; font-weight:var(--w-sec); color:var(--faint)}
 .rt-ico{color:var(--mid); flex:0 0 auto}
-.rule-t{font-size:11.5px; font-weight:var(--w-sec); color:var(--faint); flex:0 1 auto; min-width:0; max-width:46%;
+.rule-t{font-size:12px; font-weight:var(--w-sec); color:var(--faint); flex:0 1 auto; min-width:0; max-width:46%;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.empty{color:var(--faint); font-size:12.5px; font-weight:var(--w-sec); padding:18px 4px; text-align:center; line-height:1.7}
+.empty{color:var(--faint); font-size:13px; font-weight:var(--w-sec); padding:18px 4px; text-align:center; line-height:1.7}
 
 .foot{display:flex; align-items:center; gap:14px; flex:0 0 auto; font-size:10.5px; font-weight:var(--w-sec); color:var(--faint)}
 .link{border:0; background-color:transparent; color:var(--faint); font-family:inherit; font-size:10.5px;
@@ -319,7 +333,7 @@ svg{display:block}
 .opt{font-style:normal; font-size:11px; font-weight:var(--w-sec); color:var(--faint); letter-spacing:0}
 
 /* ---------- 입력 ---------- */
-.modal label{display:block; font-size:10.5px; font-weight:var(--w-pri); color:var(--muted); letter-spacing:.2px;
+.modal label{display:block; font-size:11px; font-weight:var(--w-pri); color:var(--muted); letter-spacing:.2px;
   margin:12px 2px 5px}
 .modal input, .modal select, .modal textarea{
   width:100%; height:38px; border:0; outline:0; font-family:inherit; font-size:13px; font-weight:var(--w-pri);
