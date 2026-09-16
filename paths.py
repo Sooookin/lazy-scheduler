@@ -20,12 +20,31 @@ else:
     RES_DIR = APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 WEB_DIR = os.path.join(RES_DIR, "web")
-ICON = os.path.join(RES_DIR, "app.ico")
+ICON = (os.path.join(RES_DIR, "app.ico") if FROZEN
+        else os.path.join(APP_DIR, "assets", "app.ico"))
+
+
+def font_paths(name):
+    """이 글꼴 파일을 찾아볼 자리들. 앞에서부터 있는 것을 쓴다.
+
+    빌드본은 묶을 때 fonts/ 로 넣고, 소스로 돌릴 때는 assets/fonts/ 에 있다.
+    마지막은 맑은 고딕 - 글꼴이 없다고 알림이 아예 안 뜨면 안 된다.
+
+    (예전에는 toast.py 와 tray.py 가 이 목록을 각자 적어 뒀다. 글꼴을 옮기면
+     한쪽만 고쳐져 트레이 숫자만 시스템 글꼴로 나오는 식이 된다.)
+    """
+    return [os.path.join(RES_DIR, "fonts", name),
+            os.path.join(APP_DIR, "assets", "fonts", name),
+            r"C:\Windows\Fonts\malgun.ttf"]
 
 # 사용자 데이터(쓰기 가능)
 _base = os.environ.get("APPDATA") or os.path.expanduser("~")
-DATA_DIR = os.path.join(_base, "To-Do Manager")
-OLD_DATA_DIRS = [os.path.join(_base, "오늘")]   # 예전 이름
+APP_NAME = "LazyScheduler"           # 창 제목 · 트레이 · 바로가기에 그대로 쓰인다
+DATA_DIR = os.path.join(_base, APP_NAME)
+# 예전 이름들. 가까운 것부터. 이름을 또 바꾸면 여기 앞에 끼워 넣는다.
+OLD_DATA_DIRS = [os.path.join(_base, "lazy scheduler"),
+                 os.path.join(_base, "To-Do Manager"),
+                 os.path.join(_base, "오늘")]
 DATA_FILE = os.path.join(DATA_DIR, "data.json")      # 내 일정 (나중에 다른 기기와 동기화할 대상)
 STATE_FILE = os.path.join(DATA_DIR, "state.json")    # 이 PC 에만 해당하는 상태 (띄운 알림 기록)
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
@@ -82,15 +101,33 @@ def _copy(src, dst):
 
 
 def migrate_legacy():
-    """예전 위치(프로그램 폴더 / 예전 이름의 APPDATA 폴더)에 있던 일정을 한 번만 옮겨온다."""
+    """예전 위치(프로그램 폴더 / 예전 이름의 APPDATA 폴더)에 있던 일정을 한 번만 옮겨온다.
+
+    일정만 옮기면 안 된다. 되살릴 백업이 예전 폴더에 남아 있으면, 이름을 바꾼
+    뒤 data.json 이 깨졌을 때 _backups() 가 텅 빈 새 폴더만 본다. 안전망이
+    통째로 끊긴다. state.json(띄운 알림 기록)도 없으면 오늘 알림이 다시 뜬다.
+
+    옮기는 것이 아니라 베껴 온다. 예전 폴더는 그대로 남아 한 벌 더인 셈이 된다.
+    """
     if os.path.exists(DATA_FILE):
         return
     for old_dir in OLD_DATA_DIRS:
         old = os.path.join(old_dir, "data.json")
-        if os.path.exists(old):
-            ensure_data_dir()
-            _copy(old, DATA_FILE)
+        if not os.path.exists(old):
+            continue
+        ensure_data_dir()
+        if not _copy(old, DATA_FILE):
             return
+        _copy(os.path.join(old_dir, "state.json"), STATE_FILE)
+        old_backups = os.path.join(old_dir, "backups")
+        if os.path.isdir(old_backups):
+            try:
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+                for n in os.listdir(old_backups):
+                    _copy(os.path.join(old_backups, n), os.path.join(BACKUP_DIR, n))
+            except OSError:
+                pass            # 백업을 못 옮겨도 일정은 이미 옮겼다
+        return
     legacy = os.path.join(APP_DIR, "data.json")
     if os.path.exists(legacy):
         ensure_data_dir()

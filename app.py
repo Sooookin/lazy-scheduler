@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""To-Do Manager - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
+"""LazyScheduler - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
 import ctypes, json, os, socket, subprocess, sys, threading, time, traceback, webbrowser
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +18,8 @@ CRLF = bytes([13, 10])
 URL = f"http://{HOST}:{PORT}/"
 NO_WINDOW = 0x08000000
 MAX_BODY = 256 * 1024           # 요청 본문 한도. 일정 한 건은 수 KB 를 넘지 않는다
+DRAIN_MAX = 64 * 1024           # 거절한 뒤 흘려 버릴 최대 바이트
+DRAIN_WAIT = 0.25               # 그때 기다릴 시간(초)
 TOKEN_HEADER = "X-TM-Token"
 TOKEN_SLOT = b"__TM_TOKEN__"    # index.html 에서 비밀값으로 바꿔 끼울 자리
 WEEK = "월화수목금토일"
@@ -56,7 +58,7 @@ def acquire_single_instance():
         k32 = ctypes.WinDLL("kernel32", use_last_error=True)
         k32.CreateMutexW.restype = ctypes.c_void_p
         k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-        h = k32.CreateMutexW(None, False, r"Local\TodoManager.Service")
+        h = k32.CreateMutexW(None, False, r"Local\LazyScheduler.Service")
         if h and ctypes.get_last_error() == 183:        # ERROR_ALREADY_EXISTS
             return False
         _lock_handle = h
@@ -131,7 +133,7 @@ def open_window():
         return
     except Exception:
         log("네이티브 창 실패 -> Edge 폴백: " + traceback.format_exc())
-    profile = os.path.join(os.environ.get("LOCALAPPDATA", BASE), "TodoManager", "browser")
+    profile = os.path.join(os.environ.get("LOCALAPPDATA", BASE), "LazyScheduler", "browser")
     for exe in BROWSERS:
         if os.path.exists(exe):
             subprocess.Popen([exe, f"--app={URL}", f"--user-data-dir={profile}",
@@ -197,18 +199,18 @@ class Handler(BaseHTTPRequestHandler):
       · POST 는 application/json 만 받는다. 다른 사이트가 폼이나 no-cors fetch 로
         보낼 수 있는 형식(text/plain 등)을 막는다.
     """
-    server_version = "TodoManager"
+    server_version = "LazyScheduler"
     sys_version = ""
 
     def log_message(self, *a):
         pass
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", cache="no-store"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -217,6 +219,43 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
         except Exception:
             pass
+
+    def finish(self):
+        """응답을 보낸 뒤 곱게 닫는다.
+
+        읽지 않은 요청 본문을 남긴 채 소켓을 닫으면 윈도가 RST 를 보낸다.
+        그러면 보낸 쪽은 우리가 적어 보낸 403 · 413 · 415 대신 "연결이 끊겼다"
+        만 보게 되어, 왜 막혔는지 알 수 없다. 창이 띄우는 문구도 실제 이유
+        대신 "프로그램에 연결할 수 없습니다" 가 된다.
+
+        본문이 한도를 넘는 요청은 일부러 읽지 않으므로(읽어 주는 것이 바로
+        공격이 노리는 바다) 이 경우가 드물지 않다. 그래서 보내는 쪽을 먼저
+        닫아 응답이 확실히 건너가게 하고, 남은 요청 바이트는 잠깐만, 그것도
+        정해진 양까지만 흘려 버린 뒤 닫는다.
+        """
+        left = self._unread()
+        if left:
+            try:
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_WR)
+                self.connection.settimeout(DRAIN_WAIT)
+                todo = min(left, DRAIN_MAX)
+                while todo > 0:
+                    chunk = self.rfile.read(min(todo, 16384))
+                    if not chunk:
+                        break
+                    todo -= len(chunk)
+            except Exception:
+                pass
+        BaseHTTPRequestHandler.finish(self)
+
+    def _unread(self):
+        """알려 온 길이 중 아직 읽지 않은 바이트 수."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except (AttributeError, TypeError, ValueError):
+            return 0
+        return max(0, n - getattr(self, "_read_bytes", 0))
 
     def _guard(self, api):
         port = self.server.server_address[1]
@@ -229,6 +268,20 @@ class Handler(BaseHTTPRequestHandler):
         if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
             raise ApiError(403, "인증되지 않은 요청입니다")
 
+    def _span(self, name, default):
+        """/api/all 의 기간(일). 너무 긴 기간은 반복 규칙을 그만큼 펼쳐야 해서 막는다."""
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query).get(name)
+        if not q:
+            return default
+        try:
+            v = int(q[0])
+        except (TypeError, ValueError):
+            raise ApiError(400, "기간이 올바르지 않습니다") from None
+        if not (0 <= v <= 750):
+            raise ApiError(400, "기간은 0~750일 사이여야 합니다")
+        return v
+
     def _body(self):
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if ctype != "application/json":
@@ -240,6 +293,7 @@ class Handler(BaseHTTPRequestHandler):
         if n < 0 or n > MAX_BODY:
             raise ApiError(413, "요청이 너무 큽니다")
         raw = self.rfile.read(n) if n else b"{}"
+        self._read_bytes = len(raw)
         try:
             body = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
@@ -289,7 +343,10 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/ping":
             return self._send(200, {"ok": True})
         if p == "/api/all":
-            return self._send(200, {"items": store.instances(back=60, ahead=120)})
+            # 달력은 보고 있는 달만 물어본다. 기간을 안 주면 예전처럼 -60 / +120.
+            back = self._span("back", 60)
+            ahead = self._span("ahead", 120)
+            return self._send(200, {"items": store.instances(back=back, ahead=ahead)})
         raise ApiError(404, "없는 경로입니다")
 
     def _static(self, p):
@@ -306,7 +363,12 @@ class Handler(BaseHTTPRequestHandler):
             data = f.read()
         if ext == "html":
             data = data.replace(TOKEN_SLOT, paths.ipc_token().encode("ascii"))
-        return self._send(200, data, STATIC_TYPES.get(ext, "application/octet-stream"))
+        # 화면 파일(html·css·js)은 no-store 여야 업데이트가 바로 보인다. 글꼴은
+        # 한 벌에 160KB 짜리 한글 세 벌이라 창을 열 때마다 480KB 를 다시 받고
+        # 다시 해석하고 있었다. 글꼴은 좀처럼 바뀌지 않으므로 하루 동안 들고 있게 한다
+        # (바꿔야 하면 tools/build_fonts.py 의 파일 이름을 바꾸면 곧바로 반영된다).
+        cache = "public, max-age=86400" if ext == "woff2" else "no-store"
+        return self._send(200, data, STATIC_TYPES.get(ext, "application/octet-stream"), cache)
 
     def _post(self):
         p = self.path.split("?")[0]
@@ -352,12 +414,23 @@ class Handler(BaseHTTPRequestHandler):
             link = autostart.make_desktop_shortcut()
             return self._send(200, {"ok": bool(link), "path": link or ""})
         if p == "/api/test-toast":
-            toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다")
+            _preview_toast()
             return self._send(200, {"ok": True})
         if p == "/api/quit":
             threading.Thread(target=shutdown, daemon=True).start()
             return self._send(200, {"ok": True})
         raise ApiError(404, "없는 경로입니다")
+
+
+def _preview_toast():
+    """설정 · 트레이의 [알림 미리보기]. 실제 카드와 같은 모양, 버튼은 아무 일도 하지 않는다."""
+    # 실제 알림과 같은 자리 · 같은 칸을 채운다. 시각을 비우면 미리보기만
+    # 다른 모양으로 떠서, 정작 진짜 카드가 어떻게 생겼는지 알 수 없다.
+    toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다 · 10:00",
+                 on_done=lambda: None, on_snooze=lambda: None,
+                 extra={"when": "10:00", "rel": "10분 뒤",
+                        "meta": "이런 모양으로 떠올랐다 사라집니다"},
+                 key="preview:%d" % int(time.time()))
 
 
 def preview(rule):
@@ -408,19 +481,54 @@ def _complete(tid, day):
         pass
 
 
+SNOOZE_MIN = 10
+
+
+def _snooze(i):
+    """알림 카드의 [10분 뒤]. 10분 뒤에 같은 알림을 한 번 더 띄운다.
+
+    그 사이 완료했거나 지웠으면 띄우지 않는다. 프로그램을 끄면 미룬 알림도 사라진다.
+    """
+    tid, day, title, at = i["id"], i["date"], i["title"], i.get("time") or ""
+
+    def again():
+        try:
+            for cur in store.instances(back=1, ahead=1):
+                if cur["id"] == tid and cur["date"] == day:
+                    if cur["done"]:
+                        return
+                    break
+            else:
+                return
+        except Exception:
+            log("미룬 알림 확인 실패: " + traceback.format_exc())
+            return
+        toast.notify(title, "10분 전에 미룬 알림" + (" · %s" % at if at else ""), late=True,
+                     on_done=lambda: _complete(tid, day), on_snooze=lambda: _snooze(i),
+                     key="snooze:%s:%s:%d" % (tid, day, int(time.time())))
+
+    t = threading.Timer(SNOOZE_MIN * 60, again)
+    t.daemon = True
+    t.start()
+
+
 def tick(now=None):
     now = now or datetime.now()
     hm = now.strftime("%H:%M")
     d = store.load()
     st = store.settings(d)
     default_lead = timedelta(minutes=st["notify_min"])
+    # 발표 중 알림을 미룰지는 설정에서 바꿀 수 있다. 매 틱 반영한다.
+    toast.HOLD_WHEN_BUSY = st.get("hold_when_busy", True)
 
     first_tick = not getattr(tick, "_ran", False)
     tick._ran = True
 
     o = store.overview(data=d, now=now)
     left = o["stats"]["left"]
-    tray.set_title(f"To-Do Manager · {left}건 남음" if left else "To-Do Manager · 급한 일 없음")
+    tray.set_title(f"{paths.APP_NAME} · {left}건 남음" if left
+                   else f"{paths.APP_NAME} · 급한 일 없음")
+    tray.set_badge(toast.held_count())      # 발표 중 보류한 알림 수
 
     # 브리핑은 시각이 지난 뒤 2시간 안에만. 그러지 않으면 저녁에 프로그램을 켰을 때
     # 아침 브리핑이 그제서야 떠오른다.
@@ -446,9 +554,9 @@ def tick(now=None):
         head = missed[0]
         if len(missed) == 1:
             tid, day = head["id"], head["date"]
-            toast.notify(head["title"], "마감 시간 지남 · %s" % head["time"],
-                         accent="#08202b",
+            toast.notify(head["title"], "마감 시간 지남 · %s" % head["time"], late=True,
                          on_done=lambda tid=tid, day=day: _complete(tid, day),
+                         on_snooze=lambda head=head: _snooze(head),
                          key="missed:%s:%s" % (tid, day))
         else:
             rows = [(i["time"] or "", i["title"], True) for i in missed]
@@ -519,10 +627,18 @@ def _maybe_notify(i, now, default_lead, first_tick):
         return "missed" if store.mark_fired(key, now) else None
     if not store.mark_fired(key, now):
         return None
+    # 카드는 시각을 가장 크게 보여준다. 그래서 "언제" 를 따로 넘긴다 -
+    # 한 문장으로 뭉쳐 보내면 카드가 다시 쪼개야 한다.
     sub = ("%d분 뒤 마감 · %s" % (mins, i["time"])) if mins > 0 else ("마감 시간 지남 · %s" % i["time"])
+    rel = ("%d분 뒤" % mins) if mins > 0 else "지남"
+    kind = {"routine": "반복", "deadline": "마감", "floating": "메모"}.get(i.get("kind"), "")
+    detail = i.get("rule_text") or ""
+    meta = (kind + " · " + detail) if (kind and detail) else (kind or detail)
     tid, day = i["id"], i["date"]
-    toast.notify(i["title"], sub, accent="#08202b" if mins <= 0 else "#4d7572",
+    toast.notify(i["title"], sub, late=mins <= 0,
                  on_done=lambda tid=tid, day=day: _complete(tid, day),
+                 on_snooze=lambda i=i: _snooze(i),
+                 extra={"when": i["time"], "rel": rel, "meta": meta},
                  key="%s:%s" % (tid, day))
     log("알림 띄움: %s (%s)" % (key, sub))
     return "shown"
@@ -581,8 +697,9 @@ def main():
     threading.Thread(target=scheduler, daemon=True).start()
     paths.log("main: 서버·스케줄러 시작, tray 진입")
     tray.start(on_open=open_window,
-               on_test=lambda: toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다"),
+               on_test=_preview_toast,
                on_quit=shutdown)
+    toast.set_open_handler(open_window)
     paths.log("main: tray 완료, toast.run_forever 진입")
     toast.run_forever(on_ready=(prewarm_window if silent else open_window))
 

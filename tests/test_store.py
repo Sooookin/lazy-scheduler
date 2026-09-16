@@ -138,6 +138,40 @@ def test_migrates_v1_file():
 
 # ---------- 동시성 ----------
 
+def test_replace_retries_when_windows_briefly_locks_the_file(monkeypatch):
+    """백신이 data.json 을 잠깐 잡고 있어도 일정을 잃지 않아야 한다.
+
+    윈도에서 os.replace 는 다른 프로그램이 파일을 열어 본 그 순간에
+    WinError 5 로 실패한다. 예전에는 그대로 "저장하지 못했습니다" 가 되어
+    방금 적은 것이 사라졌다.
+    """
+    real = os.replace
+    hits = []
+
+    def flaky(src, dst):
+        hits.append(src)
+        if len(hits) <= 3:                       # 처음 세 번은 막혔다고 한다
+            raise PermissionError(5, "액세스가 거부되었습니다")
+        return real(src, dst)
+
+    monkeypatch.setattr(store.os, "replace", flaky)
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)   # 기다리지 않는다
+    tid = store.add(deadline(title="버티는 저장"))["id"]
+    assert len(hits) >= 4
+    assert [t["title"] for t in store.tasks() if t["id"] == tid] == ["버티는 저장"]
+
+
+def test_replace_gives_up_and_reports_a_real_failure(monkeypatch):
+    """계속 막히면 조용히 넘어가지 말고 알린다 (저장된 척하면 더 나쁘다)."""
+    def always(src, dst):
+        raise PermissionError(5, "액세스가 거부되었습니다")
+
+    monkeypatch.setattr(store.os, "replace", always)
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)
+    with pytest.raises(store.StoreError):
+        store.add(deadline(title="끝내 실패"))
+
+
 def test_concurrent_writers_do_not_lose_updates():
     """예전에는 한 스레드가 읽어 둔 옛 내용을 저장하면서 다른 스레드의 변경을 지웠다."""
     ids = [store.add(deadline(title="t%d" % k))["id"] for k in range(24)]
@@ -251,6 +285,22 @@ def test_settings_are_validated():
     assert out["notify_min"] == 10 and out["brief_time"] == "" and "whatever" not in out
 
 
+def test_hold_when_busy_defaults_on_and_is_validated():
+    """발표 중 알림 미룰기. 기본값은 켜져 있어야 한다
+    (사고가 나는 쪽이 기본이 되면 안 된다)."""
+    assert store.settings()["hold_when_busy"] is True
+    with pytest.raises(store.ValidationError):
+        store.update_settings({"hold_when_busy": "yes"})
+    assert store.update_settings({"hold_when_busy": False})["hold_when_busy"] is False
+
+
+def test_old_file_without_hold_setting_gets_the_default():
+    """이전 버전이 적은 파일에는 이 항목이 없다. 읽을 때 채워 넣는다."""
+    write_raw({"version": 2, "tasks": [], "holidays": [],
+               "settings": {"notify_min": 15}})
+    assert store.settings()["hold_when_busy"] is True
+
+
 def test_settings_reader_survives_bad_stored_values():
     write_raw({"version": 2, "tasks": [], "holidays": [],
                "settings": {"notify_min": "abc", "brief_time": None, "business_only": False}})
@@ -269,7 +319,7 @@ def test_one_bad_record_does_not_break_the_overview():
          "rule": {"period": "week", "weekdays": [0], "interval": "x"}},
     ]})
     o = store.overview()
-    ids = {i["id"] for i in o["todays"] + o["overdue"] + o["upcoming"] + o["later"]}
+    ids = {i["id"] for i in o["todays"] + o["overdue"] + o["upcoming"]}
     assert "good" in ids or o["today"] != "2026-09-15"
     assert {i["id"] for i in store.instances(back=3650, ahead=3650)} == {"good"}
 

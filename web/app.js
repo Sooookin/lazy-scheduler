@@ -10,8 +10,12 @@ const api = (u, b) => fetch(u, {
     headers: Object.assign({'X-TM-Token': TOKEN}, b ? {'Content-Type': 'application/json'} : {}),
     body: b ? JSON.stringify(b) : undefined,
   })
-  .catch(() => { throw new Error('프로그램에 연결할 수 없습니다. 잠시 후 다시 시도하세요.'); })
+  .catch(() => {
+    setOffline(true);
+    throw new Error('프로그램에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
+  })
   .then(r => r.json().catch(() => ({})).then(d => {
+    setOffline(false);          /* 답이 왔다는 것만으로 연결은 살아 있다 */
     if(!r.ok) throw new Error(d.error || ('요청을 처리하지 못했습니다 (' + r.status + ')'));
     return d;
   }));
@@ -19,6 +23,17 @@ const WD = ['월','화','수','목','금','토','일'];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = t => +t.slice(0,2)*60 + +t.slice(3);
+
+/* 아이콘은 모두 SVG. 글꼴 기호(✎ ▲ ✓)는 Paperlogy 에 없어 다른 글꼴로 바뀌고, 배율에 따라 흐려진다 */
+const ICON = {
+  repeat: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 013-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 01-3 3H3"/></svg>',
+  max: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg>',
+  restore: '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="3" width="5.5" height="5.5" rx="1"/><path d="M3.5 3v-.5a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H7"/></svg>',
+  check: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  plusBig: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path pathLength="1" d="M12 5v14"/><path pathLength="1" d="M5 12h14"/></svg>',
+  pencil: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
+  plus: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+};
 
 /* 시각은 모두 5분 단위. 키보드로 직접 입력할 수 있고(09:30, 0930),
    5분 배수가 아닌 값이 들어오면 가장 가까운 5분으로 맞춘다. */
@@ -47,16 +62,50 @@ addEventListener('unhandledrejection', e => {
   say((e.reason && e.reason.message) || '요청을 처리하지 못했습니다');
 });
 
+/* ══════════ 알림 띠 ══════════
+   상태줄(say)은 2.8초 뒤 사라진다. 계속 알려야 하는 일 - 연결이 끊겼다,
+   손상된 파일을 되살렸다 - 은 창 위쪽 띠에 남긴다. */
+function strip(msg, opt){
+  const el = $('#strip');
+  if(!el) return;
+  if(!msg){ el.hidden = true; return; }
+  opt = opt || {};
+  $('#strip-msg').textContent = msg;
+  el.classList.toggle('bad', !!opt.bad);
+  const b = $('#strip-btn');
+  if(opt.action){
+    b.hidden = false;
+    b.textContent = opt.action;
+    b.onclick = opt.onClick || null;
+  }else b.hidden = true;
+  el.hidden = false;
+}
+
+/* 연결이 끊긴 동안에는 목록을 그대로 두되 손대지 못하게 막는다.
+   낙관적으로 그려 두면 저장되지 않은 완료 표시가 조용히 사라진다. */
+let OFFLINE = false;
+function setOffline(on){
+  if(OFFLINE === on) return;
+  OFFLINE = on;
+  document.body.classList.toggle('offline', on);
+  clearInterval(setOffline._t);
+  if(on){
+    strip('서비스와 연결이 끊겼습니다. 아래 내용은 마지막으로 읽은 것입니다.',
+      { bad: true, action: '다시 연결', onClick: () => load().catch(() => {}) });
+    setOffline._t = setInterval(() => load().catch(() => {}), 5000);
+  }else{
+    strip('');
+  }
+}
+
 /* ══════════ 창 버튼 ══════════ */
-const MAX_GLYPH = '';      /* ChromeMaximize - 빈 사각형 */
-const RESTORE_GLYPH = '';  /* ChromeRestore  - 겹친 사각형 = "창 화면" */
 
 /* 최대화 여부는 창에 직접 물어본다(Win32 IsZoomed). 창 크기를 재서 짐작해
    봤더니 테두리 없는 창은 최대화 범위가 작업 영역과 딱 맞지 않아 어긋났다.
    Win+Up 이나 제목줄 두 번 누르기로 최대화해도 resize 는 오므로 여기서 잡힌다. */
 function paintMax(m){
   const b = $('#w-max');
-  b.textContent = m ? RESTORE_GLYPH : MAX_GLYPH;
+  b.innerHTML = m ? ICON.restore : ICON.max;
   b.title = m ? '창 화면으로' : '최대화';
 }
 function syncMax(){
@@ -109,31 +158,33 @@ function itemEl(i, opt){
   const el = document.createElement('div');
   el.className = 'item k-' + (i.kind || 'deadline') + (i.done ? ' done' : '');
   const bits = [];
-  const overdue = opt.showOverdue && i.date && i.date < STATE.today;
-  if(overdue) bits.push('<span class="late">'+esc(fmtDay(i.date)+(i.time ? ' '+i.time : ''))+'</span>');
-  else if(opt.showDate && i.date) bits.push('<span class="pill">'+esc(fmtDay(i.date))+'</span>');
-  if(i.time && !overdue){
-    let cls = '';
-    if(i.date === STATE.today && !i.done)
-      cls = i.time < STATE.now ? 'late' : (mins(i.time) - mins(STATE.now) <= 90 ? 'soon' : '');
-    bits.push('<span class="'+cls+'">'+esc(i.time)+(cls==='late' ? ' 지남' : ' 까지')+'</span>');
+  if(i.kind === 'routine') bits.push('<span class="rt-ico" title="'+esc(i.rule_text)+'">'+ICON.repeat+'</span>');
+  if(i.muted) bits.push('<span class="tag">알림 끔</span>');
+  /* 상태는 알약 하나로: 지난 날짜 · 지난 시각은 짙게, 90분 안이면 민트 */
+  const overdue = opt.showOverdue && i.date && i.date < STATE.today && !i.done;
+  if(overdue) bits.push('<span class="st late">'+esc(fmtDay(i.date))+'</span>');
+  else if(i.date === STATE.today && i.time && !i.done){
+    if(i.time < STATE.now) bits.push('<span class="st late">지남</span>');
+    else if(mins(i.time) - mins(STATE.now) <= 90) bits.push('<span class="st soon">임박</span>');
   }
-  if(i.kind === 'routine') bits.push('<span title="'+esc(i.rule_text)+'">↻</span>');
-  if(i.muted) bits.push('<span>알림 끔</span>');
-  /* 한 줄: 제목은 늘어나고 마감 정보는 오른쪽에 붙는다.
-     두 줄이면 한 화면에 절반밖에 안 들어간다. */
-  el.innerHTML = '<div class="dot" title="완료"></div>'+
+  const when = opt.showDate && i.date ? fmtDay(i.date) + (i.time ? ' ' + i.time : '') : (i.time || '');
+  if(when) bits.push('<span class="tm">'+esc(when)+'</span>');
+  /* 한 줄: 체크 · 제목(늘어남) · 상태 · 시각 · 연필.
+     줄을 누르면 "다 했다" 이다. 하루에도 몇 번씩 하는 일이므로 줄 전체가
+     과녁이 된다. 수정은 드물게 하는 일이라 연필에만 맡긴다.
+     (예전에는 반대였다 - 완료하려면 18px 동그라미를 정확히 눌러야 했고,
+      빗나가면 수정 창이 열렸다) */
+  el.innerHTML = '<div class="dot" role="checkbox" aria-checked="'+(i.done ? 'true' : 'false')+'"></div>'+
     '<div class="t">'+esc(i.title)+'</div>'+
     (bits.length ? '<div class="meta">'+bits.join('')+'</div>' : '')+
-    '<button class="rowbtn" title="수정 / 삭제">✎</button>';
-  el.title = i.title + (i.note ? String.fromCharCode(10) + i.note : '');
-  el.querySelector('.dot').onclick = e => {
-    e.stopPropagation();
-    /* 뒤집기가 아니라 "화면에 보이는 상태의 반대" 로 정한다. 알림 카드에서 이미
-       완료했는데 화면이 늦게 갱신됐어도 결과가 누른 사람의 뜻대로 나온다. */
+    '<button class="edit" type="button" title="수정" aria-label="수정">'+ICON.pencil+'</button>';
+  el.title = i.title + (i.note ? String.fromCharCode(10) + i.note : '') +
+             String.fromCharCode(10) + (i.done ? '눌러서 완료 취소' : '눌러서 완료');
+  /* 뒤집기가 아니라 "화면에 보이는 상태의 반대" 로 정한다. 알림 카드에서 이미
+     완료했는데 화면이 늦게 갱신됐어도 결과가 누른 사람의 뜻대로 나온다. */
+  el.onclick = () =>
     api('/api/task/'+encodeURIComponent(i.id)+'/done', {date:i.date, done:!i.done}).then(load);
-  };
-  el.onclick = () => openEdit(i);
+  el.querySelector('.edit').onclick = e => { e.stopPropagation(); openEdit(i); };
   return el;
 }
 
@@ -141,13 +192,15 @@ function itemEl(i, opt){
 function routineEl(i){
   const el = document.createElement('div');
   const isToday = i.next_date === STATE.today;
-  el.className = 'item rt k-routine' + (isToday ? (i.done ? ' cleared' : ' today') : '');
-  const when = i.next_date ? fmtDay(i.next_date) + (i.time ? ' '+i.time : '') : '예정 없음';
+  el.className = 'item rt k-routine';
+  let when;
+  if(!i.next_date) when = '<span class="tm">예정 없음</span>';
+  else if(isToday) when = (i.done ? '<span class="st ok">완료</span>' : '<span class="st late">오늘</span>') +
+                          (i.time ? '<span class="tm">'+esc(i.time)+'</span>' : '');
+  else when = '<span class="tm">'+esc(fmtDay(i.next_date))+'</span>';
   el.innerHTML = '<div class="t">'+esc(i.title)+'</div>'+
-    '<span class="rule" title="'+esc(i.rule_text)+'">↻ '+esc(i.rule_text)+'</span>'+
-    (i.muted ? '<span class="tag">알림 끔</span>' : '')+
-    '<span class="when">'+esc(when)+'</span>'+
-    '<button class="rowbtn" title="수정 / 삭제">✎</button>';
+    '<span class="rule-t" title="'+esc(i.rule_text)+'">'+esc(i.rule_text)+'</span>'+
+    '<div class="meta">'+(i.muted ? '<span class="tag">알림 끔</span>' : '')+when+'</div>';
   el.title = i.title + ' · ' + i.rule_text + (isToday && i.done ? ' (오늘 완료)' : '');
   el.onclick = () => openEdit(i);
   return el;
@@ -155,30 +208,64 @@ function routineEl(i){
 
 function fill(node, list, emptyMsg, opt, maker){
   node.innerHTML = '';
-  if(!list.length){ node.innerHTML = '<div class="empty">'+emptyMsg+'</div>'; return; }
+  if(!list.length){
+    /* '<' 로 시작하면 이미 완성된 마크업이다 (아래 emptyToday 같은 안내 화면) */
+    node.innerHTML = emptyMsg.charAt(0) === '<'
+      ? emptyMsg : '<div class="empty">'+emptyMsg+'</div>';
+    return;
+  }
   list.forEach(i => node.appendChild((maker||itemEl)(i, opt)));
+}
+
+/* 오늘 칸이 비는 경우는 두 가지고, 사용자가 할 일도 서로 다르다.
+   ① 아직 아무것도 등록하지 않았다  → 반복 업무부터 넣도록 권한다
+   ② 등록은 했는데 오늘은 없다      → 다음 마감이 언제인지 알려준다
+   둘 다 "없습니다" 한 줄로 끝내면 다음에 뭘 해야 할지 알 수 없다. */
+function emptyToday(o){
+  const none = !(o.upcoming || []).length && !(o.floating || []).length
+            && !(o.routines || []).length;
+  if(none)
+    return '<div class="empty-rich"><div class="ill">' + ICON.plusBig + '</div>'
+      + '<div class="eh">아직 등록한 일정이 없습니다</div>'
+      + '<div class="ep">매일 · 매주 반복되는 업무를 먼저 넣어 두면,<br>'
+      + '아침마다 오늘 할 일이 저절로 채워집니다.</div>'
+      + '<div class="ec"><button data-new="routine">' + ICON.plus + '반복 업무 추가</button>'
+      + '<button class="ghost" data-new="deadline">마감 하나 넣어보기</button></div></div>';
+  const n = (o.upcoming || [])[0];
+  /* 날짜 표기는 목록과 같은 함수를 쓴다 ("내일" · "9/17 (목)") */
+  const when = n && n.date ? fmtDay(n.date) + (n.time ? ' ' + n.time : '') : '';
+  return '<div class="empty-rich"><div class="ill">' + ICON.check + '</div>'
+    + '<div class="eh">오늘 할 일이 없습니다</div>'
+    + '<div class="ep">' + (n
+        ? '다음 마감은 <b>' + esc(when) + ' · ' + esc(n.title) + '</b> 입니다.'
+        : '다가오는 7일에도 마감이 없습니다.') + '</div>'
+    + '<div class="ec"><button data-new="deadline">' + ICON.plus + '새 항목</button></div></div>';
 }
 
 function render(o){
   STATE = o;
   HOL = new Set(o.holidays || []);
   /* 일정 파일이 손상돼 백업에서 되살렸다면, 조용히 넘어가지 않고 한 번 알린다 */
-  if(o.notice && o.notice !== render._notice){ render._notice = o.notice; alert(o.notice); }
+  /* alert 는 창을 막고 알림 처리까지 멈춰 세운다. 띠로 남겨 두고 직접 닫게 한다. */
+  if(o.notice && o.notice !== render._notice){
+    render._notice = o.notice;
+    strip(o.notice, { action: '확인', onClick: () => strip('') });
+  }
   const d = dObj(o.today);
   $('#dow').textContent = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일';
-  $('#fulldate').textContent = o.is_business_day ? '영업일' : '영업일 아님';
   $('#tb-sub').textContent = o.stats.left ? o.stats.left+'건 남음' : '';
   $('#left').textContent = o.stats.left;
   const pct = o.stats.total ? o.stats.done / o.stats.total : (o.stats.left ? 0 : 1);
   $('#ringfg').style.strokeDashoffset = 188.5 * (1 - pct);
   $('#ringfg').style.stroke = o.stats.left ? 'var(--mid)' : 'var(--mint)';
+  if($('#pop-left').classList.contains('on')) drawPop();
 
   /* 지금 + 오늘 통합: 시간순, 완료는 아래로 */
   const rank = i => (i.done ? 1 : 0);
   const all = o.overdue.concat(o.todays).sort((a,b) =>
     rank(a)-rank(b) || (a.date||'').localeCompare(b.date||'') ||
     (a.time||'99:99').localeCompare(b.time||'99:99'));
-  fill($('#today'), all, '오늘 할 일이 없습니다 ✓', {showOverdue:true});
+  fill($('#today'), all, emptyToday(o), {showOverdue:true});
   const undone = all.filter(i => !i.done).length;
   $('#c-today').textContent = all.length;
   $('#c-today').classList.toggle('hot', undone > 0);
@@ -195,6 +282,7 @@ function render(o){
   $('#s-brief').value = o.settings.brief_time || '08:30';
   $('#s-biz').checked = bizOn();
   $('#s-auto').checked = !!o.settings.autostart;
+  $('#s-hold').checked = o.settings.hold_when_busy !== false;
   if($('#m-manage').classList.contains('on')) drawManage();
   if(view === 'cal') drawCal();
   queueFit();
@@ -207,10 +295,25 @@ function render(o){
 const COL_GAP = 14;          /* .col 의 gap 과 같아야 한다 */
 const MIN_ROWS = 4;          /* 다가오는 마감·메모는 네 줄 자리를 잡아 둔다 */
 
+/* 배치는 세 구간이다. 가운데(2단)에서만 높이를 계산한다.
+   넓은 화면은 CSS 그리드가, 좁은 창은 스크롤이 알아서 한다. */
+const WIDE = () => matchMedia('(min-width:1500px)').matches;
+const NARROW = () => matchMedia('(max-width:900px)').matches;
+
 function fitCards(){
   const col = $('#col-right');
   if(!col || $('#v-home').hidden) return;
   const cards = [...col.querySelectorAll('.card')];
+  /* 이 두 구간에서는 높이를 정하지 않는다. 예전에 넣어 둔 인라인 높이가
+     남아 있으면 그리드 배치가 어긋나므로 반드시 지우고 나간다. */
+  if(WIDE() || NARROW()){
+    cards.forEach(c => {
+      c.style.height = '';
+      const l = c.querySelector('.list');
+      if(l) l.style.height = '';
+    });
+    return;
+  }
   /* 반복 업무 칸이 펼쳐지면 칼럼 전체를 덮으므로(position:absolute) 건드리지 않는다 */
   if(!cards.length || cards.some(c => c.classList.contains('open'))) return;
 
@@ -290,6 +393,8 @@ setInterval(tickClock, 10000);
 const rtCard = $('#card-rt');
 if(localStorage.getItem('rt-open') === '1') rtCard.classList.add('open');
 function toggleRt(){
+  /* 3단 배치에서는 반복 업무가 이미 자기 칼럼에 펼쳐져 있다. 접을 것이 없다. */
+  if(WIDE()) return;
   rtCard.classList.toggle('open');
   localStorage.setItem('rt-open', rtCard.classList.contains('open') ? '1' : '0');
   // 화살표 방향은 CSS 가 회전으로 처리한다 (여기서 글리프까지 바꾸면 두 번 뒤집힌다)
@@ -306,14 +411,66 @@ const load = () => api('/api/overview').then(o => {
   }
 });
 
+/* ══════════ 남은 일 미리보기 ══════════ */
+/* 고리는 "5" 라고만 한다. 그 다섯이 무엇인지 보려면 아래 목록을 훑어야 했고,
+   달력을 보고 있으면 그마저 없다. 눌러서 바로 펼친다.
+   모달이 아니라 붙는 종이인 이유: 확인하고 곧장 하던 일로 돌아가는 동작이라
+   화면을 가리고 닫는 절차를 거치게 할 일이 아니다. */
+const POP_MAX = 6;                    /* 그 아래는 "외 N건" 으로 접는다 */
+
+function drawPop(){
+  const el = $('#pop-left'), o = STATE;
+  if(!o) return;
+  const left = (o.overdue || []).concat(o.todays || []).filter(i => !i.done)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') ||
+                    (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const late = left.filter(i => i.date && i.date < o.today).length;
+
+  if(!left.length){
+    el.innerHTML = '<div class="pop-h"><b>다 끝났습니다</b></div>' +
+      '<div class="pop-none">오늘 남은 일이 없습니다.</div>';
+    return;
+  }
+  const rows = left.slice(0, POP_MAX).map(i => {
+    const over = i.date && i.date < o.today;
+    const when = over ? fmtDay(i.date) : (i.time || '');
+    return '<div class="pop-r k-' + (i.kind || 'deadline') + (over ? ' late' : '') + '">' +
+      '<i></i><div class="n" title="' + esc(i.title) + '">' + esc(i.title) + '</div>' +
+      (when ? '<div class="w">' + esc(when) + '</div>' : '') + '</div>';
+  }).join('');
+  const more = left.length - POP_MAX;
+  el.innerHTML =
+    '<div class="pop-h"><b>' + left.length + '건 남음</b>' +
+    (late ? '<span>지난 것 ' + late + '건</span>' : '') + '</div>' +
+    rows +
+    '<div class="pop-f">' +
+    (more > 0 ? '외 ' + more + '건 · ' : '') +
+    '완료 ' + o.stats.done + ' · 전체 ' + o.stats.total + '</div>';
+}
+
+function popOpen(on){
+  const el = $('#pop-left'), btn = $('#ring-btn');
+  if(on) drawPop();
+  el.classList.toggle('on', on);
+  btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+const popShown = () => $('#pop-left').classList.contains('on');
+
+$('#ring-btn').onclick = e => { e.stopPropagation(); popOpen(!popShown()); };
+/* 바깥을 누르면 닫는다. 미리보기 안을 누른 것은 빼고 (제목이 길면 끌어 읽는다) */
+document.addEventListener('mousedown', e => {
+  if(popShown() && !e.target.closest('#pop-left, #ring-btn')) popOpen(false);
+});
+
 /* ══════════ 모달 ══════════ */
-function openM(id){ $('#veil').classList.add('on'); $(id).classList.add('on'); }
+function openM(id){ popOpen(false); $('#veil').classList.add('on'); $(id).classList.add('on'); }
 function closeM(id){ $(id).classList.remove('on'); if(!$$('.modal.on').length) $('#veil').classList.remove('on'); }
 function closeAll(){ $('#veil').classList.remove('on'); $$('.modal').forEach(m => m.classList.remove('on')); }
 $('#veil').onclick = closeAll;
 $$('[data-close]').forEach(b => b.onclick = e => closeM('#'+e.target.closest('.modal').id));
 document.onkeydown = e => {
   if(e.key === 'Escape'){
+    if(popShown()){ popOpen(false); $('#ring-btn').focus(); return; }
     if(!$$('.modal.on').length && rtCard.classList.contains('open')) return toggleRt();
     closeAll();
   }
@@ -374,7 +531,8 @@ function Form(box){
   const F = f => box.querySelector('[data-f="'+f+'"]');
   const self = {kind:'routine', box:box};
 
-  const timeBlock = (t, lead, muted) =>
+  const timeBlock = (t, lead, muted, step) =>
+    '<span class="step">'+(step ? '<i class="n">'+step+'</i>' : '')+'언제 알릴까</span>'+
     '<div class="row"><div><label>마감 시각 <i class="opt">(비워도 됨)</i></label>'+
       '<input type="time" step="300" data-f="time" title="직접 입력할 수 있습니다 (5분 단위)" value="'+(t||'')+'"></div>'+
     '<div><label>알림 (분 전)</label><input type="number" class="min5" data-f="lead" min="0" step="5" placeholder="기본값 사용" value="'+(lead!=null?lead:'')+'"></div></div>'+
@@ -383,6 +541,7 @@ function Form(box){
   /* ---------- 마감 ---------- */
   function renderDeadline(i){
     box.innerHTML =
+      '<span class="step">언제까지</span>'+
       '<label>마감 날짜</label><input type="date" data-f="date" value="'+(i.date||rollBiz(STATE.today,1))+'">'+
       '<div class="quick">'+[['오늘',0],['내일',1],['모레',2],['+7일',7],['+30일',30]]
           .map(([l,n])=>'<button type="button" data-add="'+n+'">'+l+'</button>').join('')+
@@ -407,9 +566,9 @@ function Form(box){
     const r = i.rule_n || {period:'month', basis:'business_day', n:1};
     self.anchor = (i.rule_n && i.rule_n.anchor) || null;   /* 격주의 기준 주는 수정해도 유지 */
     box.innerHTML =
-      '<span class="step">1 · 얼마나 자주</span>'+ sel('period', PERIODS, r.period)+
+      '<span class="step"><i class="n">1 ·</i>얼마나 자주</span>'+ sel('period', PERIODS, r.period)+
       '<div data-f="detail"></div>'+
-      timeBlock(i.time, i.notify_min, i.muted)+
+      timeBlock(i.time, i.notify_min, i.muted, '3 ·')+
       '<p class="preview" data-f="prev"><b>다음 실행 날짜</b>—</p>';
 
     const drawDetail = keep => {
@@ -420,14 +579,14 @@ function Form(box){
         h = '<label class="chk"><input type="checkbox" data-f="biz"'+
             (rr.business_only !== false ? ' checked' : '')+'> 주말·공휴일 제외</label>';
       } else if(p === 'week'){
-        h = '<span class="step">2 · 어느 요일 · 주기</span>'+
+        h = '<span class="step"><i class="n">2 ·</i>어느 요일 · 주기</span>'+
             '<div class="row"><div class="g15"><div class="wd" data-f="wd">'+
             WD.map((w,x)=> (bizOn() && x>4 && !(rr.weekdays||[]).includes(x)) ? '' :
               '<span data-w="'+x+'"'+((rr.weekdays||[]).includes(x)?' class="on"':'')+'>'+w+'</span>').join('')+
             '</div></div><div>'+sel('iv', [[1,'매주'],[2,'격주'],[3,'3주마다'],[4,'4주마다']], rr.interval||1)+
             '</div></div>';
       } else {
-        h = '<span class="step">2 · 어느 날'+(q ? '' : ' · 실행하는 달')+'</span>'+
+        h = '<span class="step"><i class="n">2 ·</i>어느 날'+(q ? '' : ' · 실행하는 달')+'</span>'+
             '<div class="row"><div class="g15">'+
               sel('basis', BASES.map(([v,ml,ql])=>[v, q?ql:ml]), basisKey(rr))+
             '</div><div data-f="arg"></div>'+
@@ -489,6 +648,10 @@ function Form(box){
 
   self.render = function(kind, i){
     self.kind = kind;
+    /* 종류마다 필요한 높이가 다르다. 자리를 잡아 두는 것은 반복뿐이다
+       (주기를 바꿀 때마다 창이 흔들리지 않게). 종류를 바꾸는 것은 누른 사람이
+       뜻한 일이므로 창 높이가 따라 변해도 놀라지 않는다. */
+    box.dataset.kind = kind;
     i = i || {};
     if(kind === 'floating'){
       box.innerHTML = '<p class="hint">기한 없이 목록에만 남습니다. 나중에 이 창에서 종류를 바꿔 마감을 붙일 수 있습니다.</p>';
@@ -562,6 +725,11 @@ function openAdd(kind, seed){
   setTimeout(() => $('#a-title').focus(), 90);
 }
 $('#btn-add').onclick = () => openAdd('routine', {});
+/* 빈 상태 안내의 버튼. 목록은 그릴 때마다 새로 만들어지므로 칸에 위임해 둔다. */
+$('#today').addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-new]');
+  if(b) openAdd(b.dataset.new, {});
+});
 $('#a-save').onclick = () => {
   const title = $('#a-title').value.trim();
   if(!title){ say('이름을 입력하세요'); return $('#a-title').focus(); }
@@ -612,6 +780,44 @@ function confirmBox(title, msg, onOk){
    표시 대상은 "마감이 있는 일" 뿐이다. 반복 업무는 넣지 않는다 -
    매달 되풀이되는 항목이 칸을 다 차지해서 정작 마감이 안 보이게 된다. */
 const CAL_MAX = 3;                  /* 한 칸에 보여줄 최대 개수, 나머지는 +N */
+
+/* 달력에 얹을 반복 발생.
+   규칙을 펼치는 일은 서버(recur.py)가 한다. 화면에서 또 구현하면 두 곳이
+   언젠가 어긋나고, 어긋난 쪽이 달력이면 없는 날에 일이 있다고 말하게 된다.
+   보고 있는 달을 덮을 만큼만 물어본다. */
+let RT = {key:null, items:[], busy:null};
+const routinesOn = () => !!STATE && STATE.settings.show_routines !== false;
+
+const byWhen = (a, b) =>
+  (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
+  (a._rt ? 1 : 0) - (b._rt ? 1 : 0) ||
+  a.due_date.localeCompare(b.due_date) ||
+  (a.due_time || '99:99').localeCompare(b.due_time || '99:99');
+
+/* 반복 발생을 달력 칩과 같은 모양으로 맞춘다 */
+const asRoutine = i => Object.assign({}, i, {due_date:i.date, due_time:i.time, _rt:true});
+
+/* 이 칸(날짜)에 들어갈 것 전부. 달력과 하루 목록이 같은 것을 보게 한다 */
+function dayItems(key){
+  const out = deadlines().filter(t => cellDate(t.due_date) === key);
+  if(routinesOn())
+    RT.items.forEach(i => { if(cellDate(i.date) === key) out.push(asRoutine(i)); });
+  return out.sort(byWhen);
+}
+
+function ensureRoutines(y, m){
+  if(!routinesOn()) return;
+  const key = y + '-' + m;
+  if(RT.key === key || RT.busy === key) return;
+  const DAY = 864e5, t0 = dObj(STATE.today);
+  const back = Math.max(0, Math.ceil((t0 - new Date(y, m, 1)) / DAY) + 7);
+  const ahead = Math.max(0, Math.ceil((new Date(y, m + 1, 0) - t0) / DAY) + 7);
+  RT.busy = key;
+  api('/api/all?back=' + back + '&ahead=' + ahead).then(d => {
+    RT = {key:key, items:(d.items || []).filter(i => i.kind === 'routine' && i.date), busy:null};
+    drawCal();
+  }).catch(() => { RT.busy = null; });
+}
 let calCur = null;                  /* 보고 있는 달 {y, m} - m 은 0~11 */
 let view = 'home';
 
@@ -662,7 +868,9 @@ function chipEl(t){
              (wk ? String.fromCharCode(10) + '주말 마감이라 앞 영업일 칸에 표시했습니다' : '') +
              (t.note ? String.fromCharCode(10) + t.note : '') +
              (t.done ? String.fromCharCode(10) + '(완료)' : '');
-  el.onclick = e => { e.stopPropagation(); openEdit(asItem(t)); };
+  /* 누르는 것은 칸에 맡긴다 (그날 요약이 열린다). 칩을 바로 수정으로 이으면
+     달력에서 날짜를 훑어보려던 손이 자꾸 수정 창을 연다 - 목록 줄에서 고친
+     것과 같은 문제다. 수정은 요약 안의 연필에만 맡긴다. */
   return el;
 }
 
@@ -683,23 +891,22 @@ function dayModal(key, list){
     const when = (isWeekend(t.due_date)
         ? d.getDate() + '일(' + WD[(d.getDay() + 6) % 7] + ') ' : '') +
       (t.due_time || (isWeekend(t.due_date) ? '' : '시각 없음'));
-    el.innerHTML = '<span class="dot" title="완료"></span>' +
+    el.innerHTML = '<span class="dot"></span>' +
                    '<span class="n">' + esc(t.title) + '</span>' +
                    (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') +
                    '<span class="w">' + esc(when.trim()) + '</span>' +
-                   '<button class="rowbtn" title="수정 / 삭제">✎</button>';
-    el.querySelector('.dot').onclick = e => {
-      e.stopPropagation();
+                   '<button class="edit" type="button" title="수정" aria-label="수정">' + ICON.pencil + '</button>';
+    el.title = t.done ? '눌러서 완료 취소' : '눌러서 완료';
+    el.onclick = () => {
       api('/api/task/' + encodeURIComponent(t.id) + '/done', {date: t.due_date, done: !t.done})
         .then(() => api('/api/overview')).then(o => {
           render(o);
-          const fresh = deadlines().filter(x => cellDate(x.due_date) === key);
-          dayModal(key, fresh.sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
-            a.due_date.localeCompare(b.due_date) ||
-            (a.due_time || '99:99').localeCompare(b.due_time || '99:99')));
+          dayModal(key, dayItems(key));    /* 반복도 그대로 남는다 */
         });
     };
-    el.onclick = () => { closeM('#m-day'); openEdit(asItem(t)); };
+    el.querySelector('.edit').onclick = e => {
+      e.stopPropagation(); closeM('#m-day'); openEdit(t._rt ? t : asItem(t));
+    };
     box.appendChild(el);
   });
   $('#day-add').onclick = () => { closeM('#m-day'); openAdd('deadline', {date:key}); };
@@ -712,15 +919,22 @@ function drawCal(){
   const y = calCur.y, m = calCur.m;
   $('#cal-ym').textContent = y + '년 ' + (m + 1) + '월';
 
+  ensureRoutines(y, m);
+
   const byDate = {};
   deadlines().forEach(t => {
     const k = cellDate(t.due_date);
     (byDate[k] = byDate[k] || []).push(t);
   });
-  Object.keys(byDate).forEach(k => byDate[k].sort((a, b) =>
-    (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
-    a.due_date.localeCompare(b.due_date) ||
-    (a.due_time || '99:99').localeCompare(b.due_time || '99:99')));
+  if(routinesOn()){
+    const pm = y + '-' + String(m + 1).padStart(2, '0');
+    RT.items.forEach(i => {
+      if(i.date.slice(0, 7) !== pm) return;          /* 보고 있는 달만 */
+      const k = cellDate(i.date);
+      (byDate[k] = byDate[k] || []).push(asRoutine(i));
+    });
+  }
+  Object.keys(byDate).forEach(k => byDate[k].sort(byWhen));
 
   const pre = y + '-' + String(m + 1).padStart(2, '0');
   const mine = deadlines().filter(t => t.due_date.slice(0, 7) === pre);
@@ -729,6 +943,7 @@ function drawCal(){
 
   const cols = weekendOn() ? 7 : 5;
   $('#cal-we').classList.toggle('off', !weekendOn());
+  $('#cal-rt').classList.toggle('off', !routinesOn());
   const head = $('#cal-head');
   head.style.setProperty('--cols', cols);
   head.innerHTML = WD.slice(0, cols)
@@ -768,18 +983,32 @@ function drawCal(){
         '</div>';
       if(!out){
         const list = byDate[key] || [];
+        const dls = list.filter(t => !t._rt);
+        const rts = list.filter(t => t._rt);
         const chips = document.createElement('div');
         chips.className = 'chips';
-        list.slice(0, CAL_MAX).forEach(t => chips.appendChild(chipEl(t)));
+        dls.slice(0, CAL_MAX).forEach(t => chips.appendChild(chipEl(t)));
         cell.appendChild(chips);
-        if(list.length > CAL_MAX){
+        if(dls.length > CAL_MAX){
           const more = document.createElement('div');
           more.className = 'more';
-          more.textContent = '+' + (list.length - CAL_MAX) + '건 더';
+          more.textContent = '+' + (dls.length - CAL_MAX) + '건 더';
           more.onclick = e => { e.stopPropagation(); dayModal(key, list); };
           cell.appendChild(more);
         }
-        /* 마감이 있는 날은 그날 목록을, 빈 날은 추가 창을 연다 */
+        /* 반복은 한 줄로 접는다. 제목을 모두 적으면 같은 글이 날마다 되풀이되고,
+           그 달에 하나뿐인 진짜 마감이 그 속에 묻힌다. 몇 건인지만 알려 준다. */
+        if(rts.length){
+          const rl = document.createElement('div');
+          rl.className = 'rtline';
+          const left = rts.filter(t => !t.done).length;
+          rl.innerHTML = '반복 <b>' + rts.length + '</b>' +
+            (left && left !== rts.length ? '<span class="lf">' + left + ' 남음</span>' : '');
+          rl.title = rts.map(t => (t.due_time ? t.due_time + ' ' : '') + t.title).join(String.fromCharCode(10));
+          rl.onclick = e => { e.stopPropagation(); dayModal(key, list); };
+          cell.appendChild(rl);
+        }
+        /* 뭔가 있는 날은 그날 목록을, 빈 날은 추가 창을 연다 */
         cell.onclick = () => list.length ? dayModal(key, list)
                                          : openAdd('deadline', {date:key});
         const kind = hol ? (HN[key] || '공휴일') + ' · 영업일 아님'
@@ -816,6 +1045,12 @@ $('#views').onclick = e => {
 $('#cal-prev').onclick = () => shiftMonth(-1);
 $('#cal-next').onclick = () => shiftMonth(1);
 $('#cal-now').onclick = () => { calCur = null; drawCal(); };
+$('#cal-rt').onclick = () => {
+  const on = !routinesOn();
+  STATE.settings.show_routines = on;          /* 그리기는 바로, 저장은 뒤에 */
+  drawCal();
+  api('/api/settings', {show_routines: on});
+};
 $('#cal-we').onclick = () => {
   const on = !weekendOn();
   STATE.settings.show_weekend = on;          /* 그리기는 바로, 저장은 뒤에 */
@@ -847,7 +1082,7 @@ function drawManage(){
   rows.forEach(t => {
     const kind = t.kind || 'deadline';
     const rt = byId[t.id];
-    const when = kind === 'routine' ? '↻ ' + (rt ? rt.rule_text : '반복')
+    const when = kind === 'routine' ? (rt ? rt.rule_text : '반복')
                : kind === 'floating' ? '기한 없음'
                : (t.due_date ? fmtDay(t.due_date) : '날짜 없음') + (t.due_time ? ' ' + t.due_time : '');
     const el = document.createElement('div');
@@ -867,7 +1102,8 @@ function drawManage(){
 $('#btn-settings').onclick = () => openM('#m-settings');
 $('#s-save').onclick = () => api('/api/settings', {
     notify_min:+$('#s-lead').value, brief_time:$('#s-brief').value,
-    business_only:$('#s-biz').checked, autostart:$('#s-auto').checked
+    business_only:$('#s-biz').checked, autostart:$('#s-auto').checked,
+    hold_when_busy:$('#s-hold').checked
   }).then(() => { closeM('#m-settings'); say('설정 저장됨'); load(); });
 $('#s-shortcut').onclick = () => api('/api/shortcut', {})
   .then(r => say(r.ok ? '바탕화면에 바로가기를 만들었습니다' : '바로가기를 만들지 못했습니다'));
@@ -876,5 +1112,14 @@ $('#s-quit').onclick = () => confirmBox('완전히 종료할까요?',
   '알림도 함께 멈춥니다. 바탕화면 아이콘으로 다시 시작할 수 있습니다.',
   () => { api('/api/quit', {}); setTimeout(() => window.pywebview ? window.pywebview.api.close() : window.close(), 400); });
 
+/* 첫 그림이 오기 전에는 뾈대를 세워 둔다. 빈 화면보다 낫고,
+   줄 높이가 같아서 내용이 들어올 때 화면이 튀지 않는다. */
+['#today', '#upcoming', '#floating'].forEach(sel => {
+  const el = $(sel);
+  if(el && !el.children.length)
+    el.innerHTML = [58, 42, 50, 36].map(w =>
+      '<div class="sk-row"><span class="sk c"></span><span class="sk l" style="width:' + w + '%"></span>' +
+      '<span class="sk r"></span></div>').join('');
+});
 load();
 setInterval(load, 45000);

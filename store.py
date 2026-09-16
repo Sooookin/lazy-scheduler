@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -44,6 +45,8 @@ _SETTINGS = {
     "brief_time": "08:30",
     "business_only": True,
     "show_weekend": True,          # 달력에 주말 칸을 보여줄지
+    "show_routines": True,         # 달력에 반복 업무도 얹을지
+    "hold_when_busy": True,        # 발표 · 화면 공유 중에는 알림을 미뤘다가 나중에
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
@@ -77,6 +80,28 @@ def _blank():
 
 # ---------- 파일 ----------
 
+def _replace(tmp, path):
+    """바꿔 끼운다. 윈도에서 가끔 실패하므로 몇 번 다시 해 본다.
+
+    백신이나 검색 색인기가 data.json 을 잠깐 열어 보는 사이에 os.replace 를
+    부르면 WinError 5(액세스가 거부되었습니다) 가 난다. 파일에는 아무 문제가
+    없고 몇십 밀리초 뒤면 된다.
+
+    한 번 실패했다고 "저장하지 못했습니다" 를 띄우면, 사용자는 방금 적은
+    것을 잃는다. 자기 잘못도 아니고 다시 해 보면 되는 일로 일정을 잃게 할
+    수는 없다. 그래서 간격을 늘려 가며 여섯 번까지 기다려 본다(최대 1.3초).
+    """
+    delay = 0.02
+    for _ in range(6):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(delay)
+            delay *= 2
+    os.replace(tmp, path)          # 여기서도 안 되면 진짜 문제다. 그대로 올린다.
+
+
 def _write_json(path, obj):
     """임시 파일에 쓰고 디스크에 내린 뒤 한 번에 바꿔 끼운다.
 
@@ -89,7 +114,7 @@ def _write_json(path, obj):
             json.dump(obj, f, ensure_ascii=False, indent=2)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        _replace(tmp, path)
     except OSError as e:
         raise StoreError("저장하지 못했습니다 (%s)" % e) from e
 
@@ -334,7 +359,7 @@ def _check_setting(k, v):
     elif k == "brief_time":
         if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
             raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
-    elif k in ("business_only", "show_weekend"):
+    elif k in ("business_only", "show_weekend", "show_routines", "hold_when_busy"):
         if not isinstance(v, bool):
             raise ValidationError("요청 형식이 올바르지 않습니다")
     else:
@@ -558,27 +583,42 @@ def instances(back=14, ahead=45, data=None, today=None):
     return out
 
 
+def _rule_of(t):
+    """정규화한 규칙과 설명 문구. 날짜가 아니라 항목에만 달린 값이다.
+
+    예전에는 _inst 안에서 회차마다 다시 구했다. "매 영업일" 반복 하나가 85일
+    구간에서 60회차로 펼쳐지면 똑같은 문구를 60번 지어냈고, describe 안에서
+    normalize 가 또 불려 정규화가 회차마다 두 번씩 일어났다. 항목당 한 번이면 된다.
+    """
+    if t.get("kind") != "routine":
+        return None, ""
+    r = t.get("rule")
+    return (recur.normalize(r) if r else None), recur.describe(r)
+
+
 def _expand(t, lo, hi):
     kind = t.get("kind", "deadline")
+    pre = _rule_of(t)
     if kind == "floating":
-        return [_inst(t, None)]
+        return [_inst(t, None, pre)]
     if kind == "routine":
         # 등록 이전 날짜는 밀린 일로 잡지 않는다
         born = (t.get("created") or "")[:10]
         start = max(lo, date.fromisoformat(born)) if born else lo
         skips = set(t.get("skip_dates") or [])
-        return [_inst(t, day) for day in recur.occurrences(t.get("rule") or {}, start, hi)
+        return [_inst(t, day, pre) for day in recur.occurrences(t.get("rule") or {}, start, hi)
                 if day.isoformat() not in skips]
     if not t.get("due_date"):
-        return [_inst(t, None)]
-    return [_inst(t, date.fromisoformat(t["due_date"]))]
+        return [_inst(t, None, pre)]
+    return [_inst(t, date.fromisoformat(t["due_date"]), pre)]
 
 
-def _inst(t, day):
+def _inst(t, day, pre=None):
     routine = t.get("kind") == "routine"
-    done = (day.isoformat() in (t.get("done_dates") or [])) if (routine and day) else bool(t.get("done"))
+    iso = day.isoformat() if day else None          # 한 번만 짓는다
+    done = (iso in (t.get("done_dates") or [])) if (routine and day) else bool(t.get("done"))
     due_dt = _dt(day, t.get("due_time")) if day else None
-    rule_n = recur.normalize(t["rule"]) if (routine and t.get("rule")) else None
+    rule_n, rule_text = pre if pre is not None else _rule_of(t)
     return {
         "id": t["id"],
         "title": t.get("title", ""),
@@ -586,13 +626,14 @@ def _inst(t, day):
         "kind": t.get("kind", "deadline"),
         "tag": t.get("tag", ""),
         "pinned": bool(t.get("pinned")),
-        "date": day.isoformat() if day else None,
+        "date": iso,
         "time": t.get("due_time") or "",
         "due": due_dt.isoformat(timespec="minutes") if due_dt else None,
-        "rule": t.get("rule") or None,
+        # raw rule 은 싣지 않는다. 수정 창은 rule_n(정규화한 것)을 읽고,
+        # 반복 하나가 달력 구간에서 40회차로 펼쳐지면 같은 규칙이 40번 실린다.
         "rule_n": rule_n,
         "period": rule_n.get("period") if rule_n else None,
-        "rule_text": recur.describe(t.get("rule")) if routine else "",
+        "rule_text": rule_text,
         "muted": bool(t.get("muted")),
         "notify_min": t.get("notify_min", None),
         "done": done,
@@ -634,8 +675,6 @@ def overview(data=None, now=None):
     wk = (today + timedelta(days=7)).isoformat()
     upcoming = sorted([i for i in ins if i["kind"] == "deadline" and i["date"]
                        and ti < i["date"] <= wk and not i["done"]], key=key)
-    later = sorted([i for i in ins if i["kind"] == "deadline" and i["date"]
-                    and i["date"] > wk and not i["done"]], key=key)
 
     # ── 반복 업무: 항목당 "다음 예정일" 한 줄 ────────────────
     nxt = {}
@@ -671,7 +710,6 @@ def overview(data=None, now=None):
         "overdue": overdue,
         "todays": todays,
         "upcoming": upcoming,
-        "later": later[:40],
         "routines": routines,
         "floating": floating,
         "stats": {

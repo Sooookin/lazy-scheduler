@@ -7,7 +7,10 @@ import winreg
 import paths
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-NAME = "TodoManager"
+NAME = "LazyScheduler"
+# 예전 이름으로 등록해 둔 것. 그냥 두면 로그인할 때 두 번 실행된다
+# (예전 이름의 값이 남아 있는 채로 새 이름까지 등록되므로).
+OLD_NAMES = ("TodoManager",)
 NO_WINDOW = 0x08000000
 
 
@@ -24,17 +27,35 @@ def _cmd():
 
 
 def is_enabled():
+    """예전 이름으로 등록돼 있어도 "켜져 있다" 로 본다.
+
+    그러지 않으면 설정에는 꺼짐으로 보이는데 로그인하면 실제로는 뜬다.
+    """
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
-            winreg.QueryValueEx(k, NAME)
-        return True
+            for n in (NAME,) + OLD_NAMES:
+                try:
+                    winreg.QueryValueEx(k, n)
+                    return True
+                except OSError:
+                    continue
     except OSError:
-        return False
+        pass
+    return False
+
+
+def _drop_old(k):
+    for n in OLD_NAMES:
+        try:
+            winreg.DeleteValue(k, n)
+        except OSError:
+            pass
 
 
 def set_enabled(on):
     try:
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            _drop_old(k)                  # 켜든 끄든 예전 이름은 치운다
             if on:
                 winreg.SetValueEx(k, NAME, 0, winreg.REG_SZ, _cmd())
             else:
@@ -54,7 +75,7 @@ def make_desktop_shortcut():
         desktop = os.path.join(os.environ.get("USERPROFILE", ""), "OneDrive", "Desktop")
     if not os.path.isdir(desktop):
         return None
-    link = os.path.join(desktop, "To-Do Manager.lnk")
+    link = os.path.join(desktop, paths.APP_NAME + ".lnk")
 
     target = paths.exe_path()
     if not paths.FROZEN:                     # 개발 중에는 pythonw + main.py
@@ -69,7 +90,7 @@ def make_desktop_shortcut():
         "$s.Arguments='{args}';"
         "$s.WorkingDirectory='{wd}';"
         "$s.IconLocation='{icon}';"
-        "$s.Description='To-Do Manager - 일정/루틴 관리';"
+        "$s.Description='LazyScheduler - 일정/루틴 관리';"
         "$s.Save()"
     ).format(link=link.replace("'", "''"), target=target.replace("'", "''"),
              args=args.replace("'", "''"), wd=paths.APP_DIR.replace("'", "''"),

@@ -10,13 +10,13 @@ import os
 
 from PIL import Image, ImageDraw, ImageFilter
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 
-TILE_HI = (240, 243, 242, 255)      # 타일 윗면 (빛)
-TILE_LO = (214, 221, 220, 255)      # 타일 아랫면 (그늘)
-EDGE    = (150, 166, 164, 90)       # 아주 얇은 경계선
-CHECK   = (11, 44, 54, 255)         # 체크 - 팔레트 진한 청록. 16px 에서도 읽힌다
+TILE_HI = (243, 239, 232, 255)      # 타일 윗면 (빛) - 점토 바탕의 밝은 쪽
+TILE_LO = (225, 218, 208, 255)      # 타일 아랫면 (그늘)
+EDGE    = (160, 146, 128, 96)       # 아주 얇은 경계선 (따뜻한 회갈)
+CHECK   = (58, 94, 91, 255)         # 체크 - 앱의 청록보다 한 단계 짙게. 16px 에서도 읽힌다
 
 
 def _round_rect(size, radius, fill):
@@ -84,11 +84,11 @@ def main():
     for n in WEB_PNGS:
         img = by_size.get(n) or draw(n)
         name = "icon.png" if n == 256 else f"icon-{n}.png"
-        img.save(os.path.join(HERE, "web", name))
+        img.save(os.path.join(ROOT, "web", name))
         print("web/" + name)
     # Pillow 의 ICO 저장은 sizes 로 넘긴 크기를 스스로 축소하므로,
     # 크기별로 따로 그린 프레임을 append_images 로 직접 넣는다.
-    frames[-1].save(os.path.join(HERE, "app.ico"), format="ICO",
+    frames[-1].save(os.path.join(ROOT, "assets", "app.ico"), format="ICO",
                     sizes=[(s, s) for s in SIZES],
                     append_images=frames[:-1])
     print("app.ico:", ", ".join(str(s) for s in SIZES))

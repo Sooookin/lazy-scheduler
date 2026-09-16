@@ -15,16 +15,17 @@ import subprocess
 import sys
 import zipfile
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-RELEASE = os.path.join(HERE, "release")
-OUT_NAME = "To-Do Manager"
+# 이 파일은 tools/ 안에 있고, 아래 경로는 모두 저장소 뿌리를 기준으로 한다
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RELEASE = os.path.join(ROOT, "release")
+OUT_NAME = "LazyScheduler"
 
-READ_ME = r"""To-Do Manager  -  일정 · 루틴 관리
+READ_ME = r"""LazyScheduler  -  일정 · 루틴 관리
 ==========================================
 
 ■ 시작하기
   1. 이 폴더를 내 PC로 복사하세요. (공유 폴더에서 바로 실행하면 느립니다)
-  2. "To-Do Manager.exe" 를 두 번 클릭하면 끝입니다. 설치할 것은 없습니다.
+  2. "LazyScheduler.exe" 를 두 번 클릭하면 끝입니다. 설치할 것은 없습니다.
      * 처음 실행할 때 Windows 보안 경고가 나오면
        [추가 정보] → [실행] 을 누르세요. (사내 배포본이라 서명이 없습니다)
   3. 창 오른쪽 위 톱니바퀴에서
@@ -89,7 +90,7 @@ READ_ME = r"""To-Do Manager  -  일정 · 루틴 관리
   아침 08:30 에 오늘 할 일 요약이 한 번 뜹니다.
 
 ■ 내 일정이 저장되는 곳
-  %APPDATA%\To-Do Manager\data.json      (이 파일만 백업하면 됩니다)
+  %APPDATA%\LazyScheduler\data.json      (이 파일만 백업하면 됩니다)
   새 버전으로 폴더를 덮어써도 일정은 그대로 유지됩니다.
 """
 
@@ -208,22 +209,22 @@ def prune(root):
 
 def run(cmd):
     print(">", " ".join(cmd))
-    if subprocess.call(cmd, cwd=HERE) != 0:
+    if subprocess.call(cmd, cwd=ROOT) != 0:
         sys.exit("빌드 실패")
 
 
 def main():
     for d in ("build", "dist", RELEASE):
-        path = os.path.join(HERE, d)
+        path = os.path.join(ROOT, d)
         shutil.rmtree(path, ignore_errors=True)
         if os.path.exists(path):
             # 배포본이 실행 중이면 exe 가 잠겨 있어 지워지지 않는다.
             # 예전에 여기서 조용히 넘어가 copytree 가 엉뚱한 곳에서 터졌다.
-            sys.exit(f"'{path}' 를 지울 수 없습니다." \
-                     f"\n실행 중인 To-Do Manager 를 먼저 완전히 종료하세요." \
-                     '\n  taskkill /F /IM \"To-Do Manager.exe\"')
+            sys.exit(f"'{path}' 를 지울 수 없습니다."
+                     f"\n실행 중인 {OUT_NAME} 를 먼저 완전히 종료하세요."
+                     f'\n  taskkill /F /IM "{OUT_NAME}.exe"')
     for f in (OUT_NAME + ".spec",):
-        p = os.path.join(HERE, f)
+        p = os.path.join(ROOT, f)
         if os.path.exists(p):
             os.remove(p)
 
@@ -231,9 +232,13 @@ def main():
             "--windowed",                       # 콘솔 창 없음
             "--noupx",
             "--name", OUT_NAME,
-            "--icon", os.path.join(HERE, "app.ico"),
+            "--icon", os.path.join(ROOT, "assets", "app.ico"),
             "--add-data", f"web{os.pathsep}web",
-            "--add-data", f"app.ico{os.pathsep}.",
+            "--add-data", f"assets/app.ico{os.pathsep}.",
+            # 알림 카드(toast.py)가 Pillow 로 직접 그리므로 글꼴 파일이 필요하다 (SIL OFL 1.1)
+            "--add-data", f"assets/fonts/Paperlogy-3Light.ttf{os.pathsep}fonts",
+            "--add-data", f"assets/fonts/Paperlogy-5Medium.ttf{os.pathsep}fonts",
+            "--add-data", f"assets/fonts/Paperlogy-4Regular.ttf{os.pathsep}fonts",
             ]
     # 지연 임포트되는 것들
     for m in ("pystray._win32", "clr",
@@ -272,9 +277,9 @@ def main():
     args.append("main.py")
     run(args)
 
-    prune(os.path.join(HERE, "dist", OUT_NAME))
+    prune(os.path.join(ROOT, "dist", OUT_NAME))
 
-    src = os.path.join(HERE, "dist", OUT_NAME)
+    src = os.path.join(ROOT, "dist", OUT_NAME)
     dst = os.path.join(RELEASE, OUT_NAME)
     os.makedirs(RELEASE, exist_ok=True)
     shutil.copytree(src, dst)
@@ -290,8 +295,8 @@ def main():
                 z.write(full, os.path.relpath(full, RELEASE))
 
     for d in ("build", "dist"):
-        shutil.rmtree(os.path.join(HERE, d), ignore_errors=True)
-    spec = os.path.join(HERE, OUT_NAME + ".spec")
+        shutil.rmtree(os.path.join(ROOT, d), ignore_errors=True)
+    spec = os.path.join(ROOT, OUT_NAME + ".spec")
     if os.path.exists(spec):
         os.remove(spec)
 
