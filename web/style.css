@@ -331,7 +331,9 @@ svg{display:block}
 .row2 select{flex:1}
 /* 주기 · 종류를 바꿔도 창 크기와 공통 항목 위치가 흔들리지 않게 */
 [data-f="detail"]{min-height:84px}
-#a-body, #e-body{min-height:330px}
+/* 반복만 자리를 잡아 둔다. 주기(매주 · 매월 · 분기)를 바꿔도 창이 흔들리지
+   않게. 마감 · 메모는 더 짧은데 여기에 맞추면 아래가 휑하게 빈다. */
+#a-body[data-kind="routine"], #e-body[data-kind="routine"]{min-height:400px}
 [data-f="arg"]{display:flex; align-items:stretch}
 [data-f="arg"] > *{flex:1}
 [data-f="arg"] .unit input{width:64px; flex:0 0 64px}
@@ -385,7 +387,17 @@ svg{display:block}
 .warn-line button{height:26px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:var(--w-pri);
   color:var(--ink2); background-color:var(--card); border-radius:8px; padding:0 10px; white-space:nowrap;
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light)}
-.step{display:block; font-size:10px; font-weight:var(--w-pri); color:var(--faint); letter-spacing:.8px; margin:14px 2px 6px}
+/* 폼의 마디. 예전에는 작은 라벨 한 줄이라 "1 · 얼마나 자주" 와 그 아래 입력이
+   한 덩어리로 보이지 않았다. 목록 줄을 실선으로 나누듯 여기도 실선으로 나눈다
+   (칸을 겹쳐 쌓지 않는다 - 창 자체가 이미 올라온 면이다) */
+.step{display:block; font-size:10.5px; font-weight:var(--w-pri); color:var(--muted);
+  letter-spacing:.7px; margin:16px 2px 9px; padding-top:14px;
+  border-top:1px solid var(--rule2)}
+.step .n{color:var(--mid-ink); margin-right:6px}
+/* 마디 바로 아래 것은 제 여백을 버린다 (마디 이름이 곧 라벨 노릇을 한다) */
+.step + label{margin-top:0}
+.step + .chk{margin-top:2px !important}
+.step + .row label{margin-top:0}
 
 /* ---------- 버튼 줄 ---------- */
 .btns{display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:18px;

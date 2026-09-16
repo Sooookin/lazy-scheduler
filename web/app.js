@@ -474,7 +474,8 @@ function Form(box){
   const F = f => box.querySelector('[data-f="'+f+'"]');
   const self = {kind:'routine', box:box};
 
-  const timeBlock = (t, lead, muted) =>
+  const timeBlock = (t, lead, muted, step) =>
+    '<span class="step">'+(step ? '<i class="n">'+step+'</i>' : '')+'언제 알릴까</span>'+
     '<div class="row"><div><label>마감 시각 <i class="opt">(비워도 됨)</i></label>'+
       '<input type="time" step="300" data-f="time" title="직접 입력할 수 있습니다 (5분 단위)" value="'+(t||'')+'"></div>'+
     '<div><label>알림 (분 전)</label><input type="number" class="min5" data-f="lead" min="0" step="5" placeholder="기본값 사용" value="'+(lead!=null?lead:'')+'"></div></div>'+
@@ -483,6 +484,7 @@ function Form(box){
   /* ---------- 마감 ---------- */
   function renderDeadline(i){
     box.innerHTML =
+      '<span class="step">언제까지</span>'+
       '<label>마감 날짜</label><input type="date" data-f="date" value="'+(i.date||rollBiz(STATE.today,1))+'">'+
       '<div class="quick">'+[['오늘',0],['내일',1],['모레',2],['+7일',7],['+30일',30]]
           .map(([l,n])=>'<button type="button" data-add="'+n+'">'+l+'</button>').join('')+
@@ -507,9 +509,9 @@ function Form(box){
     const r = i.rule_n || {period:'month', basis:'business_day', n:1};
     self.anchor = (i.rule_n && i.rule_n.anchor) || null;   /* 격주의 기준 주는 수정해도 유지 */
     box.innerHTML =
-      '<span class="step">1 · 얼마나 자주</span>'+ sel('period', PERIODS, r.period)+
+      '<span class="step"><i class="n">1 ·</i>얼마나 자주</span>'+ sel('period', PERIODS, r.period)+
       '<div data-f="detail"></div>'+
-      timeBlock(i.time, i.notify_min, i.muted)+
+      timeBlock(i.time, i.notify_min, i.muted, '3 ·')+
       '<p class="preview" data-f="prev"><b>다음 실행 날짜</b>—</p>';
 
     const drawDetail = keep => {
@@ -520,14 +522,14 @@ function Form(box){
         h = '<label class="chk"><input type="checkbox" data-f="biz"'+
             (rr.business_only !== false ? ' checked' : '')+'> 주말·공휴일 제외</label>';
       } else if(p === 'week'){
-        h = '<span class="step">2 · 어느 요일 · 주기</span>'+
+        h = '<span class="step"><i class="n">2 ·</i>어느 요일 · 주기</span>'+
             '<div class="row"><div class="g15"><div class="wd" data-f="wd">'+
             WD.map((w,x)=> (bizOn() && x>4 && !(rr.weekdays||[]).includes(x)) ? '' :
               '<span data-w="'+x+'"'+((rr.weekdays||[]).includes(x)?' class="on"':'')+'>'+w+'</span>').join('')+
             '</div></div><div>'+sel('iv', [[1,'매주'],[2,'격주'],[3,'3주마다'],[4,'4주마다']], rr.interval||1)+
             '</div></div>';
       } else {
-        h = '<span class="step">2 · 어느 날'+(q ? '' : ' · 실행하는 달')+'</span>'+
+        h = '<span class="step"><i class="n">2 ·</i>어느 날'+(q ? '' : ' · 실행하는 달')+'</span>'+
             '<div class="row"><div class="g15">'+
               sel('basis', BASES.map(([v,ml,ql])=>[v, q?ql:ml]), basisKey(rr))+
             '</div><div data-f="arg"></div>'+
@@ -589,6 +591,10 @@ function Form(box){
 
   self.render = function(kind, i){
     self.kind = kind;
+    /* 종류마다 필요한 높이가 다르다. 자리를 잡아 두는 것은 반복뿐이다
+       (주기를 바꿀 때마다 창이 흔들리지 않게). 종류를 바꾸는 것은 누른 사람이
+       뜻한 일이므로 창 높이가 따라 변해도 놀라지 않는다. */
+    box.dataset.kind = kind;
     i = i || {};
     if(kind === 'floating'){
       box.innerHTML = '<p class="hint">기한 없이 목록에만 남습니다. 나중에 이 창에서 종류를 바꿔 마감을 붙일 수 있습니다.</p>';
