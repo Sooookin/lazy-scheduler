@@ -73,3 +73,52 @@ def test_web_icons_are_all_referenced():
     unused = [n for n in os.listdir(web)
               if n.endswith(".png") and n not in text]
     assert not unused, "아무도 부르지 않는 그림: %s" % unused
+
+
+# ---------- 이름을 바꿀 때 ----------
+
+def test_the_old_data_folder_is_still_remembered():
+    """새 이름으로 바꿨으면 예전 폴더가 목록에 남아 있어야 한다.
+
+    빠지면 첫 실행에서 일정이 통째로 비어 보인다.
+    """
+    olds = [os.path.basename(d) for d in paths.OLD_DATA_DIRS]
+    assert "To-Do Manager" in olds, "예전 데이터 폴더를 잊어버렸다: %s" % olds
+    assert os.path.basename(paths.DATA_DIR) not in olds
+
+
+def test_migration_brings_the_backups_and_state_too(tmp_path, monkeypatch):
+    """일정만 옮기면 되살릴 백업이 예전 폴더에 남아 안전망이 끊긴다."""
+    old = tmp_path / "예전이름"
+    (old / "backups").mkdir(parents=True)
+    (old / "data.json").write_text('{"version":2,"tasks":[]}', encoding="utf-8")
+    (old / "state.json").write_text('{"fired":["x"]}', encoding="utf-8")
+    (old / "backups" / "data-2026-09-16.json").write_text("{}", encoding="utf-8")
+    new = tmp_path / "새이름"
+
+    monkeypatch.setattr(paths, "DATA_DIR", str(new))
+    monkeypatch.setattr(paths, "DATA_FILE", str(new / "data.json"))
+    monkeypatch.setattr(paths, "STATE_FILE", str(new / "state.json"))
+    monkeypatch.setattr(paths, "BACKUP_DIR", str(new / "backups"))
+    monkeypatch.setattr(paths, "OLD_DATA_DIRS", [str(old)])
+
+    paths.migrate_legacy()
+    assert (new / "data.json").exists()
+    assert (new / "state.json").exists(), "띄운 알림 기록이 빠져 오늘 알림이 다시 뜬다"
+    assert (new / "backups" / "data-2026-09-16.json").exists(), "백업이 따라오지 않았다"
+    assert (old / "data.json").exists(), "예전 폴더는 한 벌 더로 남겨 둬야 한다"
+
+
+def test_the_window_is_named_and_looked_up_by_the_same_value():
+    """ui.py 가 창을 제목으로 찾는다. 짓는 쪽과 찾는 쪽이 어긋나면 창을 못 찾는다."""
+    src = io.open(os.path.join(ROOT, "ui.py"), encoding="utf-8").read()
+    assert src.count("paths.APP_NAME") >= 2
+    assert '"To-Do Manager"' not in src
+
+
+def test_autostart_cleans_up_the_entry_made_under_the_old_name():
+    """예전 이름의 값이 남으면 로그인할 때 두 번 실행된다."""
+    import autostart
+    assert autostart.NAME not in autostart.OLD_NAMES
+    src = io.open(os.path.join(ROOT, "autostart.py"), encoding="utf-8").read()
+    assert "_drop_old(k)" in src, "예전 등록을 치우지 않는다"

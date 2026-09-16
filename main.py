@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""To-Do Manager - 진입점.
+"""lazy scheduler - 진입점.
 
   인수 없음     백그라운드 서비스
   --ui          앱 창

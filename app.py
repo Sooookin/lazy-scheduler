@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""To-Do Manager - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
+"""lazy scheduler - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
 import ctypes, json, os, socket, subprocess, sys, threading, time, traceback, webbrowser
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -58,7 +58,7 @@ def acquire_single_instance():
         k32 = ctypes.WinDLL("kernel32", use_last_error=True)
         k32.CreateMutexW.restype = ctypes.c_void_p
         k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-        h = k32.CreateMutexW(None, False, r"Local\TodoManager.Service")
+        h = k32.CreateMutexW(None, False, r"Local\LazyScheduler.Service")
         if h and ctypes.get_last_error() == 183:        # ERROR_ALREADY_EXISTS
             return False
         _lock_handle = h
@@ -133,7 +133,7 @@ def open_window():
         return
     except Exception:
         log("네이티브 창 실패 -> Edge 폴백: " + traceback.format_exc())
-    profile = os.path.join(os.environ.get("LOCALAPPDATA", BASE), "TodoManager", "browser")
+    profile = os.path.join(os.environ.get("LOCALAPPDATA", BASE), "LazyScheduler", "browser")
     for exe in BROWSERS:
         if os.path.exists(exe):
             subprocess.Popen([exe, f"--app={URL}", f"--user-data-dir={profile}",
@@ -199,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
       · POST 는 application/json 만 받는다. 다른 사이트가 폼이나 no-cors fetch 로
         보낼 수 있는 형식(text/plain 등)을 막는다.
     """
-    server_version = "TodoManager"
+    server_version = "LazyScheduler"
     sys_version = ""
 
     def log_message(self, *a):
@@ -526,7 +526,8 @@ def tick(now=None):
 
     o = store.overview(data=d, now=now)
     left = o["stats"]["left"]
-    tray.set_title(f"To-Do Manager · {left}건 남음" if left else "To-Do Manager · 급한 일 없음")
+    tray.set_title(f"{paths.APP_NAME} · {left}건 남음" if left
+                   else f"{paths.APP_NAME} · 급한 일 없음")
     tray.set_badge(toast.held_count())      # 발표 중 보류한 알림 수
 
     # 브리핑은 시각이 지난 뒤 2시간 안에만. 그러지 않으면 저녁에 프로그램을 켰을 때

@@ -52,7 +52,7 @@ def _quit(cb):
     cb()
 
 
-def start(on_open, on_test, on_quit, subtitle=lambda: "To-Do Manager"):
+def start(on_open, on_test, on_quit, subtitle=lambda: paths.APP_NAME):
     """트레이 아이콘을 별도 스레드에서 띄운다.
 
     실패를 조용히 넘기면 안 된다. 아이콘이 없으면 창을 닫았을 때 프로그램이
@@ -74,7 +74,7 @@ def start(on_open, on_test, on_quit, subtitle=lambda: "To-Do Manager"):
         Item("완전히 종료", lambda: _quit(on_quit)),
     )
     try:
-        _icon = pystray.Icon("todomanager", _image(), "To-Do Manager", menu)
+        _icon = pystray.Icon("lazyscheduler", _image(), paths.APP_NAME, menu)
     except Exception:
         paths.log("tray: 아이콘 생성 실패" + chr(10) + traceback.format_exc())
         return None

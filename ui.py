@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""'To-Do Manager' 앱 창 (네이티브 WebView2 창). 서비스와 별도 프로세스로 뜬다."""
+"""'lazy scheduler' 앱 창 (네이티브 WebView2 창). 서비스와 별도 프로세스로 뜬다."""
 import ctypes, hashlib, os, socket, sys, threading, time, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -58,7 +58,12 @@ _hwnd_cache = None
 
 
 def hwnd():
-    """이 프로세스가 가진 'To-Do Manager' 최상위 창 핸들."""
+    """이 프로세스가 가진 우리 앱의 최상위 창 핸들.
+
+    제목으로 찾는다. 짓는 쪽(아래 create_window)과 찾는 쪽이 같은 값을
+    봐야 하므로 둘 다 paths.APP_NAME 을 쓴다 - 예전에는 양쪽에 문자열을
+    따로 적어 둬서, 한쪽만 고치면 창을 영영 못 찾는다.
+    """
     global _hwnd_cache
     if _hwnd_cache and _U.IsWindow(_hwnd_cache):
         return _hwnd_cache
@@ -76,7 +81,7 @@ def hwnd():
         if n:
             b = ctypes.create_unicode_buffer(n + 1)
             _U.GetWindowTextW(h, b, n + 1)
-            if b.value == "To-Do Manager":
+            if b.value == paths.APP_NAME:
                 r = wintypes.RECT()
                 _U.GetWindowRect(h, ctypes.byref(r))
                 found.append((r.right - r.left, h))
@@ -268,7 +273,7 @@ def main():
     if already_open():
         return
     try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("TodoManager.App")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LazyScheduler.App")
     except Exception:
         pass
 
@@ -281,7 +286,7 @@ def main():
 
     _STAMP[0] = build_stamp()
     _WINDOW[0] = webview.create_window(
-        "To-Do Manager", SERVICE_URL, js_api=Api(),
+        paths.APP_NAME, SERVICE_URL, js_api=Api(),
         width=1020, height=880, min_size=(760, 620),
         frameless=True, easy_drag=False, background_color="#E9E4DD",
         hidden="--hidden" in sys.argv,      # 자동 실행 때 미리 만들어만 둔다

@@ -39,8 +39,10 @@ def font_paths(name):
 
 # 사용자 데이터(쓰기 가능)
 _base = os.environ.get("APPDATA") or os.path.expanduser("~")
-DATA_DIR = os.path.join(_base, "To-Do Manager")
-OLD_DATA_DIRS = [os.path.join(_base, "오늘")]   # 예전 이름
+APP_NAME = "lazy scheduler"          # 창 제목 · 트레이 · 바로가기에 그대로 쓰인다
+DATA_DIR = os.path.join(_base, APP_NAME)
+# 예전 이름들. 가까운 것부터. 이름을 또 바꾸면 여기 앞에 끼워 넣는다.
+OLD_DATA_DIRS = [os.path.join(_base, "To-Do Manager"), os.path.join(_base, "오늘")]
 DATA_FILE = os.path.join(DATA_DIR, "data.json")      # 내 일정 (나중에 다른 기기와 동기화할 대상)
 STATE_FILE = os.path.join(DATA_DIR, "state.json")    # 이 PC 에만 해당하는 상태 (띄운 알림 기록)
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
@@ -97,15 +99,33 @@ def _copy(src, dst):
 
 
 def migrate_legacy():
-    """예전 위치(프로그램 폴더 / 예전 이름의 APPDATA 폴더)에 있던 일정을 한 번만 옮겨온다."""
+    """예전 위치(프로그램 폴더 / 예전 이름의 APPDATA 폴더)에 있던 일정을 한 번만 옮겨온다.
+
+    일정만 옮기면 안 된다. 되살릴 백업이 예전 폴더에 남아 있으면, 이름을 바꾼
+    뒤 data.json 이 깨졌을 때 _backups() 가 텅 빈 새 폴더만 본다. 안전망이
+    통째로 끊긴다. state.json(띄운 알림 기록)도 없으면 오늘 알림이 다시 뜬다.
+
+    옮기는 것이 아니라 베껴 온다. 예전 폴더는 그대로 남아 한 벌 더인 셈이 된다.
+    """
     if os.path.exists(DATA_FILE):
         return
     for old_dir in OLD_DATA_DIRS:
         old = os.path.join(old_dir, "data.json")
-        if os.path.exists(old):
-            ensure_data_dir()
-            _copy(old, DATA_FILE)
+        if not os.path.exists(old):
+            continue
+        ensure_data_dir()
+        if not _copy(old, DATA_FILE):
             return
+        _copy(os.path.join(old_dir, "state.json"), STATE_FILE)
+        old_backups = os.path.join(old_dir, "backups")
+        if os.path.isdir(old_backups):
+            try:
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+                for n in os.listdir(old_backups):
+                    _copy(os.path.join(old_backups, n), os.path.join(BACKUP_DIR, n))
+            except OSError:
+                pass            # 백업을 못 옮겨도 일정은 이미 옮겼다
+        return
     legacy = os.path.join(APP_DIR, "data.json")
     if os.path.exists(legacy):
         ensure_data_dir()

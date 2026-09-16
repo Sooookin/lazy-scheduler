@@ -846,7 +846,7 @@ class Card:
         self.w, self.h = self.img.size
         self.hwnd = U32.CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
-            _CLASS_NAME, "To-Do Manager 알림", WS_POPUP,
+            _CLASS_NAME, paths.APP_NAME + " 알림", WS_POPUP,
             0, 0, self.w, self.h, None, None, None, None)
         if not self.hwnd:
             raise OSError("CreateWindowEx 실패 (%d)" % ctypes.get_last_error())
@@ -1003,7 +1003,7 @@ def _wndproc(hwnd, msg, wp, lp):
 
 
 _WNDPROC_REF = WNDPROC(_wndproc)      # 살려 둬야 한다. 가비지가 되면 즉시 죽는다
-_CLASS_NAME = "TodoManagerToast"
+_CLASS_NAME = "LazySchedulerToast"
 
 
 def _register():
@@ -1322,7 +1322,7 @@ def run_forever(on_ready=None):
     set_scale(_system_scale())
     paths.log("toast.run_forever: 창 클래스 등록 (배율 %.2f)" % SCALE)
     _register()
-    _ctrl = U32.CreateWindowExW(0, _CLASS_NAME, "To-Do Manager", WS_POPUP,
+    _ctrl = U32.CreateWindowExW(0, _CLASS_NAME, paths.APP_NAME, WS_POPUP,
                                 0, 0, 0, 0, None, None, None, None)
     if not _ctrl:
         raise OSError("타이머용 창 생성 실패 (%d)" % ctypes.get_last_error())

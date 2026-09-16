@@ -1,4 +1,4 @@
-# To-Do Manager
+# lazy scheduler
 
 A small Windows desktop app for people whose work is mostly recurring: it keeps
 track of routine tasks that land on business days rather than plain calendar
@@ -36,13 +36,13 @@ tests/           pytest; tests/vectors holds the recurrence cases
 docs/            screenshots for this file
 ```
 
-Your own schedule never lives here — it is in `%APPDATA%\To-Do Manager\`.
+Your own schedule never lives here — it is in `%APPDATA%\lazy scheduler\`.
 
 ## Development
 
 ```
 python -m pytest                  run the tests
-python tools/build.py             build release/To-Do Manager(.zip)
+python tools/build.py             build release/lazy scheduler(.zip)
 python tools/gen_tokens.py        rewrite the :root block in web/style.css
 python tools/build_fonts.py       assets/fonts/*.ttf  ->  web/fonts/*.woff2
 python tools/gen_icon.py          redraw assets/app.ico and web/icon*.png

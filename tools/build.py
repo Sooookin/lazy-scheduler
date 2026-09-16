@@ -18,14 +18,14 @@ import zipfile
 # 이 파일은 tools/ 안에 있고, 아래 경로는 모두 저장소 뿌리를 기준으로 한다
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RELEASE = os.path.join(ROOT, "release")
-OUT_NAME = "To-Do Manager"
+OUT_NAME = "lazy scheduler"
 
-READ_ME = r"""To-Do Manager  -  일정 · 루틴 관리
+READ_ME = r"""lazy scheduler  -  일정 · 루틴 관리
 ==========================================
 
 ■ 시작하기
   1. 이 폴더를 내 PC로 복사하세요. (공유 폴더에서 바로 실행하면 느립니다)
-  2. "To-Do Manager.exe" 를 두 번 클릭하면 끝입니다. 설치할 것은 없습니다.
+  2. "lazy scheduler.exe" 를 두 번 클릭하면 끝입니다. 설치할 것은 없습니다.
      * 처음 실행할 때 Windows 보안 경고가 나오면
        [추가 정보] → [실행] 을 누르세요. (사내 배포본이라 서명이 없습니다)
   3. 창 오른쪽 위 톱니바퀴에서
@@ -90,7 +90,7 @@ READ_ME = r"""To-Do Manager  -  일정 · 루틴 관리
   아침 08:30 에 오늘 할 일 요약이 한 번 뜹니다.
 
 ■ 내 일정이 저장되는 곳
-  %APPDATA%\To-Do Manager\data.json      (이 파일만 백업하면 됩니다)
+  %APPDATA%\lazy scheduler\data.json      (이 파일만 백업하면 됩니다)
   새 버전으로 폴더를 덮어써도 일정은 그대로 유지됩니다.
 """
 
@@ -220,9 +220,9 @@ def main():
         if os.path.exists(path):
             # 배포본이 실행 중이면 exe 가 잠겨 있어 지워지지 않는다.
             # 예전에 여기서 조용히 넘어가 copytree 가 엉뚱한 곳에서 터졌다.
-            sys.exit(f"'{path}' 를 지울 수 없습니다." \
-                     f"\n실행 중인 To-Do Manager 를 먼저 완전히 종료하세요." \
-                     '\n  taskkill /F /IM \"To-Do Manager.exe\"')
+            sys.exit(f"'{path}' 를 지울 수 없습니다."
+                     f"\n실행 중인 {OUT_NAME} 를 먼저 완전히 종료하세요."
+                     f'\n  taskkill /F /IM "{OUT_NAME}.exe"')
     for f in (OUT_NAME + ".spec",):
         p = os.path.join(ROOT, f)
         if os.path.exists(p):
