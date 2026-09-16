@@ -419,8 +419,12 @@ class Handler(BaseHTTPRequestHandler):
 
 def _preview_toast():
     """설정 · 트레이의 [알림 미리보기]. 실제 카드와 같은 모양, 버튼은 아무 일도 하지 않는다."""
+    # 실제 알림과 같은 자리 · 같은 칸을 채운다. 시각을 비우면 미리보기만
+    # 다른 모양으로 떠서, 정작 진짜 카드가 어떻게 생겼는지 알 수 없다.
     toast.notify("알림 미리보기", "이런 모양으로 떠올랐다 사라집니다 · 10:00",
                  on_done=lambda: None, on_snooze=lambda: None,
+                 extra={"when": "10:00", "rel": "10분 뒤",
+                        "meta": "이런 모양으로 떠올랐다 사라집니다"},
                  key="preview:%d" % int(time.time()))
 
 
@@ -617,11 +621,18 @@ def _maybe_notify(i, now, default_lead, first_tick):
         return "missed" if store.mark_fired(key, now) else None
     if not store.mark_fired(key, now):
         return None
+    # 카드는 시각을 가장 크게 보여준다. 그래서 "언제" 를 따로 넘긴다 -
+    # 한 문장으로 뭉쳐 보내면 카드가 다시 쪼개야 한다.
     sub = ("%d분 뒤 마감 · %s" % (mins, i["time"])) if mins > 0 else ("마감 시간 지남 · %s" % i["time"])
+    rel = ("%d분 뒤" % mins) if mins > 0 else "지남"
+    kind = {"routine": "반복", "deadline": "마감", "floating": "메모"}.get(i.get("kind"), "")
+    detail = i.get("rule_text") or ""
+    meta = (kind + " · " + detail) if (kind and detail) else (kind or detail)
     tid, day = i["id"], i["date"]
     toast.notify(i["title"], sub, late=mins <= 0,
                  on_done=lambda tid=tid, day=day: _complete(tid, day),
                  on_snooze=lambda i=i: _snooze(i),
+                 extra={"when": i["time"], "rel": rel, "meta": meta},
                  key="%s:%s" % (tid, day))
     log("알림 띄움: %s (%s)" % (key, sub))
     return "shown"
