@@ -723,6 +723,27 @@ function confirmBox(title, msg, onOk){
    표시 대상은 "마감이 있는 일" 뿐이다. 반복 업무는 넣지 않는다 -
    매달 되풀이되는 항목이 칸을 다 차지해서 정작 마감이 안 보이게 된다. */
 const CAL_MAX = 3;                  /* 한 칸에 보여줄 최대 개수, 나머지는 +N */
+
+/* 달력에 얹을 반복 발생.
+   규칙을 펼치는 일은 서버(recur.py)가 한다. 화면에서 또 구현하면 두 곳이
+   언젠가 어긋나고, 어긋난 쪽이 달력이면 없는 날에 일이 있다고 말하게 된다.
+   보고 있는 달을 덮을 만큼만 물어본다. */
+let RT = {key:null, items:[], busy:null};
+const routinesOn = () => !!STATE && STATE.settings.show_routines !== false;
+
+function ensureRoutines(y, m){
+  if(!routinesOn()) return;
+  const key = y + '-' + m;
+  if(RT.key === key || RT.busy === key) return;
+  const DAY = 864e5, t0 = dObj(STATE.today);
+  const back = Math.max(0, Math.ceil((t0 - new Date(y, m, 1)) / DAY) + 7);
+  const ahead = Math.max(0, Math.ceil((new Date(y, m + 1, 0) - t0) / DAY) + 7);
+  RT.busy = key;
+  api('/api/all?back=' + back + '&ahead=' + ahead).then(d => {
+    RT = {key:key, items:(d.items || []).filter(i => i.kind === 'routine' && i.date), busy:null};
+    drawCal();
+  }).catch(() => { RT.busy = null; });
+}
 let calCur = null;                  /* 보고 있는 달 {y, m} - m 은 0~11 */
 let view = 'home';
 
@@ -764,7 +785,7 @@ function chipEl(t){
   const cls = t.done ? 'done' : t.due_date < STATE.today ? 'p'
             : t.due_date === STATE.today ? 't' : 'f';
   const wk = isWeekend(t.due_date) && !weekendOn();   /* 앞 영업일 칸에 얹힌 것 */
-  el.className = 'chip ' + cls + (wk ? ' wk' : '');
+  el.className = 'chip ' + cls + (wk ? ' wk' : '') + (t._rt ? ' rt' : '');
   const d = dObj(t.due_date);
   const head = wk ? d.getDate() + '일(' + WD[(d.getDay() + 6) % 7] + ')' : t.due_time;
   el.innerHTML = (head ? '<span class="h">' + esc(head) + '</span>' : '') +
@@ -773,7 +794,7 @@ function chipEl(t){
              (wk ? String.fromCharCode(10) + '주말 마감이라 앞 영업일 칸에 표시했습니다' : '') +
              (t.note ? String.fromCharCode(10) + t.note : '') +
              (t.done ? String.fromCharCode(10) + '(완료)' : '');
-  el.onclick = e => { e.stopPropagation(); openEdit(asItem(t)); };
+  el.onclick = e => { e.stopPropagation(); openEdit(t._rt ? t : asItem(t)); };
   return el;
 }
 
@@ -822,13 +843,27 @@ function drawCal(){
   const y = calCur.y, m = calCur.m;
   $('#cal-ym').textContent = y + '년 ' + (m + 1) + '월';
 
+  ensureRoutines(y, m);
+
   const byDate = {};
   deadlines().forEach(t => {
     const k = cellDate(t.due_date);
     (byDate[k] = byDate[k] || []).push(t);
   });
+  if(routinesOn()){
+    const pm = y + '-' + String(m + 1).padStart(2, '0');
+    RT.items.forEach(i => {
+      if(i.date.slice(0, 7) !== pm) return;          /* 보고 있는 달만 */
+      const k = cellDate(i.date);
+      (byDate[k] = byDate[k] || []).push(
+        Object.assign({}, i, {due_date:i.date, due_time:i.time, _rt:true}));
+    });
+  }
+  /* 끝난 것은 아래로, 반복은 마감 뒤로. 칸에 세 개까지만 보이므로 순서가
+     곧 "무엇을 남길까" 가 된다 - 그 달의 마감이 되풀이되는 일에 밀리면 안 된다. */
   Object.keys(byDate).forEach(k => byDate[k].sort((a, b) =>
     (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
+    (a._rt ? 1 : 0) - (b._rt ? 1 : 0) ||
     a.due_date.localeCompare(b.due_date) ||
     (a.due_time || '99:99').localeCompare(b.due_time || '99:99')));
 
@@ -839,6 +874,7 @@ function drawCal(){
 
   const cols = weekendOn() ? 7 : 5;
   $('#cal-we').classList.toggle('off', !weekendOn());
+  $('#cal-rt').classList.toggle('off', !routinesOn());
   const head = $('#cal-head');
   head.style.setProperty('--cols', cols);
   head.innerHTML = WD.slice(0, cols)
@@ -926,6 +962,12 @@ $('#views').onclick = e => {
 $('#cal-prev').onclick = () => shiftMonth(-1);
 $('#cal-next').onclick = () => shiftMonth(1);
 $('#cal-now').onclick = () => { calCur = null; drawCal(); };
+$('#cal-rt').onclick = () => {
+  const on = !routinesOn();
+  STATE.settings.show_routines = on;          /* 그리기는 바로, 저장은 뒤에 */
+  drawCal();
+  api('/api/settings', {show_routines: on});
+};
 $('#cal-we').onclick = () => {
   const on = !weekendOn();
   STATE.settings.show_weekend = on;          /* 그리기는 바로, 저장은 뒤에 */

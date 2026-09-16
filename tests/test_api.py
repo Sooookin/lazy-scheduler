@@ -108,6 +108,26 @@ def test_oversized_body_is_refused_before_reading(server):
     assert status == 413
 
 
+def test_all_accepts_a_range_and_refuses_a_silly_one(server):
+    """달력이 보고 있는 달만 물어본다. 기간이 길수록 반복 규칙을 그만큼 펼쳐야 한다."""
+    store.add({"title": "매일", "kind": "routine", "due_time": "09:00",
+               "rule": {"period": "day", "business_only": True}})
+    short = call(server, "GET", "/api/all?back=0&ahead=10")[1]["items"]
+    long_ = call(server, "GET", "/api/all?back=0&ahead=40")[1]["items"]
+    assert len(long_) > len(short)
+    assert call(server, "GET", "/api/all?back=0&ahead=9999")[0] == 400
+    assert call(server, "GET", "/api/all?ahead=abc")[0] == 400
+    # 기간을 안 주면 예전처럼 동작한다
+    assert call(server, "GET", "/api/all")[0] == 200
+
+
+def test_show_routines_is_a_real_setting(server):
+    """달력의 반복 표시는 껐다 켠 것이 남아야 한다."""
+    assert call(server, "POST", "/api/settings", {"show_routines": False})[0] == 200
+    assert store.settings()["show_routines"] is False
+    assert call(server, "POST", "/api/settings", {"show_routines": "yes"})[0] == 400
+
+
 def test_bad_settings_do_not_touch_autostart(server, monkeypatch):
     calls = []
     monkeypatch.setattr(autostart, "set_enabled", lambda on: calls.append(on))

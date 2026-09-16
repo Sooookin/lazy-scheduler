@@ -268,6 +268,20 @@ class Handler(BaseHTTPRequestHandler):
         if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
             raise ApiError(403, "인증되지 않은 요청입니다")
 
+    def _span(self, name, default):
+        """/api/all 의 기간(일). 너무 긴 기간은 반복 규칙을 그만큼 펼쳐야 해서 막는다."""
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query).get(name)
+        if not q:
+            return default
+        try:
+            v = int(q[0])
+        except (TypeError, ValueError):
+            raise ApiError(400, "기간이 올바르지 않습니다") from None
+        if not (0 <= v <= 750):
+            raise ApiError(400, "기간은 0~750일 사이여야 합니다")
+        return v
+
     def _body(self):
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if ctype != "application/json":
@@ -329,7 +343,10 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/ping":
             return self._send(200, {"ok": True})
         if p == "/api/all":
-            return self._send(200, {"items": store.instances(back=60, ahead=120)})
+            # 달력은 보고 있는 달만 물어본다. 기간을 안 주면 예전처럼 -60 / +120.
+            back = self._span("back", 60)
+            ahead = self._span("ahead", 120)
+            return self._send(200, {"items": store.instances(back=back, ahead=ahead)})
         raise ApiError(404, "없는 경로입니다")
 
     def _static(self, p):

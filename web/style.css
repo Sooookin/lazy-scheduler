@@ -280,6 +280,11 @@ svg{display:block}
 .chip.f{background-color:var(--pale); color:var(--ink2)}
 .chip.done{background-color:transparent; color:var(--faint); border-left-color:var(--pale)}
 .chip.done .n2{text-decoration:line-through}
+/* 반복 업무: 마감보다 한 단계 조용하게. 매일 되풀이되는 일이라 크게 외칠 것이
+   없고, 면을 채우면 그 달의 진짜 마감이 그 속에 묻힌다. 띠와 글자만 남긴다. */
+.chip.rt{background-color:transparent; color:var(--faint); border-left-color:var(--mid)}
+.chip.rt .h{opacity:.72}
+.chip.rt:hover{background-color:rgba(56,46,32,.05); filter:none}
 /* 주말 마감을 앞 영업일 칸에 얹은 것 - 이 칸의 날짜가 아니라는 표시 */
 .chip.wk{border-left-style:dashed}
 .day .more{font-size:10px; font-weight:var(--w-pri); color:var(--mid-ink); text-align:right; padding-right:2px; flex:0 0 auto}
