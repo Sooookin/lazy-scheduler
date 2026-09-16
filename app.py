@@ -18,6 +18,8 @@ CRLF = bytes([13, 10])
 URL = f"http://{HOST}:{PORT}/"
 NO_WINDOW = 0x08000000
 MAX_BODY = 256 * 1024           # 요청 본문 한도. 일정 한 건은 수 KB 를 넘지 않는다
+DRAIN_MAX = 64 * 1024           # 거절한 뒤 흘려 버릴 최대 바이트
+DRAIN_WAIT = 0.25               # 그때 기다릴 시간(초)
 TOKEN_HEADER = "X-TM-Token"
 TOKEN_SLOT = b"__TM_TOKEN__"    # index.html 에서 비밀값으로 바꿔 끼울 자리
 WEEK = "월화수목금토일"
@@ -218,6 +220,43 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def finish(self):
+        """응답을 보낸 뒤 곱게 닫는다.
+
+        읽지 않은 요청 본문을 남긴 채 소켓을 닫으면 윈도가 RST 를 보낸다.
+        그러면 보낸 쪽은 우리가 적어 보낸 403 · 413 · 415 대신 "연결이 끊겼다"
+        만 보게 되어, 왜 막혔는지 알 수 없다. 창이 띄우는 문구도 실제 이유
+        대신 "프로그램에 연결할 수 없습니다" 가 된다.
+
+        본문이 한도를 넘는 요청은 일부러 읽지 않으므로(읽어 주는 것이 바로
+        공격이 노리는 바다) 이 경우가 드물지 않다. 그래서 보내는 쪽을 먼저
+        닫아 응답이 확실히 건너가게 하고, 남은 요청 바이트는 잠깐만, 그것도
+        정해진 양까지만 흘려 버린 뒤 닫는다.
+        """
+        left = self._unread()
+        if left:
+            try:
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_WR)
+                self.connection.settimeout(DRAIN_WAIT)
+                todo = min(left, DRAIN_MAX)
+                while todo > 0:
+                    chunk = self.rfile.read(min(todo, 16384))
+                    if not chunk:
+                        break
+                    todo -= len(chunk)
+            except Exception:
+                pass
+        BaseHTTPRequestHandler.finish(self)
+
+    def _unread(self):
+        """알려 온 길이 중 아직 읽지 않은 바이트 수."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except (AttributeError, TypeError, ValueError):
+            return 0
+        return max(0, n - getattr(self, "_read_bytes", 0))
+
     def _guard(self, api):
         port = self.server.server_address[1]
         hosts = {"127.0.0.1:%d" % port, "localhost:%d" % port}
@@ -240,6 +279,7 @@ class Handler(BaseHTTPRequestHandler):
         if n < 0 or n > MAX_BODY:
             raise ApiError(413, "요청이 너무 큽니다")
         raw = self.rfile.read(n) if n else b"{}"
+        self._read_bytes = len(raw)
         try:
             body = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError):

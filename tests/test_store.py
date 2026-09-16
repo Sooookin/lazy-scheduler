@@ -138,6 +138,40 @@ def test_migrates_v1_file():
 
 # ---------- 동시성 ----------
 
+def test_replace_retries_when_windows_briefly_locks_the_file(monkeypatch):
+    """백신이 data.json 을 잠깐 잡고 있어도 일정을 잃지 않아야 한다.
+
+    윈도에서 os.replace 는 다른 프로그램이 파일을 열어 본 그 순간에
+    WinError 5 로 실패한다. 예전에는 그대로 "저장하지 못했습니다" 가 되어
+    방금 적은 것이 사라졌다.
+    """
+    real = os.replace
+    hits = []
+
+    def flaky(src, dst):
+        hits.append(src)
+        if len(hits) <= 3:                       # 처음 세 번은 막혔다고 한다
+            raise PermissionError(5, "액세스가 거부되었습니다")
+        return real(src, dst)
+
+    monkeypatch.setattr(store.os, "replace", flaky)
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)   # 기다리지 않는다
+    tid = store.add(deadline(title="버티는 저장"))["id"]
+    assert len(hits) >= 4
+    assert [t["title"] for t in store.tasks() if t["id"] == tid] == ["버티는 저장"]
+
+
+def test_replace_gives_up_and_reports_a_real_failure(monkeypatch):
+    """계속 막히면 조용히 넘어가지 말고 알린다 (저장된 척하면 더 나쁘다)."""
+    def always(src, dst):
+        raise PermissionError(5, "액세스가 거부되었습니다")
+
+    monkeypatch.setattr(store.os, "replace", always)
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)
+    with pytest.raises(store.StoreError):
+        store.add(deadline(title="끝내 실패"))
+
+
 def test_concurrent_writers_do_not_lose_updates():
     """예전에는 한 스레드가 읽어 둔 옛 내용을 저장하면서 다른 스레드의 변경을 지웠다."""
     ids = [store.add(deadline(title="t%d" % k))["id"] for k in range(24)]

@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -78,6 +79,28 @@ def _blank():
 
 # ---------- 파일 ----------
 
+def _replace(tmp, path):
+    """바꿔 끼운다. 윈도에서 가끔 실패하므로 몇 번 다시 해 본다.
+
+    백신이나 검색 색인기가 data.json 을 잠깐 열어 보는 사이에 os.replace 를
+    부르면 WinError 5(액세스가 거부되었습니다) 가 난다. 파일에는 아무 문제가
+    없고 몇십 밀리초 뒤면 된다.
+
+    한 번 실패했다고 "저장하지 못했습니다" 를 띄우면, 사용자는 방금 적은
+    것을 잃는다. 자기 잘못도 아니고 다시 해 보면 되는 일로 일정을 잃게 할
+    수는 없다. 그래서 간격을 늘려 가며 여섯 번까지 기다려 본다(최대 1.3초).
+    """
+    delay = 0.02
+    for _ in range(6):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(delay)
+            delay *= 2
+    os.replace(tmp, path)          # 여기서도 안 되면 진짜 문제다. 그대로 올린다.
+
+
 def _write_json(path, obj):
     """임시 파일에 쓰고 디스크에 내린 뒤 한 번에 바꿔 끼운다.
 
@@ -90,7 +113,7 @@ def _write_json(path, obj):
             json.dump(obj, f, ensure_ascii=False, indent=2)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        _replace(tmp, path)
     except OSError as e:
         raise StoreError("저장하지 못했습니다 (%s)" % e) from e
 
