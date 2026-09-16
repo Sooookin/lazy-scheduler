@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """'To-Do Manager' 앱 창 (네이티브 WebView2 창). 서비스와 별도 프로세스로 뜬다."""
-import ctypes, os, socket, sys, threading, time
+import ctypes, hashlib, os, socket, sys, threading, time, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import webview
@@ -149,6 +149,53 @@ def _destroy_all():
     threading.Timer(1.5, lambda: os._exit(0)).start()   # 혹시 안 닫히면 강제
 
 
+def build_stamp():
+    """지금 디스크에 있는 화면 파일들의 지문 (이름 · 크기 · 고친 때)."""
+    h = hashlib.sha1()
+    seen = 0
+    try:
+        for root, dirs, files in os.walk(paths.WEB_DIR):
+            dirs.sort()
+            for name in sorted(files):
+                st = os.stat(os.path.join(root, name))
+                rel = os.path.relpath(os.path.join(root, name), paths.WEB_DIR)
+                h.update(("%s|%d|%d;" % (rel, st.st_size, st.st_mtime_ns)).encode("utf-8", "replace"))
+                seen += 1
+    except OSError:
+        return None
+    # 폴더가 없어도 os.walk 는 성을 내지 않고 아무 것도 내놓지 않는다. 업데이트가
+    # 지우고 다시 넣는 사이에 부르면 "파일 0개" 라는 멀쩡한 지문이 나오고, 창은
+    # 그것을 바뀐 것으로 알고 텅 빈 화면을 읽는다. 하나도 못 봤으면 모른다고 한다.
+    return h.hexdigest() if seen else None
+
+
+_STAMP = [None]
+_WINDOW = [None]
+
+
+def refresh_if_stale():
+    """화면 파일이 바뀌었으면 페이지를 다시 읽는다.
+
+    창은 한 번 읽은 페이지를 계속 들고 있다. 그 사이 업데이트가 web/ 를 갈아
+    끼우면 서비스는 새 파일을 내보내는데 창만 예전 화면에 머문다. × 를 눌러도
+    창 프로세스는 살아 있고, 트레이를 눌러도 app.open_window() 가 focus_ui() 로
+    그 창을 앞으로 부를 뿐이다. 결국 창 프로세스를 직접 끝내야만 바뀌었다.
+
+    앞으로 불려 나올 때마다 파일이 바뀐 것을 알아채고 스스로 다시 읽는다.
+    """
+    now = build_stamp()
+    if _WINDOW[0] is None or now is None or _STAMP[0] is None or now == _STAMP[0]:
+        return False
+    _STAMP[0] = now
+    try:
+        _WINDOW[0].load_url(SERVICE_URL)
+        paths.log("ui: 화면 파일이 바뀌었다 - 페이지를 다시 읽는다")
+        return True
+    except Exception:
+        paths.log("ui: 다시 읽기 실패: " + traceback.format_exc())
+        return False
+
+
 class FocusHandler(BaseHTTPRequestHandler):
     """서비스가 창을 앞으로 부르거나(/focus) 닫을 때(/quit) 쓴다.
 
@@ -177,6 +224,7 @@ class FocusHandler(BaseHTTPRequestHandler):
             return self._reply(403, "forbidden")
         path = self.path.split("?")[0]
         if path == "/focus":
+            refresh_if_stale()
             focus()
             return self._reply(200, "ok")
         if path == "/quit":
@@ -231,7 +279,8 @@ def main():
     except OSError:
         return
 
-    webview.create_window(
+    _STAMP[0] = build_stamp()
+    _WINDOW[0] = webview.create_window(
         "To-Do Manager", SERVICE_URL, js_api=Api(),
         width=1020, height=880, min_size=(760, 620),
         frameless=True, easy_drag=False, background_color="#E9E4DD",
