@@ -107,6 +107,32 @@ def _font_paths(weight):
             r"C:\Windows\Fonts\malgun.ttf"]
 
 
+@functools.lru_cache(maxsize=256)
+def _lsb(weight, size, ch):
+    """글자 왼쪽에 붙은 빈 자리(픽셀).
+
+    Paperlogy 에서 ImageFont.getbbox()[0] 은 늘 0 을 돌려준다. 그 값을 믿고
+    보정하면 아무 일도 일어나지 않는다. 그래서 한 번 그려 보고 잉크가 실제로
+    시작하는 자리를 잰다 (글꼴 · 크기 · 첫 글자마다 한 번, 그 뒤로는 기억한다).
+
+    이게 없으면 26px 숫자(3px 안쪽)와 11px 한글(1px 안쪽)을 같은 x 에 그렸을 때
+    왼쪽 끝이 어긋나 보인다.
+    """
+    from PIL import Image, ImageDraw
+    if not ch:
+        return 0
+    f = _font(weight, size)
+    pad = max(8, size)
+    img = Image.new("L", (pad * 3, max(8, size) * 3), 255)
+    ImageDraw.Draw(img).text((pad, pad // 2), ch, font=f, fill=0)
+    px = img.load()
+    for x in range(img.width):
+        for y in range(img.height):
+            if px[x, y] < 200:
+                return x - pad
+    return 0
+
+
 @functools.lru_cache(maxsize=64)
 def _font(weight, size):
     from PIL import ImageFont
@@ -415,11 +441,10 @@ def _draw_normal(item, hover):
           max(1, N_BAR_W // 2), bar)
 
     if when:
-        # 글자마다 왼쪽에 붙은 빈 자리(left side bearing)가 다르다. 그냥 같은 x
-        # 에 그리면 26px 숫자와 11px 한글의 왼쪽 끝이 어긋나 보인다. 실제 잉크가
-        # 시작하는 자리를 재서 둘 다 wx 에서 시작하게 한다.
-        ink = lambda f, t: f.getbbox(t)[0] if t else 0
-        d.text((wx - ink(f_time, when), N_TOP - s(2)), when, font=f_time,
+        # 큰 숫자와 작은 한글은 글자 왼쪽에 붙은 빈 자리가 다르다. 그냥 같은 x
+        # 에 그리면 왼쪽 끝이 어긋나 보인다. 실제 잉크가 시작하는 자리를 재서
+        # 둘 다 wx 에서 시작하게 한다.
+        d.text((wx - _lsb(300, N_TIME_PX, when[:1]), N_TOP - s(2)), when, font=f_time,
                fill=_rgb(DEEP) + (255,))
         if rel:
             ry = N_TOP + N_TIME_LH + N_TIME_GAP
@@ -432,7 +457,8 @@ def _draw_normal(item, hover):
                 d.text((wx + pw / 2, ry + N_REL_LH / 2), rel, font=f_rel, anchor="mm",
                        fill=_rgb(ONMID) + (255,))
             else:
-                d.text((wx - ink(f_rel, rel), ry), rel, font=f_rel, fill=_rgb(FAINT) + (255,))
+                d.text((wx - _lsb(400, N_REL_PX, rel[:1]), ry), rel, font=f_rel,
+                       fill=_rgb(FAINT) + (255,))
 
     # 시각(26px)과 제목(14px)은 글자 위 빈 자리가 서로 달라서, 같은 y 에서
     # 시작하면 제목이 떠 보인다. 숫자와 한글의 "윗머리" 를 재서 맞춘다.
