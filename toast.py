@@ -23,12 +23,12 @@ import paths
 from ctypes import wintypes
 
 # ---------------- 색 (web/style.css 와 같은 값) ----------------
-CARD    = "#e9e4dd"
-WASH_HI = "#efebe4"
-WASH_LO = "#e3ded6"
-DARK    = "#c2b9ac"
-LIGHT   = "#fdfaf5"
-PALE    = "#dbd4c9"
+CARD    = "#efeae3"
+WASH_HI = "#f5f2eb"
+WASH_LO = "#e9e4dc"
+DARK    = "#c9c1b4"
+LIGHT   = "#fffdf9"
+PALE    = "#e1dbd1"
 INK2    = "#2b2620"
 BODY    = "#3a332b"
 MUTED   = "#453d33"
@@ -76,7 +76,9 @@ def set_scale(scale):
 
 # ---------------- 글꼴 ----------------
 def _font_paths(weight):
-    name = "Paperlogy-3Light.ttf" if weight == 300 else "Paperlogy-5Medium.ttf"
+    # 300 은 큰 글자에만 남긴다. 작은 한글은 획이 끊겨 읽히지 않는다.
+    name = {300: "Paperlogy-3Light.ttf",
+            500: "Paperlogy-5Medium.ttf"}.get(weight, "Paperlogy-7Bold.ttf")
     return [os.path.join(paths.RES_DIR, "fonts", name), os.path.join(paths.APP_DIR, name),
             r"C:\Windows\Fonts\malgun.ttf"]
 
@@ -274,7 +276,7 @@ def _close(card, hover):
 def _button(card, x, y, label, kind, hover):
     """kind: primary · late · ghost. 돌려주는 값은 누를 자리."""
     from PIL import ImageDraw
-    f = _font(500, BTN_PX)
+    f = _font(700, BTN_PX)
     w = int(f.getlength(label)) + s(26 if kind != "ghost" else 22)
     h = BTN_H
     if kind == "ghost":
@@ -293,7 +295,7 @@ def _button(card, x, y, label, kind, hover):
 def _draw_normal(item, hover):
     """한 건짜리 카드: 강조 띠 · 제목 · 설명 · [완료] [10분 뒤] [열기]."""
     from PIL import Image, ImageDraw
-    f_t, f_s = _font(500, TITLE_PX), _font(300, SUB_PX)
+    f_t, f_s = _font(700, TITLE_PX), _font(500, SUB_PX)
     tw = CW - TX - TR
     lines = _wrap(item["title"], f_t, tw, TITLE_LINES)
     subs = _wrap(item["sub"], f_s, tw, SUB_LINES) if item.get("sub") else []
@@ -332,9 +334,9 @@ def _draw_normal(item, hover):
 def _draw_list(item, hover):
     """여러 건을 한 장에: 아침 브리핑 · 놓친 알림 · 자리를 비운 동안 쌓인 알림."""
     from PIL import ImageDraw
-    f_lab, f_ttl = _font(300, s(10)), _font(300, s(14.5))
-    f_key, f_row, f_n = _font(500, s(10.5)), _font(500, s(11.5)), _font(500, s(11))
-    f_pill, f_more = _font(500, s(9.5)), _font(300, s(10.5))
+    f_lab, f_ttl = _font(500, s(10)), _font(700, s(14.5))
+    f_key, f_row, f_n = _font(700, s(10.5)), _font(700, s(11.5)), _font(700, s(11))
+    f_pill, f_more = _font(700, s(9.5)), _font(500, s(10.5))
     rows = item["rows"][:LIST_MAX]
     more = item.get("more", 0)
     L = LIST_PAD
@@ -380,7 +382,7 @@ def _draw_fold(item, hover):
     h = FOLD_H
     card = _card_face(CW, h)
     d = ImageDraw.Draw(card)
-    f, f_c = _font(500, s(11.5)), _font(500, s(10.5))
+    f, f_c = _font(700, s(11.5)), _font(700, s(10.5))
     cx = s(18)
     chev = [(cx, h // 2 + s(3)), (cx + s(5), h // 2 - s(2)), (cx + s(10), h // 2 + s(3))]
     d.line(chev, fill=_rgb(INK2 if hover else MUTED) + (255,), width=max(1, int(2 * SCALE)), joint="curve")

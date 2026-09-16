@@ -15,15 +15,23 @@
   src:url(fonts/paperlogy-300.woff2) format("woff2")}
 @font-face{font-family:"Paperlogy"; font-style:normal; font-weight:500; font-display:swap;
   src:url(fonts/paperlogy-500.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-style:normal; font-weight:700; font-display:swap;
+  src:url(fonts/paperlogy-700.woff2) format("woff2")}
 
 :root{
-  --bg:#e9e4dd; --card:#e9e4dd; --dark:#c2b9ac; --light:#fdfaf5; --pale:#dbd4c9;
-  --wash:radial-gradient(130% 130% at 12% 6%, #efebe4 0%, #e9e4dd 45%, #e3ded6 100%);
+  --bg:#efeae3; --card:#efeae3; --dark:#c9c1b4; --light:#fffdf9; --pale:#e1dbd1;
+  --wash:radial-gradient(130% 130% at 12% 6%, #f5f2eb 0%, #efeae3 45%, #e9e4dc 100%);
   --rule:rgba(56,46,32,.085); --rule2:rgba(56,46,32,.17);
   --ink2:#2b2620; --body:#3a332b; --muted:#453d33; --faint:#5c5346; --dim:#8b8175;
   --mint:#85bdb3; --mid:#4d7572; --mid-ink:#466a68; --deep:#08202b; --onmid:#eef3f1;
   --midshadow:rgba(77,117,114,.30);
-  --rowpad:9px;
+  /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않는다 - 큰 글자에만 남긴다.
+     보조 글씨를 Medium 으로, 본문 · 제목을 Bold 로 한 단계씩 올렸다.
+     바꿀 일이 있으면 이 세 줄만 고치면 화면 전체가 따라온다. */
+  --w-thin:300;      /* 17px 이상에만 (시계 · 창 제목 · 달력 연월) */
+  --w-sec:500;       /* 보조 · 라벨 (예전 300) */
+  --w-pri:700;       /* 본문 · 제목 · 숫자 (예전 500) */
+  --rowpad:12px;     /* 줄 높이. 9px 이었다 */
   --ease:cubic-bezier(.2,.8,.2,1); --t-fast:140ms; --t-med:220ms; --t-slow:320ms;
   --tb:34px;
   /* 모조지 결 (80%). 비스듬한 빛의 고운 요철 · 은은한 얼룩 · 잔 티끌. SVG 필터라 어떤 배율에서도 선명하다 */
@@ -41,12 +49,12 @@ body{
   background-size:var(--paper-size), 100% 100%;
   background-blend-mode:multiply, multiply, multiply, normal;
   background-attachment:fixed;
-  font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:500;
+  font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:var(--w-pri);
   font-size:13px; letter-spacing:-.2px; -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
 input,textarea{user-select:text}
-b,strong{font-weight:500}
+b,strong{font-weight:var(--w-pri)}
 svg{display:block}
 
 /* 칸 · 창: 바탕과 같은 종이. 고정 배치라 칸 경계에서 결이 이어진다 */
@@ -58,8 +66,8 @@ svg{display:block}
 .titlebar{height:var(--tb); display:flex; align-items:center; gap:8px; padding:0 0 0 12px;
   position:relative; z-index:5}
 .tb-icon{width:16px; height:16px}
-.tb-name{font-size:11.5px; font-weight:300; letter-spacing:.3px; color:var(--faint)}
-.tb-sub{font-size:11px; font-weight:300; color:var(--faint)}
+.tb-name{font-size:11.5px; font-weight:var(--w-sec); letter-spacing:.3px; color:var(--faint)}
+.tb-sub{font-size:11px; font-weight:var(--w-sec); color:var(--faint)}
 .tb-sub:not(:empty)::before{content:"·"; margin-right:8px; color:var(--dim)}
 .tb-gap{flex:1}
 .wbtn{width:44px; height:var(--tb); border:0; background-color:transparent; cursor:pointer;
@@ -74,10 +82,10 @@ svg{display:block}
 
 /* 헤더: 날짜 · 시계 · 링 을 왼쪽에, 화면 전환과 버튼은 오른쪽에 한 줄로 */
 .top{display:flex; align-items:center; gap:20px; flex:0 0 84px}
-.d-day{font-size:21px; font-weight:500; letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
-.d-full{font-size:10.5px; font-weight:300; color:var(--faint); margin-top:5px; letter-spacing:.3px}
+.d-day{font-size:21px; font-weight:var(--w-pri); letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
+.d-full{font-size:10.5px; font-weight:var(--w-sec); color:var(--faint); margin-top:5px; letter-spacing:.3px}
 /* 큰 글자일수록 가는 획 */
-.clock{font-size:42px; font-weight:300; letter-spacing:-2px; line-height:1; color:var(--deep);
+.clock{font-size:42px; font-weight:var(--w-thin); letter-spacing:-2px; line-height:1; color:var(--deep);
   font-variant-numeric:tabular-nums}
 .ring-wrap{position:relative; width:56px; height:56px; display:grid; place-items:center; flex:0 0 auto}
 .ring-wrap::before{content:""; position:absolute; inset:-5px; border-radius:50%;
@@ -89,14 +97,14 @@ svg{display:block}
   transition:stroke-dashoffset 700ms var(--ease), stroke var(--t-med) var(--ease)}
 .ring-txt{position:relative; text-align:center; line-height:1}
 .ring-txt b{font-size:18px; color:var(--deep)}
-.ring-txt span{display:block; font-size:8px; font-weight:300; color:var(--faint); margin-top:2px;
+.ring-txt span{display:block; font-size:9.5px; font-weight:var(--w-sec); color:var(--faint); margin-top:2px;
   letter-spacing:.5px}
 
 /* 오늘 / 달력 */
 .views{position:relative; display:flex; gap:3px; padding:3px; border-radius:12px; margin-left:auto;
   flex:0 0 auto; box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
 .views button{position:relative; border:0; cursor:pointer; font-family:inherit; font-size:12px;
-  font-weight:500; color:var(--faint); background-color:transparent; border-radius:9px; padding:7px 14px;
+  font-weight:var(--w-pri); color:var(--faint); background-color:transparent; border-radius:9px; padding:7px 14px;
   transition:color var(--t-fast) var(--ease), background-color var(--t-med) var(--ease),
              box-shadow var(--t-med) var(--ease)}
 .views button:hover{color:var(--muted)}
@@ -106,7 +114,7 @@ svg{display:block}
 .acts{display:flex; gap:10px; flex:0 0 auto}
 /* 새 항목: 화면에서 유일하게 색이 찬 버튼 */
 .pill-btn{height:38px; padding:0 17px; border:0; border-radius:12px; cursor:pointer;
-  font-family:inherit; font-size:12.5px; font-weight:500; letter-spacing:-.1px; white-space:nowrap;
+  font-family:inherit; font-size:12.5px; font-weight:var(--w-pri); letter-spacing:-.1px; white-space:nowrap;
   color:var(--onmid); background-color:var(--mid); display:flex; align-items:center; gap:7px;
   box-shadow:3px 3px 9px var(--midshadow);
   transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease)}
@@ -135,11 +143,11 @@ svg{display:block}
 #col-right > .card.fold{margin-top:auto}
 /* 칸 제목: 굵기 대신 자간과 색으로 세운다 */
 .card h2{margin:0 0 2px; padding-bottom:9px; border-bottom:1px solid var(--rule2);
-  font-size:12px; font-weight:500; letter-spacing:.2px; color:var(--ink2);
+  font-size:12px; font-weight:var(--w-pri); letter-spacing:.2px; color:var(--ink2);
   display:flex; align-items:baseline; gap:9px; flex:0 0 auto}
-.badge{font-size:12.5px; font-weight:500; color:var(--mid-ink); font-variant-numeric:tabular-nums}
+.badge{font-size:12.5px; font-weight:var(--w-pri); color:var(--mid-ink); font-variant-numeric:tabular-nums}
 .badge.hot{color:var(--mid-ink)}
-.h-note{font-style:normal; margin-left:auto; font-size:10px; font-weight:300; color:var(--faint);
+.h-note{font-style:normal; margin-left:auto; font-size:10px; font-weight:var(--w-sec); color:var(--faint);
   letter-spacing:.3px}
 
 /* 목록: 줄은 실선 한 줄로 나눈다. 왼쪽 여백은 종류 띠가 들어갈 자리 */
@@ -187,24 +195,24 @@ svg{display:block}
 .dot:active{box-shadow:inset 3px 3px 6px var(--dark), inset -1px -1px 3px var(--light)}
 .item.done .dot::after{opacity:1; transform:scale(1)}
 .item.done .t{color:var(--faint); text-decoration:line-through; text-decoration-color:var(--dim)}
-.t{flex:1; min-width:0; font-size:13px; font-weight:500; color:var(--body);
+.t{flex:1; min-width:0; font-size:14px; font-weight:var(--w-pri); color:var(--body);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .meta{display:flex; align-items:center; gap:8px; flex:0 0 auto; white-space:nowrap}
-.tm{font-size:12.5px; font-weight:500; color:var(--body); font-variant-numeric:tabular-nums; letter-spacing:0}
+.tm{font-size:13.5px; font-weight:var(--w-pri); color:var(--body); font-variant-numeric:tabular-nums; letter-spacing:0}
 .item.done .tm{color:var(--faint)}
-.st{font-size:9.5px; font-weight:500; letter-spacing:.6px; padding:2px 7px; border-radius:6px; flex:0 0 auto}
+.st{font-size:10.5px; font-weight:var(--w-pri); letter-spacing:.6px; padding:2px 7px; border-radius:6px; flex:0 0 auto}
 .st.late{background-color:var(--deep); color:var(--onmid)}
 .st.soon{background-color:var(--mint); color:var(--deep)}
 .st.ok{background-color:var(--pale); color:var(--muted)}
-.tag{font-size:10px; font-weight:300; color:var(--faint)}
+.tag{font-size:11px; font-weight:var(--w-sec); color:var(--faint)}
 .rt-ico{color:var(--mid); flex:0 0 auto}
-.rule-t{font-size:10.5px; font-weight:300; color:var(--faint); flex:0 1 auto; min-width:0; max-width:46%;
+.rule-t{font-size:11.5px; font-weight:var(--w-sec); color:var(--faint); flex:0 1 auto; min-width:0; max-width:46%;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.empty{color:var(--faint); font-size:11.5px; font-weight:300; padding:18px 4px; text-align:center; line-height:1.7}
+.empty{color:var(--faint); font-size:12.5px; font-weight:var(--w-sec); padding:18px 4px; text-align:center; line-height:1.7}
 
-.foot{display:flex; align-items:center; gap:14px; flex:0 0 auto; font-size:10.5px; font-weight:300; color:var(--faint)}
+.foot{display:flex; align-items:center; gap:14px; flex:0 0 auto; font-size:10.5px; font-weight:var(--w-sec); color:var(--faint)}
 .link{border:0; background-color:transparent; color:var(--faint); font-family:inherit; font-size:10.5px;
-  font-weight:500; cursor:pointer; padding:0; text-decoration:underline; text-decoration-color:var(--rule2);
+  font-weight:var(--w-pri); cursor:pointer; padding:0; text-decoration:underline; text-decoration-color:var(--rule2);
   text-underline-offset:4px; transition:color var(--t-fast) var(--ease)}
 .link:hover{color:var(--ink2)}
 #status{animation:fade-in var(--t-med) var(--ease)}
@@ -214,11 +222,11 @@ svg{display:block}
    깊이는 세 단계: 칸 전체는 올라오고, 날짜 칸은 파이고, 일정 칩은 평평하다 */
 .cal{flex:1; min-height:0; padding:16px 18px 14px; gap:12px}
 .cal-top{display:flex; align-items:center; gap:8px; flex:0 0 auto}
-.cal-ym{font-size:17px; font-weight:300; color:var(--ink2); min-width:112px; text-align:center;
+.cal-ym{font-size:17px; font-weight:var(--w-thin); color:var(--ink2); min-width:112px; text-align:center;
   letter-spacing:-.4px; font-variant-numeric:tabular-nums}
 .cbtn{width:30px; height:30px; border:0; border-radius:9px; cursor:pointer; padding:0;
   background-color:var(--card); color:var(--muted); display:grid; place-items:center;
-  font-family:inherit; font-size:11px; font-weight:500;
+  font-family:inherit; font-size:11px; font-weight:var(--w-pri);
   box-shadow:2px 2px 6px var(--dark), -2px -2px 6px var(--light);
   transition:box-shadow var(--t-fast) var(--ease), color var(--t-fast) var(--ease)}
 .cbtn:hover{color:var(--ink2)}
@@ -227,7 +235,7 @@ svg{display:block}
 .cbtn.wide.off{color:var(--faint); box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
 .cal-gap{flex:1}
 .cal-top .link{margin-left:4px}
-.cal-legend{display:flex; align-items:center; gap:14px; font-size:10.5px; font-weight:300; color:var(--faint)}
+.cal-legend{display:flex; align-items:center; gap:14px; font-size:10.5px; font-weight:var(--w-sec); color:var(--faint)}
 .cal-legend span{display:flex; align-items:center; gap:6px}
 .cal-legend .sw{width:9px; height:9px; border-radius:3px; display:block}
 .cal-legend .sw.p{background-color:var(--deep)}
@@ -238,7 +246,7 @@ svg{display:block}
 
 .cal-head{display:grid; grid-template-columns:repeat(var(--cols,5), minmax(0,1fr)); gap:9px; flex:0 0 auto;
   padding-bottom:7px; border-bottom:1px solid var(--rule2)}
-.cal-head span{text-align:center; font-size:10.5px; font-weight:500; color:var(--faint); letter-spacing:1.4px}
+.cal-head span{text-align:center; font-size:10.5px; font-weight:var(--w-pri); color:var(--faint); letter-spacing:1.4px}
 .cal-head .we{color:var(--dim)}
 .cal-grid{flex:1; min-height:0; display:grid; grid-template-columns:repeat(var(--cols,5), minmax(0,1fr));
   grid-auto-rows:1fr; gap:9px}
@@ -248,9 +256,9 @@ svg{display:block}
   box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light);
   transition:box-shadow var(--t-fast) var(--ease)}
 .day:hover{box-shadow:inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light)}
-.day .n{font-size:12px; font-weight:500; color:var(--ink2); display:flex; align-items:center; gap:6px;
+.day .n{font-size:12px; font-weight:var(--w-pri); color:var(--ink2); display:flex; align-items:center; gap:6px;
   flex:0 0 auto; font-variant-numeric:tabular-nums}
-.day .hn{font-size:9.5px; font-weight:300; color:var(--faint)}
+.day .hn{font-size:10.5px; font-weight:var(--w-sec); color:var(--faint)}
 .day.out{cursor:default;
   box-shadow:inset 1px 1px 3px rgba(194,185,172,.55), inset -1px -1px 3px rgba(253,250,245,.55)}
 .day.out .n{color:var(--dim)}
@@ -277,7 +285,7 @@ svg{display:block}
 .chip.done .n2{text-decoration:line-through}
 /* 주말 마감을 앞 영업일 칸에 얹은 것 - 이 칸의 날짜가 아니라는 표시 */
 .chip.wk{border-left-style:dashed}
-.day .more{font-size:10px; font-weight:500; color:var(--mid-ink); text-align:right; padding-right:2px; flex:0 0 auto}
+.day .more{font-size:10px; font-weight:var(--w-pri); color:var(--mid-ink); text-align:right; padding-right:2px; flex:0 0 auto}
 .day .more:hover{color:var(--ink2)}
 
 /* ---------- 창 (모달) ----------
@@ -299,22 +307,22 @@ svg{display:block}
 .modal.wide{width:520px}
 .modal.narrow{width:380px}
 .modal.tall{height:76vh; display:flex; flex-direction:column}
-.modal h3{margin:0 0 14px; font-size:18px; font-weight:300; letter-spacing:-.4px; color:var(--ink2);
+.modal h3{margin:0 0 14px; font-size:18px; font-weight:var(--w-thin); letter-spacing:-.4px; color:var(--ink2);
   display:flex; align-items:baseline; gap:10px}
-.opt{font-style:normal; font-size:11px; font-weight:300; color:var(--faint); letter-spacing:0}
+.opt{font-style:normal; font-size:11px; font-weight:var(--w-sec); color:var(--faint); letter-spacing:0}
 
 /* ---------- 입력 ---------- */
-.modal label{display:block; font-size:10.5px; font-weight:500; color:var(--muted); letter-spacing:.2px;
+.modal label{display:block; font-size:10.5px; font-weight:var(--w-pri); color:var(--muted); letter-spacing:.2px;
   margin:12px 2px 5px}
 .modal input, .modal select, .modal textarea{
-  width:100%; height:38px; border:0; outline:0; font-family:inherit; font-size:13px; font-weight:500;
+  width:100%; height:38px; border:0; outline:0; font-family:inherit; font-size:13px; font-weight:var(--w-pri);
   color:var(--body); background-color:var(--card); border-radius:11px; padding:0 12px;
   box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light);
   transition:box-shadow var(--t-fast) var(--ease)}
 .modal select{appearance:none; -webkit-appearance:none; padding-right:30px; cursor:pointer;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%235c5346' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 11px center}
-.modal input::placeholder{color:var(--dim); font-weight:300}
+.modal input::placeholder{color:var(--dim); font-weight:var(--w-sec)}
 .modal input:disabled{color:var(--faint)}
 .modal input:focus, .modal select:focus, .modal textarea:focus{
   box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light), 0 0 0 2px rgba(77,117,114,.38)}
@@ -332,12 +340,12 @@ svg{display:block}
 [data-f="arg"] .unit input{width:64px; flex:0 0 64px}
 .unit{display:flex; align-items:center; gap:9px}
 .unit input{width:90px}
-.unit span{font-size:11.5px; font-weight:300; color:var(--muted); white-space:nowrap}
+.unit span{font-size:11.5px; font-weight:var(--w-sec); color:var(--muted); white-space:nowrap}
 
 /* 새 항목 종류 · 전체 관리 분류: 오늘/달력 전환과 같은 들어간 틀 */
 .tabs{display:flex; gap:3px; padding:3px; border-radius:12px; margin-bottom:4px; width:max-content; max-width:100%;
   flex-wrap:wrap; box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
-.tabs button{border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:500; white-space:nowrap;
+.tabs button{border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:var(--w-pri); white-space:nowrap;
   color:var(--faint); background-color:transparent; border-radius:9px; padding:7px 13px;
   transition:color var(--t-fast) var(--ease), background-color var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease)}
 .tabs button:hover{color:var(--muted)}
@@ -345,7 +353,7 @@ svg{display:block}
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light)}
 
 .quick{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap}
-.quick button{height:28px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:500;
+.quick button{height:28px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:var(--w-pri);
   color:var(--muted); background-color:var(--card); border-radius:9px; padding:0 11px; white-space:nowrap;
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light);
   transition:box-shadow var(--t-fast) var(--ease), color var(--t-fast) var(--ease)}
@@ -355,11 +363,11 @@ svg{display:block}
 /* 요일 고르기: 고른 날은 색으로 찬다 (들어간 모양만으로는 구분이 약하다) */
 .wd{display:flex; gap:6px; margin-top:3px}
 .wd span{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; cursor:pointer;
-  font-size:12.5px; font-weight:500; color:var(--muted); background-color:var(--card);
+  font-size:12.5px; font-weight:var(--w-pri); color:var(--muted); background-color:var(--card);
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light);
   transition:background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease)}
 .wd span.on{color:var(--onmid); background-color:var(--mid); box-shadow:2px 2px 7px var(--midshadow)}
-.chk{display:flex !important; align-items:center; gap:9px; font-size:12px !important; font-weight:500 !important;
+.chk{display:flex !important; align-items:center; gap:9px; font-size:12px !important; font-weight:var(--w-pri) !important;
   color:var(--muted) !important; cursor:pointer; margin-top:12px !important; letter-spacing:0 !important}
 /* 체크 상자도 앱의 모양으로: 들어간 네모 → 고르면 청록으로 차고 흰 체크 */
 .chk input{appearance:none; -webkit-appearance:none; width:18px !important; height:18px !important;
@@ -371,23 +379,23 @@ svg{display:block}
   box-shadow:1px 1px 4px var(--midshadow) !important}
 .chk input:focus-visible{outline:2px solid rgba(77,117,114,.55); outline-offset:2px}
 
-.preview{margin:14px 0 0; padding:11px 13px; border-radius:12px; font-size:12px; font-weight:500;
+.preview{margin:14px 0 0; padding:11px 13px; border-radius:12px; font-size:12px; font-weight:var(--w-pri);
   color:var(--mid-ink); line-height:1.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   box-shadow:inset 2px 2px 6px var(--dark), inset -2px -2px 6px var(--light)}
 .preview b{display:block; font-size:10.5px; color:var(--muted); margin-bottom:2px}
-.hint{font-size:11.5px; font-weight:300; color:var(--muted); margin:14px 0 0; line-height:1.75}
-.warn-line{font-size:11.5px; font-weight:300; color:var(--muted); margin:9px 2px 0; display:flex; align-items:center; gap:9px}
-.warn-line button{height:26px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:500;
+.hint{font-size:11.5px; font-weight:var(--w-sec); color:var(--muted); margin:14px 0 0; line-height:1.75}
+.warn-line{font-size:11.5px; font-weight:var(--w-sec); color:var(--muted); margin:9px 2px 0; display:flex; align-items:center; gap:9px}
+.warn-line button{height:26px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:var(--w-pri);
   color:var(--ink2); background-color:var(--card); border-radius:8px; padding:0 10px; white-space:nowrap;
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light)}
-.step{display:block; font-size:10px; font-weight:500; color:var(--faint); letter-spacing:.8px; margin:14px 2px 6px}
+.step{display:block; font-size:10px; font-weight:var(--w-pri); color:var(--faint); letter-spacing:.8px; margin:14px 2px 6px}
 
 /* ---------- 버튼 줄 ---------- */
 .btns{display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:18px;
   padding-top:14px; border-top:1px solid var(--rule)}
 .btns.split{justify-content:space-between}
 .btns.split>div{display:flex; gap:8px}
-.btns button{height:36px; border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:500;
+.btns button{height:36px; border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:var(--w-pri);
   white-space:nowrap; flex:0 0 auto; border-radius:11px; padding:0 15px;
   color:var(--onmid); background-color:var(--mid); box-shadow:3px 3px 9px var(--midshadow);
   transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), color var(--t-fast) var(--ease)}
@@ -405,15 +413,15 @@ svg{display:block}
   transition:background-color var(--t-fast) var(--ease)}
 .mg-row + .mg-row{box-shadow:inset 0 1px 0 var(--rule)}
 .mg-row:hover{background-color:rgba(56,46,32,.04)}
-.mg-row .k{font-size:9.5px; font-weight:500; letter-spacing:.4px; padding:2px 7px; border-radius:6px;
+.mg-row .k{font-size:9.5px; font-weight:var(--w-pri); letter-spacing:.4px; padding:2px 7px; border-radius:6px;
   color:var(--muted); background-color:var(--pale); flex:0 0 auto}
-.mg-row .n{flex:1; min-width:0; font-size:13px; font-weight:500; color:var(--body);
+.mg-row .n{flex:1; min-width:0; font-size:13px; font-weight:var(--w-pri); color:var(--body);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.mg-row .w{font-size:11.5px; font-weight:500; color:var(--faint); white-space:nowrap; font-variant-numeric:tabular-nums}
+.mg-row .w{font-size:11.5px; font-weight:var(--w-pri); color:var(--faint); white-space:nowrap; font-variant-numeric:tabular-nums}
 .mg-row.off{opacity:.55}
 #m-day{width:440px; display:flex; flex-direction:column}
 #m-day .mg-list{flex:0 1 auto; min-height:0}
-.day-row .note{flex:0 1 auto; min-width:0; max-width:34%; font-size:11px; font-weight:300; color:var(--faint);
+.day-row .note{flex:0 1 auto; min-width:0; max-width:34%; font-size:11px; font-weight:var(--w-sec); color:var(--faint);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .day-row.off .dot::after{opacity:1; transform:scale(1)}
 .day-row.off .n{text-decoration:line-through; color:var(--faint)}
@@ -430,8 +438,8 @@ code{font-family:Consolas,"Courier New",monospace; font-size:10.5px; color:var(-
 .strip .s-ico{width:22px; height:22px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center;
   color:var(--onmid); background-color:var(--mid)}
 .strip.bad .s-ico{background-color:var(--deep)}
-.strip .s-msg{flex:1; min-width:0; font-size:12px; font-weight:500; color:var(--ink2); line-height:1.5}
-.strip .s-btn{height:30px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:500;
+.strip .s-msg{flex:1; min-width:0; font-size:12px; font-weight:var(--w-pri); color:var(--ink2); line-height:1.5}
+.strip .s-btn{height:30px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:var(--w-pri);
   color:var(--ink2); background-color:var(--card); border-radius:9px; padding:0 12px; white-space:nowrap; flex:0 0 auto;
   box-shadow:2px 2px 6px var(--dark), -2px -2px 6px var(--light); transition:box-shadow var(--t-fast) var(--ease)}
 .strip .s-btn:active{box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
@@ -447,11 +455,11 @@ body.offline .list, body.offline .day .chips{opacity:.5; filter:saturate(.6); tr
 /* 아이콘은 한 번 그려진다. 동작 줄이기에서는 곧바로 완성된 모양 */
 .empty-rich .ill path{stroke-dasharray:1; stroke-dashoffset:1; animation:draw 560ms 160ms var(--ease) forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
-.empty-rich .eh{font-size:15px; font-weight:500; letter-spacing:-.3px; color:var(--ink2)}
-.empty-rich .ep{font-size:11.5px; font-weight:300; color:var(--muted); line-height:1.8; max-width:330px}
+.empty-rich .eh{font-size:15px; font-weight:var(--w-pri); letter-spacing:-.3px; color:var(--ink2)}
+.empty-rich .ep{font-size:11.5px; font-weight:var(--w-sec); color:var(--muted); line-height:1.8; max-width:330px}
 .empty-rich .ep b{color:var(--ink2)}
 .empty-rich .ec{display:flex; gap:8px; margin-top:4px; flex-wrap:wrap; justify-content:center}
-.empty-rich .ec button{height:36px; border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:500;
+.empty-rich .ec button{height:36px; border:0; cursor:pointer; font-family:inherit; font-size:12px; font-weight:var(--w-pri);
   border-radius:11px; padding:0 15px; white-space:nowrap; display:flex; align-items:center; gap:7px;
   color:var(--onmid); background-color:var(--mid); box-shadow:3px 3px 9px var(--midshadow);
   transition:transform var(--t-fast) var(--ease)}
