@@ -393,6 +393,9 @@ svg{display:block}
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light)}
 
 .quick{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap}
+/* 입력칸 아래 붙는 빠른 단추(날짜 고르기)는 그 칸에 딸린 것이라 8px 로 붙여 둔다.
+   체크 아래 오는 것은 딸린 것이 아니라 따로 하는 일이다 - 그만큼 떼어 놓는다. */
+.chk + .quick{margin-top:14px}
 .quick button{height:28px; border:0; cursor:pointer; font-family:inherit; font-size:11px; font-weight:var(--w-pri);
   color:var(--muted); background-color:var(--card); border-radius:9px; padding:0 11px; white-space:nowrap;
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light);
