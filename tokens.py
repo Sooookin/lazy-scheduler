@@ -54,7 +54,19 @@ ALPHA = {
     "rule":       ("56,46,32", ".085"),   # 줄 사이 실선
     "rule2":      ("56,46,32", ".17"),    # 칸 제목 아래 실선
     "midshadow":  ("77,117,114", ".30"),  # 청록 버튼 그림자
+    # 마우스를 올렸을 때 덮는 색. 예전 값(.035~.08)은 너무 옅어서 지금 어디를
+    # 가리키고 있는지 알기 어려웠다. 줄처럼 넓은 면은 옅게, 단추처럼 작은 것은
+    # 진하게 - 같은 농도를 쓰면 넓은 면이 과하게 어두워진다.
+    "hover":      ("56,46,32", ".085"),   # 목록 줄 · 넓은 면
+    "hover-hi":   ("56,46,32", ".15"),    # 단추 · 아이콘처럼 작은 것
 }
+
+
+def rgba_tuple(name):
+    """PIL 용 (r, g, b, a). CSS 의 rgba() 와 같은 값이 나온다."""
+    rgb, a = ALPHA[name]
+    r, g, b = (int(v) for v in rgb.split(","))
+    return (r, g, b, int(round(float(a) * 255)))
 
 # ---------------- 글자 굵기 ----------------
 # Paperlogy 300 · 400 · 500 세 종.
@@ -100,6 +112,7 @@ def css_root():
         "  --bg:%(bg)s; --card:%(card)s; --dark:%(dark)s; --light:%(light)s; --pale:%(pale)s;" % c,
         "  --wash:radial-gradient(130%% 130%% at 12%% 6%%, %(wash-hi)s 0%%, %(bg)s 45%%, %(wash-lo)s 100%%);" % c,
         "  --rule:%s; --rule2:%s;" % (rgba("rule"), rgba("rule2")),
+        "  --hover:%s; --hover-hi:%s;" % (rgba("hover"), rgba("hover-hi")),
         "  --ink2:%(ink2)s; --body:%(body)s; --muted:%(muted)s; --faint:%(faint)s; --dim:%(dim)s;" % c,
         "  --mint:%(mint)s; --mid:%(mid)s; --mid-hi:%(mid-hi)s; --mid-ink:%(mid-ink)s;" % c,
         "  --deep:%(deep)s; --deep-hi:%(deep-hi)s; --onmid:%(onmid)s;" % c,

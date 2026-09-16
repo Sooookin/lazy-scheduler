@@ -49,7 +49,7 @@ ONMID   = _C["onmid"]
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(
     PAD=26,                 # 카드 밖 여백: 그림자가 잘리지 않고 끝까지 번질 자리
-    CW=340, R=18, GAP=8,
+    CW=384, R=18, GAP=8,          # 340 이었다. 제목 칸이 좁아 넓혔다
     TX=40, TY=19, TR=46,    # 글자 시작 · 위 여백 · 오른쪽(✕ 자리)
     BAR_X=22, BAR_W=3,
     CLOSE=28, CLOSE_R=12, CLOSE_T=10,
@@ -60,13 +60,15 @@ _BASE = dict(
     # 가로 340 을 이렇게 나눈다. 숫자를 여기 모아 두면 배율이 바뀌어도
     # 비율이 그대로 따라온다.
     #
-    #   20 │3│ 14 │  64  │ 14 │ ──── 제목 ──── │ 20
-    #      ▍      10:00        퇴연 RA 비즈니스 …   ✕
-    #             10분 뒤       반복 · 매월 마지막 목요일
-    #   ├───────────── 40 ─────────────────────────┤
-    #   │    완료    │   10분 뒤   │      열기       │
+    #   18 │3│11│  64  │ 16 │ ────── 제목 ────── │ 18
+    #      ▍    10:00        퇴연 RA 비즈니스 미팅      ✕
+    #           10분 뒤       반복 · 매월 마지막 목요일
+    #   ├──────────────── 40 ────────────────────────┤
+    #   │     완료    │    10분 뒤   │      열기        │
     #
-    N_MARGIN=20, N_BAR_W=3, N_COLGAP=14, N_TIME_W=64,
+    # 시각 칸은 글자 폭만큼만 쓰고 띠에 바짝 붙인다. 제목이 실제 내용이므로
+    # 남는 자리는 모두 제목에 준다 (340→384 · 제목 181→228px).
+    N_MARGIN=18, N_BAR_W=3, N_BARGAP=11, N_COLGAP=16, N_TIME_W=64,
     N_TOP=18, N_BOT=16, N_XCOL=44,          # ✕ 가 차지해 제목이 비워 두는 폭
     N_TIME_PX=26, N_TIME_LH=27, N_TIME_GAP=6,
     N_REL_PX=11, N_REL_LH=14,
@@ -277,6 +279,12 @@ def _x_mark(size, color, thick):
     return layer
 
 
+def _wash(name):
+    """마우스를 올렸을 때 덮는 색. 창 화면(--hover · --hover-hi)과 같은 값이다."""
+    r, g, b, a = tokens.rgba_tuple(name)
+    return "#%02x%02x%02x" % (r, g, b), a
+
+
 RULE2 = (56, 46, 32, 44)      # 창 화면의 --rule2 와 같은 농도
 RULE1 = (56, 46, 32, 24)      # --rule
 
@@ -295,18 +303,28 @@ def _vline(card, x, y, h, color=RULE1):
 
 
 def _blob(card, box, radius, color, alpha=255):
-    """둥근 면 하나를 칠한다 (버튼 · 알약 · ✕ 강조)."""
+    """둥근 면 하나를 칠한다 (알약 · 강조).
+
+    paste 로 붙이면 알파까지 덮어써서, 반투명한 색을 칠하면 그 자리가 카드에
+    구멍이 된다 (바탕화면이 비쳐 시커멓게 보였다). 겹쳐 칠해야 한다.
+    """
     from PIL import Image
     x, y, w, h = box
-    fill = Image.new("RGBA", (w, h), _rgb(color) + (alpha,))
-    card.paste(fill, (x, y), _rounded_mask(w, h, radius))
+    if w <= 0 or h <= 0:
+        return
+    m = _rounded_mask(w, h, radius)
+    if alpha < 255:
+        m = m.point(lambda v, a=alpha: v * a // 255)
+    layer = Image.new("RGBA", (w, h), _rgb(color) + (0,))
+    layer.putalpha(m)
+    card.alpha_composite(layer, (int(x), int(y)))
 
 
 def _close(card, hover):
     size = CLOSE
     x, y = card.width - CLOSE_R - size, CLOSE_T
     if hover == "x":
-        _blob(card, (x, y, size, size), s(9), PALE)
+        _blob(card, (x, y, size, size), s(9), *_wash("hover-hi"))
     mark = _x_mark(s(12), INK2 if hover == "x" else FAINT, 1.5 * SCALE)
     card.alpha_composite(mark, (x + (size - mark.width) // 2, y + (size - mark.height) // 2))
     return (x, y, size, size)
@@ -337,7 +355,7 @@ def _seg_row(card, acts, hover):
         if hover == name:
             _blob(card, (x0 + N_ACT_INSET, top + N_ACT_INSET,
                          x1 - x0 - N_ACT_INSET * 2, N_ACT_H - N_ACT_INSET * 2),
-                  N_ACT_R, PALE)
+                  N_ACT_R, *_wash("hover-hi"))
         fill = MID_INK if kind == "primary" else (DEEP if kind == "late" else MUTED)
         d.text(((x0 + x1) / 2, top + N_ACT_H / 2 + s(1)), label, font=f, anchor="mm",
                fill=_rgb(fill) + (255,))
@@ -364,7 +382,8 @@ def _draw_normal(item, hover):
     when = (item.get("when") or "").strip()
     rel = (item.get("rel") or "").strip()
     # 시각이 없으면 시각 칸을 두지 않는다 (빈 칸을 남기면 카드가 기울어 보인다)
-    tx = N_MARGIN + N_BAR_W + N_COLGAP + ((N_TIME_W + N_COLGAP) if when else 0)
+    wx = N_MARGIN + N_BAR_W + N_BARGAP
+    tx = wx + ((N_TIME_W + N_COLGAP) if when else 0)
     tw = CW - tx - N_XCOL
 
     lines = _wrap(item["title"], f_ttl, tw, TITLE_LINES)
@@ -396,19 +415,24 @@ def _draw_normal(item, hover):
           max(1, N_BAR_W // 2), bar)
 
     if when:
-        wx = N_MARGIN + N_BAR_W + N_COLGAP
-        d.text((wx, N_TOP - s(2)), when, font=f_time, fill=_rgb(DEEP) + (255,))
+        # 글자마다 왼쪽에 붙은 빈 자리(left side bearing)가 다르다. 그냥 같은 x
+        # 에 그리면 26px 숫자와 11px 한글의 왼쪽 끝이 어긋나 보인다. 실제 잉크가
+        # 시작하는 자리를 재서 둘 다 wx 에서 시작하게 한다.
+        ink = lambda f, t: f.getbbox(t)[0] if t else 0
+        d.text((wx - ink(f_time, when), N_TOP - s(2)), when, font=f_time,
+               fill=_rgb(DEEP) + (255,))
         if rel:
             ry = N_TOP + N_TIME_LH + N_TIME_GAP
             if item.get("late"):
                 # 지난 것은 짙은 알약으로. 창 화면의 "지남" 표시와 같은 모양이라
                 # 굳이 읽지 않아도 무슨 뜻인지 안다.
                 pw = int(f_rel.getlength(rel)) + s(15)
+                # 알약은 면이라 왼쪽 "끝" 을 시각과 맞춘다 (속 글자가 아니라)
                 _blob(card, (wx, ry - s(2), pw, N_REL_LH + s(5)), s(7), DEEP)
                 d.text((wx + pw / 2, ry + N_REL_LH / 2), rel, font=f_rel, anchor="mm",
                        fill=_rgb(ONMID) + (255,))
             else:
-                d.text((wx, ry), rel, font=f_rel, fill=_rgb(FAINT) + (255,))
+                d.text((wx - ink(f_rel, rel), ry), rel, font=f_rel, fill=_rgb(FAINT) + (255,))
 
     # 시각(26px)과 제목(14px)은 글자 위 빈 자리가 서로 달라서, 같은 y 에서
     # 시작하면 제목이 떠 보인다. 숫자와 한글의 "윗머리" 를 재서 맞춘다.

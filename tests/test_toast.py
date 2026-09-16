@@ -36,7 +36,11 @@ def test_cards_are_redrawn_at_display_scale_not_stretched():
     toast.set_scale(1.5)
     big_card, big_hits = toast._card_rgba(CARD)
     big_list, _ = toast._card_rgba(LIST)
-    assert big_card.width == 340 * 3 // 2 + 2 * 39
+    # 폭은 toast 가 들고 있는 기준값에서 끌어온다. 여기 숫자를 박아 두면
+    # 카드 크기를 바꿀 때마다 테스트가 엉뚱하게 깨진다.
+    wide = int(round(toast._BASE["CW"] * 1.5))
+    pad = int(round(toast._BASE["PAD"] * 1.5))
+    assert big_card.width == wide + 2 * pad
     for small, big in ((base_card, big_card), (base_list, big_list)):
         assert abs(big.height - small.height * 1.5) <= 6
     assert abs(big_hits["done"][3] - hits["done"][3] * 1.5) <= 1
