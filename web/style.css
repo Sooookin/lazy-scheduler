@@ -80,8 +80,12 @@ svg{display:block}
 .app{height:calc(100% - var(--tb)); display:flex; flex-direction:column;
   padding:2px 26px 14px; gap:16px; max-width:1180px; margin:0 auto}
 
-/* 헤더: 날짜 · 시계 · 링 을 왼쪽에, 화면 전환과 버튼은 오른쪽에 한 줄로 */
-.top{display:flex; align-items:center; gap:20px; flex:0 0 84px}
+/* 헤더: 날짜 · 시계 · 링 · 화면 전환 · 버튼을 한 줄에 고르게 편다.
+   예전에는 .views 에 margin-left:auto 를 줘서 남는 공간이 전부 한 군데로
+   몰렸다. 왼쪽에 넷이 붙고 가운데가 휑하게 비어 보였다.
+   space-between 으로 나누면 같은 공간이 네 틈에 고르게 퍼진다.
+   gap 은 창이 좁아졌을 때의 최소 간격으로만 남는다. */
+.top{display:flex; align-items:center; justify-content:space-between; gap:24px; flex:0 0 84px}
 .d-day{font-size:21px; font-weight:var(--w-pri); letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
 .d-full{font-size:10.5px; font-weight:var(--w-sec); color:var(--faint); margin-top:5px; letter-spacing:.3px}
 /* 큰 글자일수록 가는 획 */
@@ -101,7 +105,7 @@ svg{display:block}
   letter-spacing:.5px}
 
 /* 오늘 / 달력 */
-.views{position:relative; display:flex; gap:3px; padding:3px; border-radius:12px; margin-left:auto;
+.views{position:relative; display:flex; gap:3px; padding:3px; border-radius:12px;
   flex:0 0 auto; box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
 .views button{position:relative; border:0; cursor:pointer; font-family:inherit; font-size:12px;
   font-weight:var(--w-pri); color:var(--faint); background-color:transparent; border-radius:9px; padding:7px 14px;
@@ -111,7 +115,7 @@ svg{display:block}
 .views button.on{color:var(--ink2); background-color:var(--card);
   box-shadow:2px 2px 5px var(--dark), -2px -2px 5px var(--light)}
 
-.acts{display:flex; gap:10px; flex:0 0 auto}
+.acts{display:flex; gap:12px; flex:0 0 auto}
 /* 새 항목: 화면에서 유일하게 색이 찬 버튼 */
 .pill-btn{height:38px; padding:0 17px; border:0; border-radius:12px; cursor:pointer;
   font-family:inherit; font-size:12.5px; font-weight:var(--w-pri); letter-spacing:-.1px; white-space:nowrap;
