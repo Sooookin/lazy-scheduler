@@ -731,6 +731,23 @@ const CAL_MAX = 3;                  /* 한 칸에 보여줄 최대 개수, 나�
 let RT = {key:null, items:[], busy:null};
 const routinesOn = () => !!STATE && STATE.settings.show_routines !== false;
 
+const byWhen = (a, b) =>
+  (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
+  (a._rt ? 1 : 0) - (b._rt ? 1 : 0) ||
+  a.due_date.localeCompare(b.due_date) ||
+  (a.due_time || '99:99').localeCompare(b.due_time || '99:99');
+
+/* 반복 발생을 달력 칩과 같은 모양으로 맞춘다 */
+const asRoutine = i => Object.assign({}, i, {due_date:i.date, due_time:i.time, _rt:true});
+
+/* 이 칸(날짜)에 들어갈 것 전부. 달력과 하루 목록이 같은 것을 보게 한다 */
+function dayItems(key){
+  const out = deadlines().filter(t => cellDate(t.due_date) === key);
+  if(routinesOn())
+    RT.items.forEach(i => { if(cellDate(i.date) === key) out.push(asRoutine(i)); });
+  return out.sort(byWhen);
+}
+
 function ensureRoutines(y, m){
   if(!routinesOn()) return;
   const key = y + '-' + m;
@@ -785,7 +802,7 @@ function chipEl(t){
   const cls = t.done ? 'done' : t.due_date < STATE.today ? 'p'
             : t.due_date === STATE.today ? 't' : 'f';
   const wk = isWeekend(t.due_date) && !weekendOn();   /* 앞 영업일 칸에 얹힌 것 */
-  el.className = 'chip ' + cls + (wk ? ' wk' : '') + (t._rt ? ' rt' : '');
+  el.className = 'chip ' + cls + (wk ? ' wk' : '');
   const d = dObj(t.due_date);
   const head = wk ? d.getDate() + '일(' + WD[(d.getDay() + 6) % 7] + ')' : t.due_time;
   el.innerHTML = (head ? '<span class="h">' + esc(head) + '</span>' : '') +
@@ -824,13 +841,10 @@ function dayModal(key, list){
       api('/api/task/' + encodeURIComponent(t.id) + '/done', {date: t.due_date, done: !t.done})
         .then(() => api('/api/overview')).then(o => {
           render(o);
-          const fresh = deadlines().filter(x => cellDate(x.due_date) === key);
-          dayModal(key, fresh.sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
-            a.due_date.localeCompare(b.due_date) ||
-            (a.due_time || '99:99').localeCompare(b.due_time || '99:99')));
+          dayModal(key, dayItems(key));    /* 반복도 그대로 남는다 */
         });
     };
-    el.onclick = () => { closeM('#m-day'); openEdit(asItem(t)); };
+    el.onclick = () => { closeM('#m-day'); openEdit(t._rt ? t : asItem(t)); };
     box.appendChild(el);
   });
   $('#day-add').onclick = () => { closeM('#m-day'); openAdd('deadline', {date:key}); };
@@ -855,17 +869,10 @@ function drawCal(){
     RT.items.forEach(i => {
       if(i.date.slice(0, 7) !== pm) return;          /* 보고 있는 달만 */
       const k = cellDate(i.date);
-      (byDate[k] = byDate[k] || []).push(
-        Object.assign({}, i, {due_date:i.date, due_time:i.time, _rt:true}));
+      (byDate[k] = byDate[k] || []).push(asRoutine(i));
     });
   }
-  /* 끝난 것은 아래로, 반복은 마감 뒤로. 칸에 세 개까지만 보이므로 순서가
-     곧 "무엇을 남길까" 가 된다 - 그 달의 마감이 되풀이되는 일에 밀리면 안 된다. */
-  Object.keys(byDate).forEach(k => byDate[k].sort((a, b) =>
-    (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
-    (a._rt ? 1 : 0) - (b._rt ? 1 : 0) ||
-    a.due_date.localeCompare(b.due_date) ||
-    (a.due_time || '99:99').localeCompare(b.due_time || '99:99')));
+  Object.keys(byDate).forEach(k => byDate[k].sort(byWhen));
 
   const pre = y + '-' + String(m + 1).padStart(2, '0');
   const mine = deadlines().filter(t => t.due_date.slice(0, 7) === pre);
@@ -914,18 +921,32 @@ function drawCal(){
         '</div>';
       if(!out){
         const list = byDate[key] || [];
+        const dls = list.filter(t => !t._rt);
+        const rts = list.filter(t => t._rt);
         const chips = document.createElement('div');
         chips.className = 'chips';
-        list.slice(0, CAL_MAX).forEach(t => chips.appendChild(chipEl(t)));
+        dls.slice(0, CAL_MAX).forEach(t => chips.appendChild(chipEl(t)));
         cell.appendChild(chips);
-        if(list.length > CAL_MAX){
+        if(dls.length > CAL_MAX){
           const more = document.createElement('div');
           more.className = 'more';
-          more.textContent = '+' + (list.length - CAL_MAX) + '건 더';
+          more.textContent = '+' + (dls.length - CAL_MAX) + '건 더';
           more.onclick = e => { e.stopPropagation(); dayModal(key, list); };
           cell.appendChild(more);
         }
-        /* 마감이 있는 날은 그날 목록을, 빈 날은 추가 창을 연다 */
+        /* 반복은 한 줄로 접는다. 제목을 모두 적으면 같은 글이 날마다 되풀이되고,
+           그 달에 하나뿐인 진짜 마감이 그 속에 묻힌다. 몇 건인지만 알려 준다. */
+        if(rts.length){
+          const rl = document.createElement('div');
+          rl.className = 'rtline';
+          const left = rts.filter(t => !t.done).length;
+          rl.innerHTML = '반복 <b>' + rts.length + '</b>' +
+            (left && left !== rts.length ? '<span class="lf">' + left + ' 남음</span>' : '');
+          rl.title = rts.map(t => (t.due_time ? t.due_time + ' ' : '') + t.title).join(String.fromCharCode(10));
+          rl.onclick = e => { e.stopPropagation(); dayModal(key, list); };
+          cell.appendChild(rl);
+        }
+        /* 뭔가 있는 날은 그날 목록을, 빈 날은 추가 창을 연다 */
         cell.onclick = () => list.length ? dayModal(key, list)
                                          : openAdd('deadline', {date:key});
         const kind = hol ? (HN[key] || '공휴일') + ' · 영업일 아님'

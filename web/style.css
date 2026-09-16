@@ -280,11 +280,16 @@ svg{display:block}
 .chip.f{background-color:var(--pale); color:var(--ink2)}
 .chip.done{background-color:transparent; color:var(--faint); border-left-color:var(--pale)}
 .chip.done .n2{text-decoration:line-through}
-/* 반복 업무: 마감보다 한 단계 조용하게. 매일 되풀이되는 일이라 크게 외칠 것이
-   없고, 면을 채우면 그 달의 진짜 마감이 그 속에 묻힌다. 띠와 글자만 남긴다. */
-.chip.rt{background-color:transparent; color:var(--faint); border-left-color:var(--mid)}
-.chip.rt .h{opacity:.72}
-.chip.rt:hover{background-color:rgba(56,46,32,.05); filter:none}
+/* 반복은 칸에서 한 줄로 접는다. 제목을 모두 적으면 같은 글이 날마다 되풀이되고,
+   그 달에 하나뿐인 마감이 그 속에 묻힌다. 몇 건인지만 조용히 알려 준다.
+   (하루 목록을 열면 제목이 다 보인다) */
+.day .rtline{display:flex; align-items:center; gap:6px; flex:0 0 auto; cursor:pointer;
+  font-size:10.5px; font-weight:var(--w-sec); color:var(--faint);
+  padding:3px 8px; border-radius:6px; border-left:3px solid var(--mid);
+  transition:background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease)}
+.day .rtline b{font-weight:var(--w-pri); color:var(--mid-ink)}
+.day .rtline .lf{margin-left:auto; font-size:9.5px; color:var(--dim)}
+.day .rtline:hover{background-color:rgba(56,46,32,.055); color:var(--ink2)}
 /* 주말 마감을 앞 영업일 칸에 얹은 것 - 이 칸의 날짜가 아니라는 표시 */
 .chip.wk{border-left-style:dashed}
 .day .more{font-size:10px; font-weight:var(--w-pri); color:var(--mid-ink); text-align:right; padding-right:2px; flex:0 0 auto}
