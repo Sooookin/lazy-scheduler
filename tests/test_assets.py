@@ -83,7 +83,8 @@ def test_the_old_data_folder_is_still_remembered():
     빠지면 첫 실행에서 일정이 통째로 비어 보인다.
     """
     olds = [os.path.basename(d) for d in paths.OLD_DATA_DIRS]
-    assert "To-Do Manager" in olds, "예전 데이터 폴더를 잊어버렸다: %s" % olds
+    for name in ("lazy scheduler", "To-Do Manager"):
+        assert name in olds, "예전 데이터 폴더를 잊어버렸다(%s): %s" % (name, olds)
     assert os.path.basename(paths.DATA_DIR) not in olds
 
 

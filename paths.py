@@ -39,10 +39,12 @@ def font_paths(name):
 
 # 사용자 데이터(쓰기 가능)
 _base = os.environ.get("APPDATA") or os.path.expanduser("~")
-APP_NAME = "lazy scheduler"          # 창 제목 · 트레이 · 바로가기에 그대로 쓰인다
+APP_NAME = "LazyScheduler"           # 창 제목 · 트레이 · 바로가기에 그대로 쓰인다
 DATA_DIR = os.path.join(_base, APP_NAME)
 # 예전 이름들. 가까운 것부터. 이름을 또 바꾸면 여기 앞에 끼워 넣는다.
-OLD_DATA_DIRS = [os.path.join(_base, "To-Do Manager"), os.path.join(_base, "오늘")]
+OLD_DATA_DIRS = [os.path.join(_base, "lazy scheduler"),
+                 os.path.join(_base, "To-Do Manager"),
+                 os.path.join(_base, "오늘")]
 DATA_FILE = os.path.join(DATA_DIR, "data.json")      # 내 일정 (나중에 다른 기기와 동기화할 대상)
 STATE_FILE = os.path.join(DATA_DIR, "state.json")    # 이 PC 에만 해당하는 상태 (띄운 알림 기록)
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")

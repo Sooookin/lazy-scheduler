@@ -18,14 +18,14 @@ import zipfile
 # 이 파일은 tools/ 안에 있고, 아래 경로는 모두 저장소 뿌리를 기준으로 한다
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RELEASE = os.path.join(ROOT, "release")
-OUT_NAME = "lazy scheduler"
+OUT_NAME = "LazyScheduler"
 
-READ_ME = r"""lazy scheduler  -  일정 · 루틴 관리
+READ_ME = r"""LazyScheduler  -  일정 · 루틴 관리
 ==========================================
 
 ■ 시작하기
   1. 이 폴더를 내 PC로 복사하세요. (공유 폴더에서 바로 실행하면 느립니다)
-  2. "lazy scheduler.exe" 를 두 번 클릭하면 끝입니다. 설치할 것은 없습니다.
+  2. "LazyScheduler.exe" 를 두 번 클릭하면 끝입니다. 설치할 것은 없습니다.
      * 처음 실행할 때 Windows 보안 경고가 나오면
        [추가 정보] → [실행] 을 누르세요. (사내 배포본이라 서명이 없습니다)
   3. 창 오른쪽 위 톱니바퀴에서
@@ -90,7 +90,7 @@ READ_ME = r"""lazy scheduler  -  일정 · 루틴 관리
   아침 08:30 에 오늘 할 일 요약이 한 번 뜹니다.
 
 ■ 내 일정이 저장되는 곳
-  %APPDATA%\lazy scheduler\data.json      (이 파일만 백업하면 됩니다)
+  %APPDATA%\LazyScheduler\data.json      (이 파일만 백업하면 됩니다)
   새 버전으로 폴더를 덮어써도 일정은 그대로 유지됩니다.
 """
 

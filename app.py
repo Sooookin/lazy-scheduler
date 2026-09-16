@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""lazy scheduler - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
+"""LazyScheduler - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
 import ctypes, json, os, socket, subprocess, sys, threading, time, traceback, webbrowser
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

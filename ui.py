@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""'lazy scheduler' 앱 창 (네이티브 WebView2 창). 서비스와 별도 프로세스로 뜬다."""
+"""'LazyScheduler' 앱 창 (네이티브 WebView2 창). 서비스와 별도 프로세스로 뜬다."""
 import ctypes, hashlib, os, socket, sys, threading, time, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 

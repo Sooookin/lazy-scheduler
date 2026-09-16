@@ -90,7 +90,7 @@ def make_desktop_shortcut():
         "$s.Arguments='{args}';"
         "$s.WorkingDirectory='{wd}';"
         "$s.IconLocation='{icon}';"
-        "$s.Description='lazy scheduler - 일정/루틴 관리';"
+        "$s.Description='LazyScheduler - 일정/루틴 관리';"
         "$s.Save()"
     ).format(link=link.replace("'", "''"), target=target.replace("'", "''"),
              args=args.replace("'", "''"), wd=paths.APP_DIR.replace("'", "''"),
