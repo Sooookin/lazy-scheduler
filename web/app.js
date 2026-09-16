@@ -868,7 +868,9 @@ function chipEl(t){
              (wk ? String.fromCharCode(10) + '주말 마감이라 앞 영업일 칸에 표시했습니다' : '') +
              (t.note ? String.fromCharCode(10) + t.note : '') +
              (t.done ? String.fromCharCode(10) + '(완료)' : '');
-  el.onclick = e => { e.stopPropagation(); openEdit(t._rt ? t : asItem(t)); };
+  /* 누르는 것은 칸에 맡긴다 (그날 요약이 열린다). 칩을 바로 수정으로 이으면
+     달력에서 날짜를 훑어보려던 손이 자꾸 수정 창을 연다 - 목록 줄에서 고친
+     것과 같은 문제다. 수정은 요약 안의 연필에만 맡긴다. */
   return el;
 }
 

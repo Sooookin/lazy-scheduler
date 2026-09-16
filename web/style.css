@@ -258,14 +258,17 @@ svg{display:block}
 .cbtn.wide{width:auto; padding:0 12px}
 .cbtn.wide.off{color:var(--faint); box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light)}
 .cal-gap{flex:1}
-.cal-top .link{margin-left:4px}
-.cal-legend{display:flex; align-items:center; gap:14px; font-size:10.5px; font-weight:var(--w-sec); color:var(--faint)}
-.cal-legend span{display:flex; align-items:center; gap:6px}
-.cal-legend .sw{width:9px; height:9px; border-radius:3px; display:block}
+/* 머리줄은 세 묶음이다: 달 넘기기 · 이번 달 · 보기 전환(주말/반복).
+   전부 8px 로 붙여 두면 어디까지가 한 묶음인지 읽히지 않는다. 묶음 사이를 벌린다. */
+.cal-top .link{margin-left:10px; margin-right:8px}
+.cal-top .cbtn.wide + .cbtn.wide{margin-left:4px}
+.cal-legend{display:flex; align-items:center; gap:15px; font-size:11.5px; font-weight:var(--w-sec); color:var(--faint)}
+.cal-legend span{display:flex; align-items:center; gap:7px}
+.cal-legend .sw{width:10px; height:10px; border-radius:3px; display:block}
 .cal-legend .sw.p{background-color:var(--deep)}
 .cal-legend .sw.t{background-color:var(--mid)}
 .cal-legend .sw.f{background-color:var(--pale); box-shadow:inset 0 0 0 1px var(--dark)}
-.cal-legend .sw.d{box-shadow:inset 0 0 0 1.5px var(--dim)}
+.cal-legend .sw.d{box-shadow:inset 0 0 0 1.6px var(--dim)}
 .cal-top .h-note{margin-left:14px}
 
 .cal-head{display:grid; grid-template-columns:repeat(var(--cols,5), minmax(0,1fr)); gap:9px; flex:0 0 auto;
@@ -298,7 +301,8 @@ svg{display:block}
   font-size:11px; line-height:1.35; white-space:nowrap; overflow:hidden;
   background-color:var(--pale); color:var(--ink2); border-left:3px solid var(--mint);
   transition:filter var(--t-fast) var(--ease)}
-.chip:hover{filter:brightness(1.035)}
+/* 칩에는 제 동작이 없다 (누르면 칸이 받아 그날 요약을 연다). 칩만 밝아지면
+   저를 눌러야 하는 것처럼 보인다 - 마우스 표시는 칸에 맡긴다. */
 .chip .h{font-variant-numeric:tabular-nums; font-size:10.5px; opacity:.78; flex:0 0 auto}
 .chip .n2{overflow:hidden; text-overflow:ellipsis}
 .chip.p{background-color:var(--deep); color:var(--onmid)}

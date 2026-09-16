@@ -200,20 +200,19 @@
     <div><label for="s-brief">아침 브리핑 시각</label><input id="s-brief" type="time" step="300" title="직접 입력할 수 있습니다 (5분 단위)"></div>
   </div>
   <label class="chk"><input type="checkbox" id="s-biz"> 영업일 기준으로만 쓰기 <i class="opt">주말 선택 차단 · 공휴일 자동 보정</i></label>
-  <label class="chk"><input type="checkbox" id="s-hold"> 발표 · 화면 공유 중에는 알림을 미룸
-    <i class="opt">끝나면 묶어서 한 번</i></label>
-  <div class="quick">
-    <button type="button" id="s-test">알림 미리보기</button>
-  </div>
+  <!-- Windows 가 알려주는 상태(SHQueryUserNotificationState)를 따른다. 전체 화면 ·
+       발표 모드 · 방해 금지 · 잠금 화면이 여기 걸린다. 창을 띄워 둔 채 하는
+       화면 공유는 Windows 가 알려주지 않으므로 잡지 못한다 - 이름을 그렇게 적었다. -->
+  <label class="chk" title="전체 화면 · 발표 모드 · 화면 복제 · 방해 금지 · 잠금 화면일 때 미룹니다.&#10;창을 띄워 둔 채 하는 화면 공유는 Windows 가 알려주지 않아 잡지 못합니다."><input type="checkbox" id="s-hold"> 전체 화면 · 발표 중에는 알림을 미룸 <i class="opt">끝나면 묶어서 한 번</i></label>
 
   <span class="step">프로그램</span>
   <label class="chk"><input type="checkbox" id="s-auto"> Windows 시작할 때 자동 실행</label>
+  <!-- 둘 다 설치 직후 한 번 누르고 마는 것이라 나란히 둔다 -->
   <div class="quick">
     <button type="button" id="s-shortcut">바탕화면에 바로가기 만들기</button>
+    <button type="button" id="s-test">알림 미리보기</button>
   </div>
-  <p class="hint">알림 카드는 지금 보고 있는 화면의 오른쪽 아래에 떠올랐다 사라집니다.
-    창을 닫아도 프로그램은 뒤에서 계속 돌며 알림을 띄웁니다.<br>
-    <span class="opt">내 일정은 <code>%APPDATA%\To-Do Manager\data.json</code> 에 저장됩니다.</span></p>
+  <p class="hint">내 일정은 <code>%APPDATA%\To-Do Manager\data.json</code> 에 저장됩니다.</p>
   <div class="btns split">
     <div><button class="ghost danger" id="s-quit">완전히 종료</button></div>
     <div>
