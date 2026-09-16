@@ -66,9 +66,10 @@ _BASE = dict(
     #   ├──────────────── 40 ────────────────────────┤
     #   │     완료    │    10분 뒤   │      열기        │
     #
-    # 시각 칸은 글자 폭만큼만 쓰고 띠에 바짝 붙인다. 제목이 실제 내용이므로
-    # 남는 자리는 모두 제목에 준다 (340→384 · 제목 181→228px).
-    N_MARGIN=18, N_BAR_W=3, N_BARGAP=11, N_COLGAP=16, N_TIME_W=64,
+    # 시각 칸 폭은 글꼴에서 직접 잰다 ("00:00"). 숫자가 tabular 라 어떤 시각이든
+    # 같은 폭이고, 값을 손으로 적어 두면 어긋난다 (64 로 적어 뒀는데 실제는 74 라
+    # 시각이 제 칸을 넘어 제목 자리를 먹고 있었다).
+    N_MARGIN=18, N_BAR_W=3, N_BARGAP=11, N_COLGAP=16,
     N_TOP=18, N_BOT=16, N_XCOL=44,          # ✕ 가 차지해 제목이 비워 두는 폭
     N_TIME_PX=26, N_TIME_LH=27, N_TIME_GAP=6,
     N_REL_PX=11, N_REL_LH=14,
@@ -409,7 +410,10 @@ def _draw_normal(item, hover):
     rel = (item.get("rel") or "").strip()
     # 시각이 없으면 시각 칸을 두지 않는다 (빈 칸을 남기면 카드가 기울어 보인다)
     wx = N_MARGIN + N_BAR_W + N_BARGAP
-    tx = wx + ((N_TIME_W + N_COLGAP) if when else 0)
+    # 시각 잉크가 차지하는 실제 폭 (왼쪽 빈 자리를 뺀다)
+    lsb_t = _lsb(300, N_TIME_PX, when[:1]) if when else 0
+    time_w = int(round(f_time.getlength(when))) - lsb_t if when else 0
+    tx = wx + ((time_w + N_COLGAP) if when else 0)
     tw = CW - tx - N_XCOL
 
     lines = _wrap(item["title"], f_ttl, tw, TITLE_LINES)
@@ -441,24 +445,25 @@ def _draw_normal(item, hover):
           max(1, N_BAR_W // 2), bar)
 
     if when:
-        # 큰 숫자와 작은 한글은 글자 왼쪽에 붙은 빈 자리가 다르다. 그냥 같은 x
-        # 에 그리면 왼쪽 끝이 어긋나 보인다. 실제 잉크가 시작하는 자리를 재서
-        # 둘 다 wx 에서 시작하게 한다.
-        d.text((wx - _lsb(300, N_TIME_PX, when[:1]), N_TOP - s(2)), when, font=f_time,
-               fill=_rgb(DEEP) + (255,))
+        # 시각의 잉크가 wx 에서 시작하게 한다 (띠와의 간격이 시각마다 흔들리지 않게)
+        d.text((wx - lsb_t, N_TOP - s(2)), when, font=f_time, fill=_rgb(DEEP) + (255,))
+        # 아래 글자는 시각 아래 가운데로. 왼쪽을 맞추려 하면 어느 한쪽은 반드시
+        # 어긋난다 - 큰 숫자의 세로 획은 글자 안쪽 깊숙이 있고(26px "1" 은 9px),
+        # 작은 글자는 가장자리에 있다(11px "1" 은 3px). 눈은 획을 보므로 왼쪽 끝을
+        # 맞춰도 획이 3px 어긋나 보인다. 창 화면의 링도 "큰 숫자 + 작은 라벨" 을
+        # 이렇게 가운데로 맞춘다.
+        cx = wx + time_w / 2.0
         if rel:
             ry = N_TOP + N_TIME_LH + N_TIME_GAP
             if item.get("late"):
                 # 지난 것은 짙은 알약으로. 창 화면의 "지남" 표시와 같은 모양이라
                 # 굳이 읽지 않아도 무슨 뜻인지 안다.
                 pw = int(f_rel.getlength(rel)) + s(15)
-                # 알약은 면이라 왼쪽 "끝" 을 시각과 맞춘다 (속 글자가 아니라)
-                _blob(card, (wx, ry - s(2), pw, N_REL_LH + s(5)), s(7), DEEP)
-                d.text((wx + pw / 2, ry + N_REL_LH / 2), rel, font=f_rel, anchor="mm",
+                _blob(card, (int(cx - pw / 2), ry - s(2), pw, N_REL_LH + s(5)), s(7), DEEP)
+                d.text((cx, ry + N_REL_LH / 2), rel, font=f_rel, anchor="mm",
                        fill=_rgb(ONMID) + (255,))
             else:
-                d.text((wx - _lsb(400, N_REL_PX, rel[:1]), ry), rel, font=f_rel,
-                       fill=_rgb(FAINT) + (255,))
+                d.text((cx, ry), rel, font=f_rel, anchor="ma", fill=_rgb(FAINT) + (255,))
 
     # 시각(26px)과 제목(14px)은 글자 위 빈 자리가 서로 달라서, 같은 y 에서
     # 시작하면 제목이 떠 보인다. 숫자와 한글의 "윗머리" 를 재서 맞춘다.
