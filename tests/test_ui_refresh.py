@@ -90,3 +90,37 @@ def test_focus_request_checks_for_a_new_build():
                                "ui.py"), encoding="utf-8").read()
     head = src.split('if path == "/focus":')[1].split("return")[0]
     assert "refresh_if_stale()" in head, "/focus 가 새 화면 파일을 살피지 않는다"
+
+
+# ---------- 창 자리 ----------
+
+def test_the_window_is_placed_before_it_is_shown():
+    """pywebview 의 CenterScreen 은 이 조합에서 듣지 않는다 (핸들이 생긴 뒤에
+    StartPosition 을 바꾸므로 WinForms 가 이미 자리를 정해 버렸다). 직접 놓는다.
+    순서가 뒤집혀 ShowWindow 뒤에 놓으면 창이 한 번 깜빡이며 옮겨간다."""
+    src = io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "ui.py"), encoding="utf-8").read()
+    body = src.split("def focus():")[1].split("def ")[0]
+    assert "place_once()" in body, "focus 가 창 자리를 잡지 않는다"
+    assert body.index("place_once()") < body.index("ShowWindow"), \
+        "보인 뒤에 옮기면 창이 깜빡인다"
+
+
+def test_the_window_is_only_placed_once():
+    """옮겨 둔 창을 숨겼다 열 때 제자리로 끌어오면 옮긴 뜻을 무시하는 것이다."""
+    import ui as _ui
+    assert _ui._placed == [False] or isinstance(_ui._placed[0], bool)
+    _ui._placed[0] = True
+    before = list(_ui._placed)
+    _ui.place_once()                      # 창이 없어도 조용히 지나가야 한다
+    assert _ui._placed == before
+    _ui._placed[0] = False
+
+
+def test_placing_uses_the_monitor_under_the_cursor():
+    """주 모니터에 고정하면 모니터가 둘일 때 늘 한쪽에서만 열린다."""
+    src = io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "ui.py"), encoding="utf-8").read()
+    body = src.split("def place_once():")[1].split("\ndef ")[0]
+    assert "GetCursorPos" in body and "MonitorFromPoint" in body
+    assert "rcWork" in body, "작업 영역이 아니라 모니터 전체를 쓰면 작업 표시줄에 가린다"

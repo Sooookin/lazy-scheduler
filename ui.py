@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """'LazyScheduler' 앱 창 (네이티브 WebView2 창). 서비스와 별도 프로세스로 뜬다."""
-import ctypes, hashlib, os, socket, sys, threading, time, traceback
+import ctypes, ctypes.wintypes, hashlib, os, socket, sys, threading, time, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import webview
@@ -54,6 +54,71 @@ class Api:
 # (최소화된 창에 열기를 눌러도 그대로 최소화 상태로 남던 원인)
 _U = ctypes.windll.user32
 SW_HIDE, SW_MAXIMIZE, SW_SHOW, SW_RESTORE = 0, 3, 5, 9
+MONITOR_DEFAULTTONEAREST = 2
+SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE = 0x0001, 0x0004, 0x0010
+
+
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.wintypes.DWORD),
+                ("rcMonitor", ctypes.wintypes.RECT),
+                ("rcWork", ctypes.wintypes.RECT),
+                ("dwFlags", ctypes.wintypes.DWORD)]
+
+
+# 핸들을 돌려주는 함수는 restype 을 밝혀 둬야 한다. 기본값(c_int)이면
+# 64비트에서 핸들 위쪽 절반이 잘려 엉뚱한 값이 된다.
+_U.MonitorFromPoint.restype = ctypes.c_void_p
+_U.MonitorFromWindow.restype = ctypes.c_void_p
+
+_placed = [False]
+
+
+def place_once():
+    """창을 처음 보일 때 지금 쓰고 있는 모니터 한가운데에 놓는다.
+
+    pywebview 는 핸들이 생긴 뒤에야 StartPosition 을 CenterScreen 으로 바꾼다.
+    WinForms 는 그 값을 창을 처음 보일 때 한 번만 보므로 이미 늦었고, 창은
+    기본 자리(156,156)에 그대로 남는다. 그래서 직접 놓는다.
+
+    주 모니터가 아니라 마우스가 있는 모니터에 놓는다. 모니터가 둘일 때
+    주 모니터에 고정하면 "늘 왼쪽 화면에서 열린다" 가 된다.
+
+    한 번만 한다. 사용자가 옮겨 둔 창을 숨겼다 다시 열 때 제자리로 끌어오면
+    옮긴 뜻을 무시하는 것이다.
+    """
+    if _placed[0]:
+        return
+    h = hwnd()
+    if not h:
+        return
+    _placed[0] = True
+    try:
+        if _U.IsZoomed(h):                     # 최대화해 둔 창은 건드리지 않는다
+            return
+        pt = ctypes.wintypes.POINT()
+        mon = None
+        if _U.GetCursorPos(ctypes.byref(pt)):
+            mon = _U.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
+        if not mon:
+            mon = _U.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST)
+        mi = MONITORINFO()
+        mi.cbSize = ctypes.sizeof(MONITORINFO)
+        if not _U.GetMonitorInfoW(ctypes.c_void_p(mon), ctypes.byref(mi)):
+            return
+        r = ctypes.wintypes.RECT()
+        if not _U.GetWindowRect(h, ctypes.byref(r)):
+            return
+        wide, high = r.right - r.left, r.bottom - r.top
+        work = mi.rcWork
+        x = work.left + (work.right - work.left - wide) // 2
+        y = work.top + (work.bottom - work.top - high) // 2
+        # 창이 모니터보다 크면 가운데로 두었을 때 제목줄이 화면 밖으로 나간다
+        x = max(work.left, min(x, work.right - wide))
+        y = max(work.top, min(y, work.bottom - high))
+        _U.SetWindowPos(h, None, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
+        paths.log("ui.place_once: %dx%d 창을 (%d, %d) 에 놓았다" % (wide, high, x, y))
+    except Exception:
+        paths.log("ui.place_once 실패: " + traceback.format_exc())
 _hwnd_cache = None
 
 
@@ -121,6 +186,7 @@ def focus():
     if not h:
         paths.log("ui.focus: 창 핸들을 찾지 못했다")
         return
+    place_once()                 # 보이기 전에 자리를 잡는다 (처음 한 번만)
     _U.ShowWindow(h, SW_SHOW)
     # SW_RESTORE 를 무조건 부르면 최대화해 둔 창이 원래 크기로 줄어든다.
     # 최소화된 것만 되돌린다.

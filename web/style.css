@@ -20,8 +20,8 @@
 
 :root{
   /* >>> tokens.py 가 만든다. 여기서 직접 고치지 말 것 (tools/gen_tokens.py) */
-  --bg:#efeae3; --card:#efeae3; --dark:#c9c1b4; --light:#fffdf9; --pale:#e1dbd1;
-  --wash:radial-gradient(130% 130% at 12% 6%, #f5f2eb 0%, #efeae3 45%, #e9e4dc 100%);
+  --bg:#e7ebea; --card:#e7ebea; --dark:#bbc2c1; --light:#fbfdfd; --pale:#d6dcdb;
+  --wash:radial-gradient(130% 130% at 12% 6%, #eef2f1 0%, #e7ebea 45%, #e0e5e4 100%);
   --rule:rgba(56,46,32,.085); --rule2:rgba(56,46,32,.17);
   --hover:rgba(56,46,32,.085); --hover-hi:rgba(56,46,32,.15);
   --ink2:#2b2620; --body:#3a332b; --muted:#453d33; --faint:#5c5346; --dim:#8b8175;
