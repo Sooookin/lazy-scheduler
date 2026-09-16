@@ -253,12 +253,12 @@ function render(o){
   }
   const d = dObj(o.today);
   $('#dow').textContent = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일';
-  $('#fulldate').textContent = o.is_business_day ? '영업일' : '영업일 아님';
   $('#tb-sub').textContent = o.stats.left ? o.stats.left+'건 남음' : '';
   $('#left').textContent = o.stats.left;
   const pct = o.stats.total ? o.stats.done / o.stats.total : (o.stats.left ? 0 : 1);
   $('#ringfg').style.strokeDashoffset = 188.5 * (1 - pct);
   $('#ringfg').style.stroke = o.stats.left ? 'var(--mid)' : 'var(--mint)';
+  if($('#pop-left').classList.contains('on')) drawPop();
 
   /* 지금 + 오늘 통합: 시간순, 완료는 아래로 */
   const rank = i => (i.done ? 1 : 0);
@@ -411,14 +411,66 @@ const load = () => api('/api/overview').then(o => {
   }
 });
 
+/* ══════════ 남은 일 미리보기 ══════════ */
+/* 고리는 "5" 라고만 한다. 그 다섯이 무엇인지 보려면 아래 목록을 훑어야 했고,
+   달력을 보고 있으면 그마저 없다. 눌러서 바로 펼친다.
+   모달이 아니라 붙는 종이인 이유: 확인하고 곧장 하던 일로 돌아가는 동작이라
+   화면을 가리고 닫는 절차를 거치게 할 일이 아니다. */
+const POP_MAX = 6;                    /* 그 아래는 "외 N건" 으로 접는다 */
+
+function drawPop(){
+  const el = $('#pop-left'), o = STATE;
+  if(!o) return;
+  const left = (o.overdue || []).concat(o.todays || []).filter(i => !i.done)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') ||
+                    (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const late = left.filter(i => i.date && i.date < o.today).length;
+
+  if(!left.length){
+    el.innerHTML = '<div class="pop-h"><b>다 끝났습니다</b></div>' +
+      '<div class="pop-none">오늘 남은 일이 없습니다.</div>';
+    return;
+  }
+  const rows = left.slice(0, POP_MAX).map(i => {
+    const over = i.date && i.date < o.today;
+    const when = over ? fmtDay(i.date) : (i.time || '');
+    return '<div class="pop-r k-' + (i.kind || 'deadline') + (over ? ' late' : '') + '">' +
+      '<i></i><div class="n" title="' + esc(i.title) + '">' + esc(i.title) + '</div>' +
+      (when ? '<div class="w">' + esc(when) + '</div>' : '') + '</div>';
+  }).join('');
+  const more = left.length - POP_MAX;
+  el.innerHTML =
+    '<div class="pop-h"><b>' + left.length + '건 남음</b>' +
+    (late ? '<span>지난 것 ' + late + '건</span>' : '') + '</div>' +
+    rows +
+    '<div class="pop-f">' +
+    (more > 0 ? '외 ' + more + '건 · ' : '') +
+    '완료 ' + o.stats.done + ' · 전체 ' + o.stats.total + '</div>';
+}
+
+function popOpen(on){
+  const el = $('#pop-left'), btn = $('#ring-btn');
+  if(on) drawPop();
+  el.classList.toggle('on', on);
+  btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+const popShown = () => $('#pop-left').classList.contains('on');
+
+$('#ring-btn').onclick = e => { e.stopPropagation(); popOpen(!popShown()); };
+/* 바깥을 누르면 닫는다. 미리보기 안을 누른 것은 빼고 (제목이 길면 끌어 읽는다) */
+document.addEventListener('mousedown', e => {
+  if(popShown() && !e.target.closest('#pop-left, #ring-btn')) popOpen(false);
+});
+
 /* ══════════ 모달 ══════════ */
-function openM(id){ $('#veil').classList.add('on'); $(id).classList.add('on'); }
+function openM(id){ popOpen(false); $('#veil').classList.add('on'); $(id).classList.add('on'); }
 function closeM(id){ $(id).classList.remove('on'); if(!$$('.modal.on').length) $('#veil').classList.remove('on'); }
 function closeAll(){ $('#veil').classList.remove('on'); $$('.modal').forEach(m => m.classList.remove('on')); }
 $('#veil').onclick = closeAll;
 $$('[data-close]').forEach(b => b.onclick = e => closeM('#'+e.target.closest('.modal').id));
 document.onkeydown = e => {
   if(e.key === 'Escape'){
+    if(popShown()){ popOpen(false); $('#ring-btn').focus(); return; }
     if(!$$('.modal.on').length && rtCard.classList.contains('open')) return toggleRt();
     closeAll();
   }

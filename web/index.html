@@ -30,15 +30,18 @@
   <header class="top">
     <div class="date">
       <div class="d-day" id="dow">—</div>
-      <div class="d-full" id="fulldate">—</div>
     </div>
     <div class="clock" id="clock">--:--</div>
-    <div class="ring-wrap">
-      <svg class="ring" viewBox="0 0 72 72">
-        <circle class="ring-bg" cx="36" cy="36" r="30"></circle>
-        <circle class="ring-fg" id="ringfg" cx="36" cy="36" r="30"></circle>
-      </svg>
-      <div class="ring-txt"><b id="left">0</b><span>남음</span></div>
+    <div class="ring-slot">
+      <button class="ring-wrap" id="ring-btn" type="button"
+              aria-haspopup="dialog" aria-expanded="false" title="남은 일 보기">
+        <svg class="ring" viewBox="0 0 72 72">
+          <circle class="ring-bg" cx="36" cy="36" r="30"></circle>
+          <circle class="ring-fg" id="ringfg" cx="36" cy="36" r="30"></circle>
+        </svg>
+        <div class="ring-txt"><b id="left">0</b><span>남음</span></div>
+      </button>
+      <div class="pop" id="pop-left" role="dialog" aria-label="남은 일"></div>
     </div>
     <div class="views" id="views">
       <button data-v="home" class="on">오늘</button>

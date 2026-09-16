@@ -80,12 +80,21 @@ svg{display:block}
    space-between 으로 나누면 같은 공간이 네 틈에 고르게 퍼진다.
    gap 은 창이 좁아졌을 때의 최소 간격으로만 남는다. */
 .top{display:flex; align-items:center; justify-content:space-between; gap:24px; flex:0 0 84px}
+/* 날짜는 아래 칸 제목들과 같은 왼쪽 선에서 시작한다 */
+.date{padding-left:22px}
 .d-day{font-size:25px; font-weight:var(--w-pri); letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
-.d-full{font-size:11.5px; font-weight:var(--w-sec); color:var(--faint); margin-top:5px; letter-spacing:.3px}
 /* 큰 글자일수록 가는 획 */
 .clock{font-size:42px; font-weight:var(--w-thin); letter-spacing:-2px; line-height:1; color:var(--deep);
   font-variant-numeric:tabular-nums}
-.ring-wrap{position:relative; width:56px; height:56px; display:grid; place-items:center; flex:0 0 auto}
+.ring-slot{position:relative; flex:0 0 auto}
+.ring-wrap{position:relative; width:56px; height:56px; display:grid; place-items:center;
+  border:0; padding:0; background:none; color:inherit; font:inherit; cursor:pointer;
+  border-radius:50%; -webkit-app-region:no-drag}
+.ring-wrap::before{transition:box-shadow var(--t-fast) var(--ease)}
+.ring-wrap:hover::before{box-shadow:4px 4px 11px var(--dark), -4px -4px 11px var(--light)}
+.ring-wrap[aria-expanded="true"]::before{
+  box-shadow:inset 2px 2px 6px var(--dark), inset -2px -2px 6px var(--light)}
+.ring-wrap:focus-visible{outline:2px solid rgba(77,117,114,.55); outline-offset:6px}
 .ring-wrap::before{content:""; position:absolute; inset:-5px; border-radius:50%;
   box-shadow:3px 3px 8px var(--dark), -3px -3px 8px var(--light)}
 .ring{position:absolute; inset:0; transform:rotate(-90deg)}
@@ -133,7 +142,10 @@ svg{display:block}
 .col{position:relative; display:flex; flex-direction:column; gap:14px; min-height:0}
 .card{background-color:var(--card); background-image:var(--paper); background-size:var(--paper-size);
   background-blend-mode:multiply, multiply, multiply; background-attachment:fixed;
-  border-radius:18px; padding:14px 18px 6px; display:flex; flex-direction:column;
+  /* 좌우 22px. 줄 왼쪽의 종류 띠가 12px 지점에 서고 글은 24px 에서 시작한다.
+     18px 이던 때는 띠가 8px 에 붙어, 오른쪽 시각과 견주면 한 덩어리가
+     왼쪽으로 기울어 보였다. */
+  border-radius:18px; padding:14px 22px 6px; display:flex; flex-direction:column;
   min-height:0; flex:1;
   box-shadow:4px 4px 10px var(--dark), -4px -4px 10px var(--light)}
 /* 오른쪽 칸 높이는 app.js 의 fitCards() 가 한 줄 높이의 정수배로 정한다 */
@@ -540,7 +552,6 @@ button:focus-visible, .wd span:focus-visible, .dot:focus-visible{outline:2px sol
   .app{padding:2px 16px 12px; gap:12px}
   .top{flex:0 0 56px; gap:14px}
   .d-day{font-size:15px; letter-spacing:-.4px}
-  .d-full{font-size:10px; margin-top:3px}
   .clock{font-size:30px; letter-spacing:-1.4px}
   .ring-wrap{width:42px; height:42px}
   .ring-wrap::before{inset:-4px; box-shadow:2px 2px 6px var(--dark), -2px -2px 6px var(--light)}
@@ -584,3 +595,45 @@ button:focus-visible, .wd span:focus-visible, .dot:focus-visible{outline:2px sol
   *, *::before, *::after{transition-duration:.01ms !important; animation-duration:.01ms !important;
     animation-delay:0ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important}
 }
+
+
+/* ---------- 남은 일 미리보기 (고리를 누르면 아래에 붙는다) ---------- */
+/* 고리는 "몇 건" 만 말해 준다. 무엇이 남았는지는 목록을 눈으로 훑어야 했다.
+   한 번 보고 마는 것이라 모달까지 갈 일은 아니다 - 가린 화면을 되돌릴 필요가
+   없게 고리 바로 아래에 종이 한 장을 얹는다. */
+.pop{position:absolute; z-index:9; top:calc(100% + 13px); left:50%; width:272px;
+  padding:13px 16px 11px; border-radius:16px;
+  background-color:var(--card); background-image:var(--paper), var(--wash);
+  background-size:var(--paper-size), 100% 100%;
+  background-blend-mode:multiply, multiply, multiply, normal;
+  box-shadow:0 16px 40px rgba(43,38,32,.22), 0 3px 10px rgba(43,38,32,.10),
+             inset 0 1px 0 rgba(253,250,245,.7);
+  opacity:0; visibility:hidden; transform:translate(-50%,-6px) scale(.98); transform-origin:50% 0;
+  transition:opacity var(--t-fast) var(--ease), transform var(--t-med) var(--ease),
+             visibility 0s linear var(--t-med)}
+.pop.on{opacity:1; visibility:visible; transform:translate(-50%,0) scale(1);
+  transition:opacity var(--t-fast) var(--ease), transform var(--t-med) var(--ease)}
+/* 어디서 나왔는지 가리키는 꼭지 */
+.pop::before{content:""; position:absolute; top:-5px; left:50%; margin-left:-5px;
+  width:10px; height:10px; border-radius:2px; transform:rotate(45deg);
+  background-color:var(--wash-hi); box-shadow:inset 1px 1px 0 rgba(253,250,245,.8)}
+.pop-h{display:flex; align-items:baseline; gap:9px; padding-bottom:9px;
+  border-bottom:1px solid var(--rule2)}
+.pop-h b{font-size:15px; font-weight:var(--w-pri); letter-spacing:-.2px; color:var(--ink2)}
+.pop-h span{margin-left:auto; font-size:11px; font-weight:var(--w-sec); color:var(--faint);
+  letter-spacing:.2px}
+.pop-r{display:flex; align-items:center; gap:10px; padding:8px 1px}
+.pop-r + .pop-r{box-shadow:inset 0 1px 0 var(--rule)}
+.pop-r i{flex:0 0 auto; width:3px; height:13px; border-radius:2px;
+  background-color:var(--bar, transparent)}
+.pop-r.k-deadline{--bar:var(--ink2)}
+.pop-r.k-routine{--bar:var(--mid)}
+.pop-r.k-floating{--bar:var(--mint)}
+.pop-r .n{flex:1; min-width:0; font-size:12.5px; font-weight:var(--w-pri); color:var(--body);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pop-r .w{flex:0 0 auto; font-size:11.5px; font-weight:var(--w-sec); color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.pop-r.late .w{color:var(--mid-ink); font-weight:var(--w-pri)}
+.pop-f{margin-top:3px; padding-top:9px; border-top:1px solid var(--rule); text-align:center;
+  font-size:11px; font-weight:var(--w-sec); color:var(--faint); letter-spacing:.2px}
+.pop-none{padding:15px 2px 7px; text-align:center; font-size:12.5px; color:var(--faint)}
