@@ -71,7 +71,9 @@ _BASE = dict(
     # 시각이 제 칸을 넘어 제목 자리를 먹고 있었다).
     N_MARGIN=18, N_BAR_W=3, N_BARGAP=11, N_COLGAP=16,
     N_TOP=18, N_BOT=16, N_XCOL=44,          # ✕ 가 차지해 제목이 비워 두는 폭
-    N_TIME_PX=26, N_TIME_LH=27, N_TIME_GAP=6,
+    # 26px 이었다. 조금 줄여 제목 칸을 벌었다 (시각칸 71→62 · 제목 221→230px).
+    # 22px 도 칸 폭은 같아서, 같은 값이면 큰 쪽을 쓴다.
+    N_TIME_PX=23, N_TIME_LH=24, N_TIME_GAP=6,
     N_REL_PX=11, N_REL_LH=14,
     N_TTL_PX=13.5, N_TTL_LH=19, N_TTL_GAP=5,
     N_SUB_PX=11, N_SUB_LH=15,
@@ -194,16 +196,22 @@ def notify_list(label, title, rows, more=0, accent=None, key=None):
 # ---------------- 그리기 ----------------
 def _wrap(text, font, width, max_lines=TITLE_LINES):
     """픽셀 폭을 재서 줄을 나눈다. 한국어는 공백이 드물어 글자 단위로 채우고,
-    끊을 자리 근처에 공백이 있으면 거기서 끊는다."""
+    끊을 자리 근처에 공백이 있으면 거기서 끊는다.
+
+    width 는 숫자 하나이거나, 줄 번호를 받아 그 줄의 폭을 돌려주는 함수다.
+    ✕ 는 첫 줄 옆에만 있으므로 둘째 줄부터는 카드 끝까지 쓸 수 있다.
+    """
+    wof = width if callable(width) else (lambda _k: width)
     text = " ".join((text or "").split())
     if not text:
         return [""]
     lines, i, n = [], 0, len(text)
     while i < n and len(lines) < max_lines:
+        w = wof(len(lines))
         lo, hi = i + 1, n
         while lo < hi:
             mid = (lo + hi + 1) // 2
-            if font.getlength(text[i:mid]) <= width:
+            if font.getlength(text[i:mid]) <= w:
                 lo = mid
             else:
                 hi = mid - 1
@@ -217,8 +225,8 @@ def _wrap(text, font, width, max_lines=TITLE_LINES):
         while i < n and text[i] == " ":
             i += 1
     if i < n and lines:
-        last = lines[-1]
-        while last and font.getlength(last + "\u2026") > width:
+        last, w = lines[-1], wof(len(lines) - 1)
+        while last and font.getlength(last + "\u2026") > w:
             last = last[:-1]
         lines[-1] = last + "\u2026"
     return lines
@@ -414,9 +422,13 @@ def _draw_normal(item, hover):
     lsb_t = _lsb(300, N_TIME_PX, when[:1]) if when else 0
     time_w = int(round(f_time.getlength(when))) - lsb_t if when else 0
     tx = wx + ((time_w + N_COLGAP) if when else 0)
-    tw = CW - tx - N_XCOL
+    # ✕ 는 첫 줄 옆에만 있다. 모든 줄이 그 자리를 비우면 긴 제목에서 둘째 줄이
+    # 까닭 없이 짧아진다.
+    tw_first = CW - tx - N_XCOL
+    tw = CW - tx - N_MARGIN
 
-    lines = _wrap(item["title"], f_ttl, tw, TITLE_LINES)
+    lines = _wrap(item["title"], f_ttl,
+                  lambda k: tw_first if k == 0 else tw, TITLE_LINES)
     # 시각을 위로 뽑았으니 아래 줄은 "무엇인지"(반복 · 매월 마지막 목요일)를 쓴다.
     # meta 를 주지 않은 옛 호출(안내 · 미리보기)은 예전처럼 sub 를 그대로 쓴다.
     under = item.get("meta") or item.get("sub") or ""
