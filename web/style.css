@@ -19,21 +19,19 @@
   src:url(fonts/paperlogy-700.woff2) format("woff2")}
 
 :root{
+  /* >>> tokens.py 가 만든다. 여기서 직접 고치지 말 것 (tools/gen_tokens.py) */
   --bg:#efeae3; --card:#efeae3; --dark:#c9c1b4; --light:#fffdf9; --pale:#e1dbd1;
   --wash:radial-gradient(130% 130% at 12% 6%, #f5f2eb 0%, #efeae3 45%, #e9e4dc 100%);
   --rule:rgba(56,46,32,.085); --rule2:rgba(56,46,32,.17);
   --ink2:#2b2620; --body:#3a332b; --muted:#453d33; --faint:#5c5346; --dim:#8b8175;
-  --mint:#85bdb3; --mid:#4d7572; --mid-ink:#466a68; --deep:#08202b; --onmid:#eef3f1;
+  --mint:#85bdb3; --mid:#4d7572; --mid-hi:#5a827e; --mid-ink:#466a68;
+  --deep:#08202b; --deep-hi:#123140; --onmid:#eef3f1;
   --midshadow:rgba(77,117,114,.30);
-  /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않는다 - 큰 글자에만 남긴다.
-     보조 글씨를 Medium 으로, 본문 · 제목을 Bold 로 한 단계씩 올렸다.
-     바꿀 일이 있으면 이 세 줄만 고치면 화면 전체가 따라온다. */
-  --w-thin:300;      /* 17px 이상에만 (시계 · 창 제목 · 달력 연월) */
-  --w-sec:500;       /* 보조 · 라벨 (예전 300) */
-  --w-pri:700;       /* 본문 · 제목 · 숫자 (예전 500) */
-  --rowpad:12px;     /* 줄 높이. 9px 이었다 */
+  /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않아 큰 글자에만 남긴다. */
+  --w-thin:300; --w-sec:500; --w-pri:700;
+  --rowpad:12px; --tb:34px;
   --ease:cubic-bezier(.2,.8,.2,1); --t-fast:140ms; --t-med:220ms; --t-slow:320ms;
-  --tb:34px;
+  /* <<< tokens.py */
   /* 모조지 결 (80%). 비스듬한 빛의 고운 요철 · 은은한 얼룩 · 잔 티끌. SVG 필터라 어떤 배율에서도 선명하다 */
   --paper:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'240'%20height%3D'240'%3E%3Cfilter%20id%3D't'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.85'%20numOctaves%3D'2'%20stitchTiles%3D'stitch'%2F%3E%3CfeDiffuseLighting%20surfaceScale%3D'0.9'%20lighting-color%3D'%23fffaf2'%3E%3CfeDistantLight%20azimuth%3D'235'%20elevation%3D'62'%2F%3E%3C%2FfeDiffuseLighting%3E%3C%2Ffilter%3E%3Crect%20width%3D'240'%20height%3D'240'%20filter%3D'url(%23t)'%20opacity%3D'0.709'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'1120'%20height%3D'1120'%3E%3Cfilter%20id%3D'c'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.006'%20numOctaves%3D'4'%20seed%3D'3'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20type%3D'matrix'%20values%3D'0.30%200.59%200.11%200%200.03%20%200.30%200.59%200.11%200%200.01%20%200.30%200.59%200.11%200%20-0.03%20%200%200%200%201%200'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'1120'%20height%3D'1120'%20filter%3D'url(%23c)'%20opacity%3D'0.251'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'180'%20height%3D'180'%3E%3Cfilter%20id%3D'f'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.9'%20numOctaves%3D'3'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20type%3D'matrix'%20values%3D'0.30%200.59%200.11%200%200.03%20%200.30%200.59%200.11%200%200.01%20%200.30%200.59%200.11%200%20-0.03%20%200%200%200%201%200'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'180'%20height%3D'180'%20filter%3D'url(%23f)'%20opacity%3D'0.137'%2F%3E%3C%2Fsvg%3E");
   --paper-size:240px 240px, 1120px 1120px, 180px 180px;
@@ -56,11 +54,6 @@ body{
 input,textarea{user-select:text}
 b,strong{font-weight:var(--w-pri)}
 svg{display:block}
-
-/* 칸 · 창: 바탕과 같은 종이. 고정 배치라 칸 경계에서 결이 이어진다 */
-.paper{background-color:var(--card); background-image:var(--paper);
-  background-size:var(--paper-size); background-blend-mode:multiply, multiply, multiply;
-  background-attachment:fixed}
 
 /* ---------- 제목줄 (테두리 없는 창) ---------- */
 .titlebar{height:var(--tb); display:flex; align-items:center; gap:8px; padding:0 0 0 12px;

@@ -14,5 +14,3 @@ it actually has something to say.
 
 Adding a routine — pick how often, pick the rule, and it shows you the next five
 dates before you commit.
-
-![Adding an item](docs/new-item.png)

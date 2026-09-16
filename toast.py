@@ -20,26 +20,31 @@ import time
 import traceback
 
 import paths
+import tokens
 from ctypes import wintypes
 
-# ---------------- 색 (web/style.css 와 같은 값) ----------------
-CARD    = "#efeae3"
-WASH_HI = "#f5f2eb"
-WASH_LO = "#e9e4dc"
-DARK    = "#c9c1b4"
-LIGHT   = "#fffdf9"
-PALE    = "#e1dbd1"
-INK2    = "#2b2620"
-BODY    = "#3a332b"
-MUTED   = "#453d33"
-FAINT   = "#5c5346"
-MID     = "#4d7572"
-MID_HI  = "#5a827e"      # 눌러도 되는 청록 버튼에 마우스를 올렸을 때
-MID_INK = "#466a68"      # 청록을 글자로 쓸 때 (점토 위 4.7:1)
-MINT    = "#85bdb3"
-DEEP    = "#08202b"
-DEEP_HI = "#123140"
-ONMID   = "#eef3f1"
+# ---------------- 색 ----------------
+# tokens.py 가 유일한 출처다. 창 화면(web/style.css)도 같은 값에서 나온다.
+# 예전에는 여기에 색을 따로 적어 뒀는데, 바탕을 밝히면 알림 카드만 예전
+# 색으로 남아 나란히 떴을 때 종이 두 장의 색이 달랐다.
+_C      = tokens.COLOR
+CARD    = _C["card"]
+WASH_HI = _C["wash-hi"]
+WASH_LO = _C["wash-lo"]
+DARK    = _C["dark"]
+LIGHT   = _C["light"]
+PALE    = _C["pale"]
+INK2    = _C["ink2"]
+BODY    = _C["body"]
+MUTED   = _C["muted"]
+FAINT   = _C["faint"]
+MID     = _C["mid"]
+MID_HI  = _C["mid-hi"]
+MID_INK = _C["mid-ink"]
+MINT    = _C["mint"]
+DEEP    = _C["deep"]
+DEEP_HI = _C["deep-hi"]
+ONMID   = _C["onmid"]
 
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(
