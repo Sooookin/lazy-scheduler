@@ -319,7 +319,7 @@ def test_one_bad_record_does_not_break_the_overview():
          "rule": {"period": "week", "weekdays": [0], "interval": "x"}},
     ]})
     o = store.overview()
-    ids = {i["id"] for i in o["todays"] + o["overdue"] + o["upcoming"] + o["later"]}
+    ids = {i["id"] for i in o["todays"] + o["overdue"] + o["upcoming"]}
     assert "good" in ids or o["today"] != "2026-09-15"
     assert {i["id"] for i in store.instances(back=3650, ahead=3650)} == {"good"}
 

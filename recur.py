@@ -15,6 +15,7 @@
     holiday_shift : "none" | "prev" | "next"   (기본 prev — 회사 일정은 영업일 기준)
 """
 from datetime import date, timedelta
+from functools import lru_cache
 import calendar
 
 # 대한민국 공휴일(양력 확정분). data.json 의 holidays 로 추가할 수 있다.
@@ -54,7 +55,8 @@ HOLIDAY_NAMES = {
 
 # 스케줄러·HTTP 스레드가 동시에 읽으므로 제자리에서 고치지 않고 통째로 갈아끼운다.
 # 예전에는 clear() 와 update() 사이에 다른 스레드가 빈 집합을 읽어 공휴일을 영업일로 셌다.
-HOLIDAYS = frozenset(DEFAULT_HOLIDAYS)
+HOLIDAYS = frozenset()          # "YYYY-MM-DD" 문자열 (밖으로 내보낼 때 쓴다)
+_HOLIDAY_DATES = frozenset()    # 같은 것을 date 로. 아래 _apply 가 둘을 함께 세운다
 W = "월화수목금토일"
 ALL_MONTHS = list(range(1, 13))
 
@@ -74,14 +76,34 @@ class RuleError(ValueError):
     """규칙이 잘못됐다. 메시지는 화면에 그대로 보여줄 수 있는 문장이다."""
 
 
+def _apply(names):
+    """휴일 목록을 문자열과 date 두 벌로 세운다. 반드시 여기서만 바꾼다.
+
+    is_business_day 는 회차를 펼칠 때마다 불린다 (한 번 그리는 데 20만 번쯤).
+    문자열 집합에 견주려면 그때마다 d.isoformat() 으로 새 문자열을 지어야 했다.
+    date 끼리 견주면 그 일이 통째로 없어진다.
+    """
+    global HOLIDAYS, _HOLIDAY_DATES
+    HOLIDAYS = frozenset(names)
+    out = set()
+    for x in HOLIDAYS:
+        try:
+            out.add(date.fromisoformat(x))
+        except ValueError:
+            pass            # 손으로 적어 넣은 값이 깨져 있어도 나머지 휴일은 산다
+    _HOLIDAY_DATES = frozenset(out)
+
+
+_apply(DEFAULT_HOLIDAYS)
+
+
 def set_holidays(extra):
-    global HOLIDAYS
-    HOLIDAYS = frozenset(DEFAULT_HOLIDAYS) | frozenset(
-        x for x in (extra or []) if isinstance(x, str))
+    _apply(frozenset(DEFAULT_HOLIDAYS)
+           | frozenset(x for x in (extra or []) if isinstance(x, str)))
 
 
 def is_business_day(d):
-    return d.weekday() < 5 and d.isoformat() not in HOLIDAYS
+    return d.weekday() < 5 and d not in _HOLIDAY_DATES
 
 
 def next_business_day(d, forward=True):
@@ -94,12 +116,18 @@ def next_business_day(d, forward=True):
     return d
 
 
+@lru_cache(maxsize=512)
 def _span_days(d0, d1):
+    """[d0, d1] 의 모든 날. 항목마다 같은 구간을 다시 만들던 것을 한 번만 만든다.
+
+    반복 업무가 40개면 같은 85일치 목록을 40번 만들었다. 날짜만 받는 순수한
+    함수라 결과를 들고 있어도 된다. 부르는 쪽이 고치지 못하게 tuple 로 준다.
+    """
     out, d = [], d0
     while d <= d1:
         out.append(d)
         d += timedelta(days=1)
-    return out
+    return tuple(out)
 
 
 def _shift(d, mode):

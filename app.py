@@ -205,12 +205,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", cache="no-store"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -363,7 +363,12 @@ class Handler(BaseHTTPRequestHandler):
             data = f.read()
         if ext == "html":
             data = data.replace(TOKEN_SLOT, paths.ipc_token().encode("ascii"))
-        return self._send(200, data, STATIC_TYPES.get(ext, "application/octet-stream"))
+        # 화면 파일(html·css·js)은 no-store 여야 업데이트가 바로 보인다. 글꼴은
+        # 한 벌에 160KB 짜리 한글 세 벌이라 창을 열 때마다 480KB 를 다시 받고
+        # 다시 해석하고 있었다. 글꼴은 좀처럼 바뀌지 않으므로 하루 동안 들고 있게 한다
+        # (바꿔야 하면 tools/build_fonts.py 의 파일 이름을 바꾸면 곧바로 반영된다).
+        cache = "public, max-age=86400" if ext == "woff2" else "no-store"
+        return self._send(200, data, STATIC_TYPES.get(ext, "application/octet-stream"), cache)
 
     def _post(self):
         p = self.path.split("?")[0]

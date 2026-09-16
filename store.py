@@ -583,27 +583,42 @@ def instances(back=14, ahead=45, data=None, today=None):
     return out
 
 
+def _rule_of(t):
+    """정규화한 규칙과 설명 문구. 날짜가 아니라 항목에만 달린 값이다.
+
+    예전에는 _inst 안에서 회차마다 다시 구했다. "매 영업일" 반복 하나가 85일
+    구간에서 60회차로 펼쳐지면 똑같은 문구를 60번 지어냈고, describe 안에서
+    normalize 가 또 불려 정규화가 회차마다 두 번씩 일어났다. 항목당 한 번이면 된다.
+    """
+    if t.get("kind") != "routine":
+        return None, ""
+    r = t.get("rule")
+    return (recur.normalize(r) if r else None), recur.describe(r)
+
+
 def _expand(t, lo, hi):
     kind = t.get("kind", "deadline")
+    pre = _rule_of(t)
     if kind == "floating":
-        return [_inst(t, None)]
+        return [_inst(t, None, pre)]
     if kind == "routine":
         # 등록 이전 날짜는 밀린 일로 잡지 않는다
         born = (t.get("created") or "")[:10]
         start = max(lo, date.fromisoformat(born)) if born else lo
         skips = set(t.get("skip_dates") or [])
-        return [_inst(t, day) for day in recur.occurrences(t.get("rule") or {}, start, hi)
+        return [_inst(t, day, pre) for day in recur.occurrences(t.get("rule") or {}, start, hi)
                 if day.isoformat() not in skips]
     if not t.get("due_date"):
-        return [_inst(t, None)]
-    return [_inst(t, date.fromisoformat(t["due_date"]))]
+        return [_inst(t, None, pre)]
+    return [_inst(t, date.fromisoformat(t["due_date"]), pre)]
 
 
-def _inst(t, day):
+def _inst(t, day, pre=None):
     routine = t.get("kind") == "routine"
-    done = (day.isoformat() in (t.get("done_dates") or [])) if (routine and day) else bool(t.get("done"))
+    iso = day.isoformat() if day else None          # 한 번만 짓는다
+    done = (iso in (t.get("done_dates") or [])) if (routine and day) else bool(t.get("done"))
     due_dt = _dt(day, t.get("due_time")) if day else None
-    rule_n = recur.normalize(t["rule"]) if (routine and t.get("rule")) else None
+    rule_n, rule_text = pre if pre is not None else _rule_of(t)
     return {
         "id": t["id"],
         "title": t.get("title", ""),
@@ -611,13 +626,14 @@ def _inst(t, day):
         "kind": t.get("kind", "deadline"),
         "tag": t.get("tag", ""),
         "pinned": bool(t.get("pinned")),
-        "date": day.isoformat() if day else None,
+        "date": iso,
         "time": t.get("due_time") or "",
         "due": due_dt.isoformat(timespec="minutes") if due_dt else None,
-        "rule": t.get("rule") or None,
+        # raw rule 은 싣지 않는다. 수정 창은 rule_n(정규화한 것)을 읽고,
+        # 반복 하나가 달력 구간에서 40회차로 펼쳐지면 같은 규칙이 40번 실린다.
         "rule_n": rule_n,
         "period": rule_n.get("period") if rule_n else None,
-        "rule_text": recur.describe(t.get("rule")) if routine else "",
+        "rule_text": rule_text,
         "muted": bool(t.get("muted")),
         "notify_min": t.get("notify_min", None),
         "done": done,
@@ -659,8 +675,6 @@ def overview(data=None, now=None):
     wk = (today + timedelta(days=7)).isoformat()
     upcoming = sorted([i for i in ins if i["kind"] == "deadline" and i["date"]
                        and ti < i["date"] <= wk and not i["done"]], key=key)
-    later = sorted([i for i in ins if i["kind"] == "deadline" and i["date"]
-                    and i["date"] > wk and not i["done"]], key=key)
 
     # ── 반복 업무: 항목당 "다음 예정일" 한 줄 ────────────────
     nxt = {}
@@ -696,7 +710,6 @@ def overview(data=None, now=None):
         "overdue": overdue,
         "todays": todays,
         "upcoming": upcoming,
-        "later": later[:40],
         "routines": routines,
         "floating": floating,
         "stats": {
