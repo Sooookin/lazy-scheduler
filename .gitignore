@@ -21,3 +21,11 @@ selftest.txt
 
 # 동기화 설정 (firebase/config.example.json 을 베껴 채운다). 저장소에 올리지 않는다.
 firebase/config.local.json
+
+# 휴대폰 앱 빌드 산출물 · 설정
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/firebase.local.properties
+android/.kotlin/
