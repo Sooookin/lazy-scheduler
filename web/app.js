@@ -767,9 +767,12 @@ $('#e-del').onclick = () => confirmBox('삭제할까요?',
   '「'+EDIT.title+'」'+(EDIT.kind==='routine' ? ' 반복 일정 전체가 사라집니다. 이번 회차만 빼려면 건너뛰기를 쓰세요.' : ' 항목을 삭제합니다.'),
   () => api('/api/task/'+EDIT.id+'/delete', {}).then(() => { closeAll(); say('삭제됨'); load(); }));
 
-function confirmBox(title, msg, onOk){
+/* 확인 단추의 글자는 하는 일을 그대로 말한다. 예전에는 늘 "삭제" 라서
+   "완전히 종료할까요?" 에도 삭제 단추가 떴다. */
+function confirmBox(title, msg, onOk, okLabel){
   $('#cf-title').textContent = title;
   $('#cf-msg').textContent = msg;
+  $('#cf-ok').textContent = okLabel || '삭제';
   $('#cf-ok').onclick = onOk;
   openM('#m-confirm');
 }
@@ -1137,7 +1140,67 @@ function fillSettings(){
   $('#s-auto').checked = !!st.autostart;
   $('#s-hold').checked = st.hold_when_busy !== false;
 }
-$('#btn-settings').onclick = () => { if(STATE) fillSettings(); openM('#m-settings'); };
+$('#btn-settings').onclick = () => {
+  if(STATE) fillSettings();
+  openM('#m-settings');
+  refreshSync();
+};
+
+/* ══════════ 동기화 (설정 창) ══════════
+   로그인은 브라우저에서 사람이 마쳐야 끝난다. 시작만 부탁하고, 설정 창이 열려
+   있는 동안 1.5초마다 진행을 묻는다. 창을 닫으면 묻지 않는다 (로그인은 계속된다). */
+let syncPoll = null;
+function paintSync(s){
+  const msg = $('#sync-msg'), btn = $('#sync-btn'), now = $('#sync-now');
+  btn.disabled = false;
+  now.hidden = !(s.configured && s.signed_in);
+  now.disabled = !!s.syncing;
+  if(!s.configured){
+    msg.textContent = '동기화 설정이 없는 빌드입니다.';
+    btn.hidden = true;
+    return;
+  }
+  btn.hidden = false;
+  if(s.state === 'waiting'){
+    msg.textContent = '브라우저에서 Google 로그인을 마쳐 주세요…';
+    btn.textContent = '기다리는 중';
+    btn.disabled = true;
+  }else if(s.signed_in){
+    const when = s.syncing ? '맞추는 중…'
+               : s.sync_error ? s.sync_error
+               : s.last_sync ? s.last_sync + ' 에 맞춤' : '곧 맞춥니다';
+    msg.textContent = s.email + ' · ' + when + (s.pending ? ' · 보낼 변경 ' + s.pending + '건' : '');
+    btn.textContent = '로그아웃';
+  }else{
+    msg.textContent = s.state === 'error' ? s.error : '로그인하면 이 PC 와 휴대폰의 일정이 같아집니다.';
+    btn.textContent = 'Google 계정으로 로그인';
+  }
+}
+function refreshSync(){
+  clearTimeout(syncPoll);
+  return api('/api/sync').then(s => {
+    paintSync(s);
+    if((s.state === 'waiting' || s.syncing) && $('#m-settings').classList.contains('on'))
+      syncPoll = setTimeout(refreshSync, 1500);
+    return s;
+  });
+}
+$('#sync-btn').onclick = () => api('/api/sync').then(s => {
+  if(s.signed_in){
+    confirmBox('로그아웃할까요?',
+      '이 PC 의 일정은 그대로 남습니다. 다시 로그인하면 이어서 맞춥니다.',
+      () => api('/api/sync/signout', {}).then(after => {
+        closeM('#m-confirm'); paintSync(after); say('로그아웃했습니다');
+      }), '로그아웃');
+  }else{
+    api('/api/sync/signin', {}).then(() => refreshSync());
+  }
+});
+/* 지금 맞추기: 뒤에서 2초 뒤에 시작하므로, 조금 기다렸다가 결과를 묻고 목록도 다시 읽는다 */
+$('#sync-now').onclick = () => api('/api/sync/now', {}).then(() => {
+  $('#sync-msg').textContent = '맞추는 중…';
+  setTimeout(() => refreshSync().then(() => load()), 3500);
+});
 $('#s-save').onclick = () => api('/api/settings', {
     notify_min:+$('#s-lead').value, brief_time:$('#s-brief').value,
     business_only:$('#s-biz').checked, autostart:$('#s-auto').checked,
@@ -1148,7 +1211,8 @@ $('#s-shortcut').onclick = () => api('/api/shortcut', {})
 $('#s-test').onclick = () => api('/api/test-toast', {}).then(() => say('알림을 띄웠습니다 (우측 하단)'));
 $('#s-quit').onclick = () => confirmBox('완전히 종료할까요?',
   '알림도 함께 멈춥니다. 바탕화면 아이콘으로 다시 시작할 수 있습니다.',
-  () => { api('/api/quit', {}); setTimeout(() => window.pywebview ? window.pywebview.api.close() : window.close(), 400); });
+  () => { api('/api/quit', {}); setTimeout(() => window.pywebview ? window.pywebview.api.close() : window.close(), 400); },
+  '종료');
 
 /* 첫 그림이 오기 전에는 뾈대를 세워 둔다. 빈 화면보다 낫고,
    줄 높이가 같아서 내용이 들어올 때 화면이 튀지 않는다. */

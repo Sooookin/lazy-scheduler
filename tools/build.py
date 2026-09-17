@@ -130,11 +130,10 @@ def extra_binaries():
     except ImportError:
         return []
 
-    # _tkinter · _ssl 은 일부러 뺐다. tkinter 는 더 이상 쓰지 않고(toast 는 Win32),
-    # ssl 은 main.stub_ssl() 이 껍데기를 끼운다. 둘을 넣으면 tcl/tk 6MB +
-    # libcrypto/libssl 5.8MB 가 따라 들어온다.
+    # _tkinter 는 일부러 뺐다 (toast 는 Win32 로 그린다. 넣으면 tcl/tk 6MB).
+    # _ssl · _hashlib 은 넣는다 - 동기화가 Firebase 와 HTTPS 로 이야기한다 (docs/sync.md).
     seeds = [os.path.join(dll_dir, m + ".pyd")
-             for m in ("_ctypes", "_socket", "select", "_queue")]
+             for m in ("_ctypes", "_socket", "select", "_queue", "_ssl", "_hashlib")]
     # PIL 의 확장도 씨앗에 넣는다. 예전에는 이 DLL(zlib·libjpeg·freetype ...)이
     # 다른 패키지 덕에 우연히 따라 들어왔고, 그 패키지를 빼자 PIL.Image 가
     # "DLL load failed while importing _imaging" 으로 죽었다.
@@ -179,9 +178,8 @@ PRUNE = [
     # tcl/tk 는 이제 안 쓴다 (혹시 딸려 들어오면 지운다)
     "_internal/_tcl_data", "_internal/_tk_data", "_internal/tcl8",
     "_internal/tcl86t.dll", "_internal/tk86t.dll", "_internal/_tkinter.pyd",
-    # ssl 껍데기를 쓰므로 필요 없다 (main.stub_ssl)
-    "_internal/libcrypto-3-x64.dll", "_internal/libssl-3-x64.dll",
-    "_internal/_ssl.pyd", "_internal/_hashlib.pyd",
+    # libcrypto · libssl · _ssl · _hashlib 은 지우면 안 된다. 예전에는 ssl 껍데기로
+    # 5.8MB 를 아꼈지만, 동기화가 HTTPS 를 쓴다.
     # runtimes/win-arm64 · win-x86 은 지우면 안 된다. pywebview 의
     # edgechromium.py 가 세 폴더 모두를 Path 에 넣으려고 존재를 확인하고,
     # 하나라도 없으면 FileNotFoundError 로 창이 통째로 Edge 폴백이 된다.
@@ -240,6 +238,12 @@ def main():
             "--add-data", f"assets/fonts/Paperlogy-5Medium.ttf{os.pathsep}fonts",
             "--add-data", f"assets/fonts/Paperlogy-4Regular.ttf{os.pathsep}fonts",
             ]
+    # 동기화 설정 (저장소에는 없다. 없으면 동기화 없이 빌드된다)
+    cloud = os.path.join(ROOT, "firebase", "config.local.json")
+    if os.path.exists(cloud):
+        args += ["--add-data", f"firebase/config.local.json{os.pathsep}firebase"]
+    else:
+        print("  ! firebase/config.local.json 이 없다 - 동기화를 쓸 수 없는 빌드가 된다")
     # 지연 임포트되는 것들
     for m in ("pystray._win32", "clr",
               "webview.platforms.winforms", "webview.platforms.edgechromium"):
@@ -254,8 +258,7 @@ def main():
               "tornado", "dask", "bokeh", "pytest", "setuptools", "pip",
               # 창은 Win32 로 직접 그린다 (toast.py). tcl/tk 6MB 를 뺀다.
               "tkinter", "_tkinter", "PIL.ImageTk", "PIL.ImageQt",
-              # ssl 은 껍데기로 대체 (main.stub_ssl) - libcrypto/libssl 5.8MB
-              "ssl", "_ssl", "_hashlib",
+              # ssl 은 이제 뺄 수 없다 - 동기화가 HTTPS 를 쓴다
               # 우리가 쓰지 않는 표준 모듈. asyncio·concurrent·multiprocessing·
               # distutils 는 일부러 남겼다 - 다른 패키지가 몰래 쓸 수 있고,
               # 빠져 있으면 창이 통째로 Edge 폴백으로 떨어진다.
@@ -268,8 +271,8 @@ def main():
               # PIL.PngImagePlugin 이 못 올라와서 PNG·ICO 를 읽지 못했고,
               # 그 결과 트레이 아이콘이 조용히 사라졌다 (--selftest 가 잡아 줬다)
               "ensurepip", "venv", "zoneinfo",
-              # TLS 를 아예 쓰지 않는데도(ssl 은 껍데기) PyInstaller 훅이
-              # cryptography 를 끌어와 _rust.pyd 4MB 가 들어와 있었다.
+              # PyInstaller 훅이 cryptography 를 끌어와 _rust.pyd 4MB 가 들어와
+              # 있었다. HTTPS 는 표준 ssl 로 충분하다.
               # jinja2·markupsafe 도 쓰는 곳이 없다 (bottle 은 자체 템플릿).
               "cryptography", "jinja2", "markupsafe"):
         args += ["--exclude-module", m]

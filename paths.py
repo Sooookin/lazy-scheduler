@@ -49,6 +49,16 @@ DATA_FILE = os.path.join(DATA_DIR, "data.json")      # 내 일정 (나중에 다
 STATE_FILE = os.path.join(DATA_DIR, "state.json")    # 이 PC 에만 해당하는 상태 (띄운 알림 기록)
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 TOKEN_FILE = os.path.join(DATA_DIR, "ipc.key")
+# 동기화 (docs/sync.md). 로그인하기 전에는 둘 다 없다.
+SYNC_STATE_FILE = os.path.join(DATA_DIR, "sync-state.json")    # 누구로 로그인했는지 · 어디까지 받았는지
+SYNC_OUTBOX_FILE = os.path.join(DATA_DIR, "sync-outbox.json")  # 아직 서버가 받았다고 하지 않은 변경
+AUTH_FILE = os.path.join(DATA_DIR, "auth.json")                # 로그인한 계정 (토큰은 암호화해 둔다)
+
+
+def cloud_config_paths():
+    """Firebase 설정 파일을 찾아볼 자리. 빌드본은 묶여 들어간 것, 소스는 firebase/ 폴더."""
+    return [os.path.join(RES_DIR, "firebase", "config.local.json"),
+            os.path.join(APP_DIR, "firebase", "config.local.json")]
 
 
 UNBLOCKED = None        # unblock() 이 떼어낸 파일 수 (점검에서 보여주려고 기억한다)

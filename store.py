@@ -29,6 +29,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import paths
 import recur
+import syncdoc
 
 paths.migrate_legacy()
 DATA = paths.DATA_FILE
@@ -36,6 +37,7 @@ STATE = paths.STATE_FILE
 LOCK = threading.RLock()
 
 SCHEMA_VERSION = 2
+assert syncdoc.SCHEMA == SCHEMA_VERSION, "클라우드 문서의 schema 와 파일 형식 버전이 어긋났다"
 BACKUP_KEEP = 14                # 하루 한 벌 백업을 며칠치 남길지
 TOMBSTONE_DAYS = 180            # 지운 흔적을 얼마나 남길지 (다른 기기가 따라잡을 시간)
 FIRED_KEEP_DAYS = 3             # 띄운 알림 기록 (스케줄러는 어제~내일만 본다)
@@ -324,18 +326,278 @@ def fired_keys():
 # ---------- 읽기 · 쓰기 ----------
 
 @contextmanager
-def transaction():
+def transaction(record=True):
     """읽기-고치기-쓰기를 한 번에 한다.
 
     예전에는 스케줄러가 읽어 둔 옛 내용을 저장하면서, 그 사이 창에서 완료한 것을 지웠다.
     블록 안에서 예외가 나면 쓰지 않는다.
+
+    동기화가 켜져 있으면 무엇이 바뀌었는지 보낼 목록(outbox)에 함께 적는다.
+    record=False 는 서버에서 받아 온 것을 반영할 때 쓴다 (받은 것을 되돌려 보내지 않게).
     """
     with LOCK:
         d, _ = _read()
+        track = record and sync_enabled()
+        before = syncdoc.snapshot(d) if track else None
         yield d
+        ops = syncdoc.changes(before, syncdoc.snapshot(d)) if track else []
         _backup_before_write()
-        _write_json(DATA, d)
+        if ops:
+            _write_with_outbox(d, ops)
+        else:
+            _write_json(DATA, d)
         recur.set_holidays(d.get("holidays"))
+
+
+# ---------- 동기화: 보낼 목록 (docs/sync.md 5장) ----------
+#
+# 로그인하기 전에는 아무것도 적지 않는다. 처음 로그인할 때는 항목 전체를 id 로
+# 맞춰 올리므로, 그 전의 변경을 하나하나 모아 둘 까닭이 없다 (끝없이 쌓이기만 한다).
+
+OUTBOX = paths.SYNC_OUTBOX_FILE
+SYNC_STATE = paths.SYNC_STATE_FILE
+
+
+def sync_state():
+    """{"uid": ..., "cursor": ...} · 로그인하지 않았으면 {}."""
+    s, _ = _load_json(SYNC_STATE)
+    return s if isinstance(s, dict) else {}
+
+
+def sync_enabled():
+    return bool(sync_state().get("uid"))
+
+
+def sync_enable(uid):
+    """로그인했다. 이 뒤의 변경부터 보낼 목록에 적는다."""
+    if not isinstance(uid, str) or not uid:
+        raise ValidationError("로그인 정보가 올바르지 않습니다")
+    with LOCK:
+        s = sync_state()
+        if s.get("uid") not in (None, uid):
+            # 다른 계정의 보낼 목록 · 받은 자리를 이어 쓰면 남의 계정에 섞여 들어간다
+            _clear_sync_files()
+            s = {}
+        s["uid"] = uid
+        _write_json(SYNC_STATE, s)
+    _notify()                        # 곧바로 처음 맞추기를 시작하게
+
+
+def sync_disable():
+    """로그아웃. 보낼 목록 · 받은 자리를 지운다. 일정(data.json)은 그대로 둔다."""
+    with LOCK:
+        _clear_sync_files()
+
+
+def _clear_sync_files():
+    for f in (OUTBOX, SYNC_STATE):
+        try:
+            os.remove(f)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            raise StoreError("동기화 기록을 지우지 못했습니다 (%s)" % e) from e
+
+
+def _read_outbox():
+    o, bad = _load_json(OUTBOX)
+    if bad:
+        # 보낼 목록이 깨졌다. 버리면 변경이 조용히 사라지므로 옆으로 치워 두고 알린다.
+        # 처음 로그인할 때처럼 전체를 맞추면 되살아난다 (sync 엔진이 할 일).
+        kept = "%s.corrupt-%s" % (OUTBOX, datetime.now().strftime("%Y%m%d-%H%M%S"))
+        try:
+            os.replace(OUTBOX, kept)
+        except OSError:
+            pass
+        paths.log("sync-outbox.json 손상 (%s) - %s 로 옮기고 새로 시작" % (bad, kept))
+        o = None
+    if not isinstance(o, dict) or not isinstance(o.get("ops"), list):
+        o = {"version": 1, "next_seq": 1, "ops": []}
+    return o
+
+
+def _write_with_outbox(d, ops):
+    """보낼 목록에 먼저 적고, 그다음 일정을 쓴다. 일정 쓰기가 실패하면 목록을 되돌린다.
+
+    순서가 반대면: 일정은 저장됐는데 목록에 적기 전에 꺼지면 그 변경은 영영
+    다른 기기로 가지 않는다. 이 순서면 최악의 경우에도 "보낸 것과 저장한 것이
+    같다" 가 지켜진다.
+    """
+    box = _read_outbox()
+    prev = json.loads(json.dumps(box))
+    stamp = _now_utc()
+    for op in ops:
+        op = dict(op, seq=box["next_seq"], at=stamp)
+        box["next_seq"] += 1
+        box["ops"].append(op)
+    _write_json(OUTBOX, box)
+    try:
+        _write_json(DATA, d)
+    except StoreError:
+        _write_json(OUTBOX, prev)
+        raise
+    _notify()
+
+
+LISTENERS = []                  # 보낼 변경이 생기면 부른다 (동기화를 깨운다). 오래 걸리면 안 된다
+
+
+def _notify():
+    for fn in list(LISTENERS):
+        try:
+            fn()
+        except Exception:
+            paths.log("store listener 실패: %r" % (fn,))
+
+
+def outbox_pending():
+    """아직 서버가 받았다고 하지 않은 변경 (오래된 것부터)."""
+    with LOCK:
+        return _read_outbox()["ops"]
+
+
+def outbox_confirm(upto_seq):
+    """서버가 받았다: seq 가 upto_seq 이하인 변경을 목록에서 지운다."""
+    with LOCK:
+        box = _read_outbox()
+        left = [op for op in box["ops"] if op.get("seq", 0) > upto_seq]
+        if len(left) != len(box["ops"]):
+            box["ops"] = left
+            _write_json(OUTBOX, box)
+
+
+def outbox_remove(seqs):
+    """서버가 받은 변경만 골라 지운다 (중간 것이 거절돼 남아 있을 때)."""
+    seqs = set(seqs)
+    with LOCK:
+        box = _read_outbox()
+        left = [op for op in box["ops"] if op.get("seq") not in seqs]
+        if len(left) != len(box["ops"]):
+            box["ops"] = left
+            _write_json(OUTBOX, box)
+
+
+REJECTED_KEEP = 50
+
+
+def outbox_reject(op, reason):
+    """서버가 끝내 받지 않는 변경을 목록에서 빼 옆에 남긴다.
+
+    남겨 두면 뒤의 변경까지 영원히 막힌다. 버리지는 않는다 - 무엇이 왜
+    거절됐는지 나중에 확인할 수 있게 rejected 에 이유와 함께 둔다.
+    """
+    with LOCK:
+        box = _read_outbox()
+        box["ops"] = [o for o in box["ops"] if o.get("seq") != op.get("seq")]
+        box.setdefault("rejected", []).append(dict(op, reason=reason, rejected_at=_now_utc()))
+        box["rejected"] = box["rejected"][-REJECTED_KEEP:]
+        _write_json(OUTBOX, box)
+    paths.log("sync: 서버가 거절한 변경 seq=%s %s (%s)" % (op.get("seq"), op.get("doc"), reason))
+
+
+def outbox_add(ops):
+    """직접 만든 변경을 보낼 목록에 붙인다 (처음 동기화할 때 이 기기 것을 올리기)."""
+    if not ops:
+        return
+    with LOCK:
+        box = _read_outbox()
+        stamp = _now_utc()
+        for op in ops:
+            box["ops"].append(dict(op, seq=box["next_seq"], at=stamp))
+            box["next_seq"] += 1
+        _write_json(OUTBOX, box)
+    _notify()
+
+
+def sync_update_state(**fields):
+    """동기화 진행 기록(받은 자리 · 처음 맞추기 여부)을 고친다. 로그인 중일 때만."""
+    with LOCK:
+        s = sync_state()
+        if not s.get("uid"):
+            return
+        s.update(fields)
+        _write_json(SYNC_STATE, s)
+
+
+def _parse_utc(text):
+    try:
+        t = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def apply_remote(docs, settings=None):
+    """서버에서 받아 온 항목 · 설정을 반영한다. 반영해서 바뀐 수를 돌려준다.
+
+    docs: [(항목 id, 클라우드 문서(dict), 서버 updated(ISO 문자열))]
+    settings: 클라우드의 meta/settings 문서 (없으면 None)
+
+      · 아직 보내지 않은 이 기기의 변경은 지킨다 (syncdoc.merge_task)
+      · 지운 흔적은 늘 이긴다. 그 항목에 걸린 이 기기의 고침은 보낼 목록에서 뺀다
+        (보내 봐야 서버가 제목 없는 반쪽 항목을 되살리거나 거절한다)
+      · 더 새로운 앱이 만든 문서(schema 가 크다)는 건드리지 않는다
+      · 바뀐 것이 없으면 파일을 쓰지 않는다 - 자기가 보낸 것이 되돌아와도 조용하다
+    """
+    with LOCK:
+        d, _ = _read()
+        box = _read_outbox()
+        ops = box["ops"]
+        index = {t.get("id"): n for n, t in enumerate(d["tasks"]) if isinstance(t, dict)}
+        changed, drop = 0, set()
+        for tid, doc, updated in docs:
+            if not isinstance(tid, str) or not tid or not isinstance(doc, dict):
+                continue
+            schema = doc.get("schema")
+            if isinstance(schema, int) and schema > SCHEMA_VERSION:
+                paths.log("sync: 더 새로운 형식(schema %s)의 항목 %s 는 반영하지 않는다" % (schema, tid))
+                continue
+            incoming = syncdoc.from_remote(tid, doc, updated)
+            local = d["tasks"][index[tid]] if tid in index else None
+            where = syncdoc.task_doc(tid)
+            if incoming.get("deleted"):
+                merged = incoming
+                if any(op.get("doc") == where and op.get("kind") == "patch" for op in ops):
+                    drop.add(where)
+            else:
+                merged = syncdoc.merge_task(local, incoming, syncdoc.pending_paths(ops, where))
+            if local is not None and syncdoc._same(local, merged):
+                continue
+            if local is None:
+                if merged.get("deleted"):
+                    # 이 기기가 한 번도 본 적 없는 항목의 흔적. 들여올 까닭이 없다.
+                    continue
+                d["tasks"].append(merged)
+                index[tid] = len(d["tasks"]) - 1
+            else:
+                d["tasks"][index[tid]] = merged
+            changed += 1
+
+        if isinstance(settings, dict):
+            pend = syncdoc.pending_paths(ops, syncdoc.SETTINGS_DOC)
+            for k in syncdoc.SHARED_SETTINGS:
+                if k in settings and k not in pend:
+                    try:
+                        _check_setting(k, settings[k])
+                    except ValidationError:
+                        continue
+                    if d["settings"].get(k) != settings[k]:
+                        d["settings"][k] = settings[k]
+                        changed += 1
+            hol = settings.get("holidays")
+            if ("holidays" not in pend and isinstance(hol, list)
+                    and all(isinstance(x, str) for x in hol) and d.get("holidays") != hol):
+                d["holidays"] = list(hol)
+                changed += 1
+
+        if drop:
+            box["ops"] = [op for op in ops if not (op.get("doc") in drop and op.get("kind") == "patch")]
+            _write_json(OUTBOX, box)
+        if changed:
+            _backup_before_write()
+            _write_json(DATA, d)
+            recur.set_holidays(d.get("holidays"))
+        return changed
 
 
 def snapshot():

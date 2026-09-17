@@ -23,6 +23,7 @@ main.py          entry point (--ui opens the window, --selftest checks a build)
   core — no Windows here; a phone app reuses these rules and this data format
 store.py         reading/writing data.json, backups, revision, the client payloads
 recur.py         recurrence rules, business days, Korean holidays
+syncdoc.py       how an item looks in the cloud, and which fields changed (docs/sync.md)
 tokens.py        colours, weights, metrics — the one place they are defined
 
   desktop — Windows only
@@ -31,7 +32,9 @@ ui.py            the native WebView2 window process
 toast.py         the notification cards (drawn with Pillow)
 tray.py          tray icon, badge, menu
 autostart.py     "run at login" and the desktop shortcut
-win32.py         shared Win32 structures (monitors)
+win32.py         shared Win32 structures (monitors), DPAPI for the saved sign-in
+cloudauth.py     Google sign-in on the PC → Firebase session (docs/sync.md §6)
+cloudsync.py     sends the outbox to Firestore and pulls changes (docs/sync.md §5)
 ipc.py           how the service and the window process reach each other
 paths.py         where every file lives (resources vs. user data)
 

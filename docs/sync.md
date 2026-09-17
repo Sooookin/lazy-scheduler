@@ -1,6 +1,6 @@
 # Sync design: PC ↔ phone through Firebase
 
-Status: design, not implemented yet. Written so a Play Store release can use the
+Status: being built — see section 11 for what is done. Written so a Play Store release can use the
 same design later; for now it serves one person with a PC and a phone.
 
 ## 1. Goals
@@ -55,7 +55,8 @@ merging safe:
 | `updated` | UTC ISO string | server timestamp | the pull cursor must use one clock |
 | `schema` | — (file has `version`) | `2` | a newer app's documents are not rewritten by an older app |
 
-`id` is the document ID (a uuid made on the device, so creating works offline).
+`id` is the document ID (a uuid made on the device, so creating works offline). It is
+also stored as a field, so the security rules can check that it matches the document ID.
 A deleted item keeps only `id`, `deleted: true`, `updated`, `schema`
 (the tombstone `store.remove` already writes, plus `schema`).
 
@@ -101,40 +102,61 @@ The Android SDK does all of this by itself. The PC does it by hand.
 
 ### Outbox
 
-Every change in `store.py` also appends an operation to `sync-outbox.json`
-(same fsync-and-replace writing as `data.json`):
+*Implemented: `syncdoc.py` (cloud form, diff) and the outbox functions in `store.py`.*
+
+After sign-in, every `store.transaction()` compares the data before and after and
+appends what changed to `sync-outbox.json` (same fsync-and-replace writing as
+`data.json`). Before sign-in nothing is recorded: the first sign-in joins
+everything by `id` anyway (see below).
 
 ```json
-{"op": "patch", "task": "3f2a…", "set": {"title": "보고서"}, "delete": [], "at": "2026-09-18T01:02:03Z"}
-{"op": "patch", "task": "3f2a…", "set": {"done_dates.`2026-09-18`": true}, "delete": [], "at": "…"}
+{"version": 1, "next_seq": 4, "ops": [
+  {"seq": 1, "doc": "tasks/3f2a…", "kind": "put", "data": {"title": "매일 점검", "done_dates": {}, "schema": 2, "…": "…"}, "at": "…"},
+  {"seq": 2, "doc": "tasks/3f2a…", "kind": "patch", "set": {"done_dates.`2026-09-18`": true}, "delete": [], "at": "…"},
+  {"seq": 3, "doc": "meta/settings", "kind": "patch", "set": {"notify_min": 15}, "delete": [], "at": "…"}
+]}
 ```
 
-Operations stay in the outbox until Firestore confirms them, so a crash or a
-lost connection never loses a change.
+- `put` replaces the whole document: a new item, or a deleted item's tombstone.
+- `patch` changes only the listed field paths.
+- The outbox is written **before** `data.json`. If writing `data.json` then fails,
+  the outbox is put back, so the outbox never lists a change that was not saved.
+- Operations leave only when Firestore confirms them (`outbox_confirm(seq)`), so a
+  crash or a lost connection never loses a change. `seq` never repeats.
+- Changes pulled from the server are applied with `transaction(record=False)` so
+  they are not sent back.
+- Cost measured on a heavy dataset (90 items): a save takes ~21 ms instead of ~10 ms
+  while signed in (the second fsync).
 
 ### One sync round
 
-1. **Push:** send the outbox as one Firestore `commit` (at most 500 writes per commit),
-   each write with its `updateMask` and `updated` set to the server time.
-   Remove the operations the server confirmed.
-2. **Pull:** query `users/{uid}/tasks` where `updated >= cursor`, ordered by `updated`.
-   `>=` rather than `>` so a document sharing the cursor's exact timestamp is not
-   skipped; documents already applied at that timestamp are recognised by
-   `(id, updated)` and ignored.
-3. **Apply** each pulled document to `data.json` inside one `store.transaction()`.
-   A field that still has a pending outbox operation keeps the local value; it will
-   be pushed on the next round.
-4. Save the new cursor (the largest `updated` seen) in `sync-state.json`.
+*Implemented: `cloudsync.py`, `store.apply_remote`. Checked live against Firestore.*
+
+1. **Pull first:** query `users/{uid}/tasks` and `users/{uid}/meta`, ordered by
+   `(updated, __name__)`, starting **after** the saved cursor `(updated, name)`,
+   300 per page. Ordering by name as well matters: every document in one commit
+   gets the same server time, so a cursor on time alone would repeat a full page forever.
+2. **Apply** with `store.apply_remote`: a field with a pending outbox operation keeps
+   the local value; a tombstone always wins and removes pending patches for that item;
+   documents with a higher `schema` are left alone; nothing is written when nothing changed.
+3. **Push:** send the outbox as Firestore `commit`s (≤ 450 writes each), each write with
+   its `updateMask` and `updated` set to the server time. A commit is all-or-nothing, so
+   if one is refused the operations are retried one by one, and any that the server
+   still refuses move to `rejected` (with the reason) instead of blocking the rest.
+4. Save the new cursors in `sync-state.json`.
+
+Pull comes before push so that an item deleted on the other device is known before
+this device sends an edit for it. A deletion that lands between the two is caught by
+the `keepsTombstone` security rule.
 
 ### When it runs
 
-- right after any local change (push, then pull)
-- every 60 s while the window is visible, every 5 min in the background
-- right away when the network comes back or the PC wakes from sleep
+- 2 s after any local change (changes in a burst are sent together)
+- every 2 minutes otherwise; "지금 동기화" in Settings asks for a round right away
+- after a network error: 15 s, 30 s, 1 min … up to 10 min between tries
 
-Cost: a query that finds nothing still counts as 1 read. 5-min rounds in the
-background and 60-s rounds while the window is open stay far below the free
-50,000 reads per day.
+Cost: every round is 2 queries (tasks, meta), and a query that finds nothing still
+counts as 1 read: about 1,440 reads a day, well below the free 50,000.
 
 ### First sign-in on a device
 
@@ -154,12 +176,17 @@ background and 60-s rounds while the window is open stay far below the free
 2. Exchange the Google ID token for a Firebase session:
    `POST identitytoolkit.googleapis.com/v1/accounts:signInWithIdp`.
 3. Keep the Firebase **refresh token** encrypted with Windows DPAPI in
-   `%APPDATA%\LazyScheduler\auth.bin`. Get a fresh 1-hour ID token with
+   `%APPDATA%\LazyScheduler\auth.json`. Get a fresh 1-hour ID token with
    `POST securetoken.googleapis.com/v1/token` when needed.
-4. Sign-out deletes `auth.bin`, `sync-outbox.json` and `sync-state.json`, and keeps `data.json`.
+4. Sign-out deletes `auth.json`, `sync-outbox.json` and `sync-state.json`, and keeps `data.json`.
 
-The Firebase web API key and the OAuth desktop client ID are placed in the app.
-They are not secrets: access is decided by the security rules and the signed-in user.
+*Implemented: `cloudauth.py`, `win32.protect/unprotect`, `/api/sync` endpoints, and the
+"동기화" section in Settings.*
+
+The Firebase web API key and the OAuth desktop client ID/secret are placed in the app
+(`firebase/config.local.json`, not in git; `firebase/config.example.json` shows the shape;
+the build bundles it). They are not secrets: access is decided by the security rules and
+the signed-in user. The build now keeps `ssl` (about 6 MB) because sync uses HTTPS.
 
 ## 7. Security rules
 
@@ -169,6 +196,8 @@ In `firebase/firestore.rules`:
 - `config/**`: signed-in users may read; nobody may write from an app.
 - Task writes must keep `id` equal to the document ID and stay under size limits
   (title ≤ 200, note ≤ 2000 characters), matching `store.clean_task`.
+- A tombstone stays a bare tombstone (`keepsTombstone`): a late edit cannot put
+  content back onto a deleted item.
 
 ## 8. Reminders on two devices
 
@@ -196,8 +225,8 @@ both pass.
 ## 11. Build order
 
 1. Firebase project (by the owner), rules deployed.
-2. PC: outbox + field-level change records in `store.py` (testable without Firebase).
-3. PC: sign-in, then push/pull against Firestore.
+2. PC: outbox + field-level change records in `store.py` (testable without Firebase). **Done.**
+3. PC: sign-in, then push/pull against Firestore. **Done** (live-checked).
 4. Android: list, add, complete, recurrence (vectors pass).
 5. Android: sign-in + Firestore.
 6. Android: reminders.

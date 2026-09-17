@@ -6,6 +6,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 import autostart
+import cloudauth
+import cloudsync
 import ipc
 import paths
 import recur, store, toast, tray
@@ -334,6 +336,8 @@ class Handler(BaseHTTPRequestHandler):
         except store.StoreError as e:
             log("저장소 오류: %s" % e)
             self._send(503, {"error": str(e)})
+        except cloudauth.AuthError as e:
+            self._send(400, {"error": str(e)})
         except Exception:
             log("요청 처리 실패 %s %s\n%s" % (self.command, self.path, traceback.format_exc()))
             self._send(500, {"error": "처리 중 오류가 발생했습니다. 로그를 확인하세요."})
@@ -356,6 +360,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, o)
         if p == "/api/notify-plan":
             return self._send(200, notify_plan())
+        if p == "/api/sync":
+            return self._send(200, sync_status())
         if p == "/api/ping":
             # 화면이 자기가 아는 약속으로 이야기하고 있는지 확인할 때 쓴다
             return self._send(200, {"ok": True, "api": API_VERSION, "schema": store.SCHEMA_VERSION})
@@ -428,6 +434,17 @@ class Handler(BaseHTTPRequestHandler):
             if auto is not None:
                 autostart.set_enabled(auto)
             return self._send(200, dict(st, autostart=autostart.is_enabled()))
+        if p == "/api/sync/signin":
+            # 브라우저가 열리고, 사람이 로그인을 마칠 때까지 뒤에서 기다린다.
+            # 화면은 GET /api/sync 로 진행을 본다.
+            cloudauth.start_sign_in()
+            return self._send(200, sync_status())
+        if p == "/api/sync/signout":
+            cloudauth.sign_out()
+            return self._send(200, sync_status())
+        if p == "/api/sync/now":
+            cloudsync.kick()
+            return self._send(200, sync_status())
         if p == "/api/hidden":
             _hint_hidden()
             return self._send(200, {"ok": True})
@@ -444,6 +461,11 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=shutdown, daemon=True).start()
             return self._send(200, {"ok": True})
         raise ApiError(404, "없는 경로입니다")
+
+
+def sync_status():
+    """설정 창의 동기화 칸: 로그인 상태 + 마지막으로 맞춘 때. 토큰 같은 비밀은 없다."""
+    return dict(cloudauth.status(), **cloudsync.status())
 
 
 def _preview_toast():
@@ -719,6 +741,7 @@ def main():
         return
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     threading.Thread(target=scheduler, daemon=True).start()
+    cloudsync.start()                # 로그인하지 않았으면 조용히 기다린다
     paths.log("main: 서버·스케줄러 시작, tray 진입")
     tray.start(on_open=open_window,
                on_test=_preview_toast,

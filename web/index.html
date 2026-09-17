@@ -205,6 +205,13 @@
        화면 공유는 Windows 가 알려주지 않으므로 잡지 못한다 - 이름을 그렇게 적었다. -->
   <label class="chk" title="전체 화면 · 발표 모드 · 화면 복제 · 방해 금지 · 잠금 화면일 때 미룹니다.&#10;창을 띄워 둔 채 하는 화면 공유는 Windows 가 알려주지 않아 잡지 못합니다."><input type="checkbox" id="s-hold"> 전체 화면 · 발표 중에는 알림을 미룸 <i class="opt">끝나면 묶어서 한 번</i></label>
 
+  <span class="step">동기화 <i class="opt">PC · 휴대폰</i></span>
+  <p class="hint sync-msg" id="sync-msg" aria-live="polite">—</p>
+  <div class="quick">
+    <button type="button" id="sync-now" hidden>지금 동기화</button>
+    <button type="button" id="sync-btn" hidden>Google 계정으로 로그인</button>
+  </div>
+
   <span class="step">프로그램</span>
   <label class="chk"><input type="checkbox" id="s-auto"> Windows 시작할 때 자동 실행</label>
   <!-- 둘 다 설치 직후 한 번 누르고 마는 것이라 나란히 둔다 -->

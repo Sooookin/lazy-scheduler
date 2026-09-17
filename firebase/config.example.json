@@ -1,0 +1,6 @@
+{
+  "project_id": "your-firebase-project-id",
+  "api_key": "AIza... (Project settings > General > Web API key)",
+  "client_id": "....apps.googleusercontent.com (Google Cloud > Credentials > OAuth client, type Desktop app)",
+  "client_secret": "GOCSPX-..."
+}

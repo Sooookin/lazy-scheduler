@@ -21,11 +21,19 @@ service cloud.firestore {
                 && d.kind in ['routine', 'deadline', 'floating']));
     }
 
+    // A deleted item stays a bare tombstone. A late edit from another device must not
+    // put content back onto it (docs/sync.md section 4).
+    function keepsTombstone() {
+      return resource == null
+        || resource.data.get('deleted', false) != true
+        || request.resource.data.keys().hasOnly(['id', 'deleted', 'schema', 'updated']);
+    }
+
     // Each person's own items and settings. Nobody else, not even other signed-in users.
     match /users/{uid} {
       match /tasks/{taskId} {
         allow read: if signedInAs(uid);
-        allow create, update: if signedInAs(uid) && validTask(taskId);
+        allow create, update: if signedInAs(uid) && validTask(taskId) && keepsTombstone();
         allow delete: if signedInAs(uid);
       }
       match /meta/{docId} {
