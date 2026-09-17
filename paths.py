@@ -152,13 +152,18 @@ def log(msg, name="app.log"):
         pass
 
 
+def python_runner():
+    """소스로 돌릴 때 쓸 파이썬. 콘솔 창이 뜨지 않게 pythonw 를 먼저 찾는다."""
+    exe = sys.executable or "python.exe"
+    pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
+    return pyw if os.path.exists(pyw) else exe
+
+
 def exe_path():
     """자동 실행 등록에 쓸 실행 명령."""
     if FROZEN:
         return sys.executable
-    pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-    runner = pyw if os.path.exists(pyw) else sys.executable
-    return f'"{runner}" "{os.path.join(APP_DIR, "main.py")}"'
+    return f'"{python_runner()}" "{os.path.join(APP_DIR, "main.py")}"'
 
 
 _token = None

@@ -13,7 +13,7 @@
 """
 import ctypes
 import functools
-import os
+import math
 import queue
 import threading
 import time
@@ -21,6 +21,7 @@ import traceback
 
 import paths
 import tokens
+import win32
 from ctypes import wintypes
 
 # ---------------- 색 ----------------
@@ -96,9 +97,9 @@ def set_scale(scale):
     SCALE = max(1.0, min(4.0, float(scale)))
     for k, v in _BASE.items():
         globals()[k] = s(v)
-    _texture.cache_clear()
-    _shadow.cache_clear()
-    _font.cache_clear()
+    for cached in (_texture_sheet, _shadow_sheet, _shadow, _card_face, _font, _x_mark,
+                   _rounded_mask):
+        cached.cache_clear()
 
 
 # ---------------- 글꼴 ----------------
@@ -231,24 +232,29 @@ def _wrap(text, font, width, max_lines=TITLE_LINES):
     return lines
 
 
+@functools.lru_cache(maxsize=64)
 def _rounded_mask(w, h, radius, ss=4):
-    """둥근 사각형 알파. 4배로 그린 뒤 줄여서 모서리 계단을 없앤다."""
+    """둥근 사각형 알파. 4배로 그린 뒤 줄여서 모서리 계단을 없앤다.
+
+    기억해 두고 나눠 쓰므로 받은 쪽은 고치지 않는다 (paste · putalpha 의 재료로만 쓴다).
+    """
     from PIL import Image, ImageDraw
     m = Image.new("L", (w * ss, h * ss), 0)
     ImageDraw.Draw(m).rounded_rectangle([0, 0, w * ss - 1, h * ss - 1], radius=radius * ss, fill=255)
     return m.resize((w, h), Image.LANCZOS)
 
 
-@functools.lru_cache(maxsize=8)
-def _texture(w, h):
+SHEET_H = 360                   # 결 한 장의 높이 (100% 기준). 어떤 카드보다 크다.
+
+
+@functools.lru_cache(maxsize=2)
+def _texture_sheet(w, h):
     """모조지 결을 곱하기용 밝기 지도로 만든다 (255 = 그대로, 낮을수록 어둡게).
 
-    고운 요철(비스듬한 빛) + 크게 번지는 얼룩 + 잔 티끌. 크기별로 한 번만 만들어
-    두므로 마우스를 올려 다시 그려도 결이 바뀌어 반짝이지 않는다.
+    고운 요철(비스듬한 빛) + 크게 번지는 얼룩 + 잔 티끌.
     """
     from PIL import Image, ImageChops, ImageFilter
-    import random
-    rnd = random.Random(7)                          # 매번 같은 결
+
     def noise(size, sigma):
         return Image.effect_noise(size, sigma).point(lambda v: max(0, min(255, v)))
     tooth = noise((w, h), 48).filter(ImageFilter.GaussianBlur(0.6 * SCALE)).filter(ImageFilter.EMBOSS)
@@ -257,13 +263,32 @@ def _texture(w, h):
     blotch = noise((bw, bh), 40).resize((w, h), Image.BICUBIC).filter(ImageFilter.GaussianBlur(6 * SCALE))
     blotch = blotch.point(lambda v: 255 - int(max(0, v - 118) * 0.09))
     speck = noise((w, h), 70).point(lambda v: 255 - (10 if v > 235 else 0))
-    del rnd
     return ImageChops.multiply(ImageChops.multiply(tooth, blotch), speck)
 
 
-@functools.lru_cache(maxsize=16)
-def _shadow(w, h):
-    """카드 밑 그림자 (먼 그림자 + 가까운 그림자). 크기별로 한 번만 만든다."""
+def _texture(w, h):
+    """카드 크기만큼의 결. 큰 한 장을 한 번 만들어 두고 잘라 쓴다.
+
+    예전에는 카드 높이마다 새로 만들었다. 제목 줄 수 · 단추 유무로 높이가 여러
+    가지라, 새 높이의 카드가 뜰 때마다 결을 짓느라 메시지 루프가 멈췄고 그 사이
+    다른 카드의 움직임이 끊겼다. 같은 장에서 잘라 오므로 결도 늘 같다.
+    """
+    sheet = _texture_sheet(max(w, CW), max(h, s(SHEET_H)))
+    return sheet.crop((0, 0, w, h))
+
+
+def _shadow_reach():
+    """그림자가 카드 위 · 아래 끝의 영향을 받는 높이 (실제 픽셀).
+
+    모서리 반경 + 내려앉는 거리 + 흐림이 번지는 거리. 이보다 안쪽의 줄은 카드
+    높이와 상관없이 모두 같다.
+    """
+    return R + s(5) + int(math.ceil(6 * SCALE * 3)) + 2
+
+
+@functools.lru_cache(maxsize=4)
+def _shadow_sheet(w, h):
+    """카드 밑 그림자 (먼 그림자 + 가까운 그림자) 를 실제로 흐려서 만든다."""
     from PIL import Image, ImageFilter
     W, H = w + PAD * 2, h + PAD * 2
     out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -278,8 +303,35 @@ def _shadow(w, h):
     return out
 
 
+@functools.lru_cache(maxsize=16)
+def _shadow(w, h):
+    """카드 크기의 그림자. 한 번 흐려 둔 본을 위 · 아래로 나눠 붙이고 가운데를 늘린다.
+
+    흐림은 카드를 그리는 일 가운데 가장 무겁다 (새 높이마다 50ms 가까이). 예전에는
+    높이가 다른 카드가 뜰 때마다 새로 흐렸다. 그런데 카드 끝에서 충분히 떨어진
+    줄은 높이와 상관없이 똑같으므로, 한 번 흐린 본의 가운데 줄을 늘려 쓰면 된다.
+    """
+    from PIL import Image
+    t = 2 * _shadow_reach()
+    if h <= t:
+        return _shadow_sheet(w, h)
+    sheet = _shadow_sheet(w, t)
+    W, H = w + PAD * 2, h + PAD * 2
+    cut = PAD + t // 2                                # 본의 위 절반 = 아래 절반 높이
+    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    out.paste(sheet.crop((0, 0, W, cut)), (0, 0))
+    out.paste(sheet.crop((0, cut, W, cut * 2)), (0, H - cut))
+    out.paste(sheet.crop((0, cut - 1, W, cut)).resize((W, H - cut * 2), Image.NEAREST), (0, cut))
+    return out
+
+
+@functools.lru_cache(maxsize=16)
 def _card_face(w, h):
-    """점토 면 + 결 + 경계선. 글자 없이."""
+    """점토 면 + 결 + 경계선. 글자 없이.
+
+    마우스를 올릴 때마다 카드를 새로 그리는데, 그중 대부분(6ms)이 이 바탕이었다.
+    바탕은 크기가 같으면 늘 같으므로 기억해 두고, 받은 쪽이 .copy() 해서 그 위에 그린다.
+    """
     from PIL import Image, ImageChops, ImageDraw
     face = Image.new("RGB", (w, h), _rgb(CARD))
     grad = Image.linear_gradient("L").resize((w, h))                       # 위 밝게 → 아래 조금 어둡게
@@ -300,6 +352,7 @@ def _card_face(w, h):
     return card
 
 
+@functools.lru_cache(maxsize=8)
 def _x_mark(size, color, thick):
     from PIL import Image, ImageDraw
     n = size * 4
@@ -319,8 +372,9 @@ def _wash(name):
     return "#%02x%02x%02x" % (r, g, b), a
 
 
-RULE2 = (56, 46, 32, 44)      # 창 화면의 --rule2 와 같은 농도
-RULE1 = (56, 46, 32, 24)      # --rule
+# 창 화면의 --rule2 · --rule 과 같은 선. 값은 tokens.py 에서만 온다.
+RULE2 = tokens.rgba_tuple("rule2")
+RULE1 = tokens.rgba_tuple("rule")
 
 
 def _hline(card, x, y, w, color=RULE2):
@@ -447,7 +501,7 @@ def _draw_normal(item, hover):
         acts.append(("open", "열기", "ghost"))
 
     h = N_TOP + block + N_BOT + (N_ACT_H if acts else 0)
-    card = _card_face(CW, h)
+    card = _card_face(CW, h).copy()
     d = ImageDraw.Draw(card)
 
     # 종류 띠: 글자 덩어리와 같은 높이로 (예전에는 제목 줄에만 걸려 짧았다)
@@ -508,23 +562,17 @@ def _draw_list(item, hover):
     head = s(15 + 14 + 3 + 20 + 9)
     h = head + len(rows) * LIST_ROW + (s(22) if more else s(4)) + s(13)
 
-    card = _card_face(CW, h)
+    card = _card_face(CW, h).copy()
     d = ImageDraw.Draw(card)
     d.text((L, s(15)), item.get("label", ""), font=f_lab, fill=_rgb(FAINT) + (255,))
     d.text((L, s(31)), item["title"], font=f_ttl, fill=_rgb(INK2) + (255,))
     d.text((CW - TR, s(35)), "%d건" % (len(item["rows"]) + more), font=f_n, anchor="ra",
            fill=_rgb(MID_INK) + (255,))
     y = head
-    # 앱 화면의 --rule2 · --rule 과 같은 옅은 선 (배율이 커져도 1px 두께 그대로)
-    line2 = (56, 46, 32, 44)
-    line1 = (56, 46, 32, 24)
-    from PIL import Image
-    def hline(yy, color):
-        card.alpha_composite(Image.new("RGBA", (CW - L * 2, 1), color), (L, int(yy)))
-    hline(y, line2)
+    _hline(card, L, y, CW - L * 2, RULE2)
     for i, (key, name, over) in enumerate(rows):
         if i:
-            hline(y, line1)
+            _hline(card, L, y, CW - L * 2, RULE1)
         cy = y + LIST_ROW // 2
         d.text((L, cy), key or "—", font=f_key, anchor="lm", fill=_rgb(MID_INK) + (255,))
         pill_w = int(f_pill.getlength("지남")) + s(14) if over else 0
@@ -543,9 +591,9 @@ def _draw_list(item, hover):
 
 def _draw_fold(item, hover):
     """3장을 넘으면 더 쌓지 않고 한 줄로 접는다. 누르면 앱 창이 열린다."""
-    from PIL import Image, ImageDraw
+    from PIL import ImageDraw
     h = FOLD_H
-    card = _card_face(CW, h)
+    card = _card_face(CW, h).copy()
     d = ImageDraw.Draw(card)
     f, f_c = _font(500, s(11.5)), _font(500, s(10.5))
     cx = s(18)
@@ -641,7 +689,6 @@ SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER = 0x0010, 0x0001, 0x0004
 HWND_TOPMOST = -1
 IDC_ARROW, IDC_HAND = 32512, 32649
 TME_LEAVE = 0x00000002
-IDLE_MS, ANIM_MS = 400, 30      # 놀 때는 느리게, 움직일 때만 빠르게
 
 LRESULT = ctypes.c_ssize_t
 WPARAM = ctypes.c_size_t
@@ -1036,17 +1083,7 @@ except AttributeError:
     pass
 
 
-class _MONITORINFO(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
-                ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
-
-
-def _monitor_info(mon):
-    mi = _MONITORINFO()
-    mi.cbSize = ctypes.sizeof(_MONITORINFO)
-    if mon and U32.GetMonitorInfoW(ctypes.c_void_p(mon), ctypes.byref(mi)):
-        return mi
-    return None
+_monitor_info = win32.monitor_info
 
 
 def _active_monitor():
@@ -1316,6 +1353,34 @@ def _pump():
         paths.log("toast: " + traceback.format_exc())
 
 
+def prewarm():
+    """처음 뜨는 카드가 멈칫하지 않게 무거운 준비를 미리 해 둔다.
+
+    글꼴을 처음 여는 순간(FreeType 을 깨우는 일)에만 0.2초가 넘게 걸린다. 결 · 그림자
+    본을 짓는 데도 수십 ms 가 든다. 예전에는 이것이 첫 알림 때 메시지 루프 안에서
+    일어나, 그 사이 이미 떠 있던 카드의 움직임이 멈췄다.
+    세 가지 카드를 한 번씩 그려 버리면 쓰는 글꼴 · 결 · 그림자 본이 모두 준비된다.
+    """
+    started = time.perf_counter()
+    samples = (
+        {"title": "알림", "when": "10:00", "rel": "10분 뒤", "meta": "반복",
+         "on_done": _noop, "on_snooze": _noop, "can_open": True},
+        {"title": "알림", "when": "10:00", "rel": "지남", "late": True, "on_done": _noop},
+        {"title": "알림", "sub": "안내"},
+        {"title": "알림", "label": "브리핑", "rows": [("10:00", "알림", True)], "more": 1},
+        {"fold": True, "count": 1},
+    )
+    for item in samples:
+        _card_rgba(item)
+    for ch in "0123456789":                      # 시각의 첫 글자 (왼쪽 빈 자리를 재 둔다)
+        _lsb(300, N_TIME_PX, ch)
+    paths.log("toast.prewarm: %.0f ms" % ((time.perf_counter() - started) * 1000))
+
+
+def _noop():
+    pass
+
+
 def run_forever(on_ready=None):
     """메인 스레드에서 호출. Win32 메시지 루프를 돈다."""
     global _ctrl
@@ -1327,6 +1392,9 @@ def run_forever(on_ready=None):
     if not _ctrl:
         raise OSError("타이머용 창 생성 실패 (%d)" % ctypes.get_last_error())
     _set_rate(IDLE_MS)
+    # 준비는 따로 돈다. 메시지 루프(트레이 · 창 열기)를 그만큼 늦추지 않는다.
+    # 준비가 끝나기 전에 알림이 오더라도 그림은 같다 - 기억해 둔 것을 나눠 쓸 뿐이다.
+    threading.Thread(target=lambda: _safe(prewarm, "prewarm"), daemon=True).start()
     if on_ready:
         _safe(on_ready, "on_ready")
     paths.log("toast.run_forever: 메시지 루프 진입")

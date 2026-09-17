@@ -5,13 +5,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import webview
 
+import ipc
 import paths
+import win32
 
 BASE = paths.APP_DIR
-HOST, SERVICE_PORT = "127.0.0.1", 8777
+HOST, SERVICE_PORT = ipc.HOST, ipc.SERVICE_PORT
 SERVICE_URL = f"http://{HOST}:{SERVICE_PORT}/"
-UI_PORT = 8779          # 창 단일 실행 + 포커스 요청용
-CRLF = bytes([13, 10])
 
 
 class Api:
@@ -54,15 +54,8 @@ class Api:
 # (최소화된 창에 열기를 눌러도 그대로 최소화 상태로 남던 원인)
 _U = ctypes.windll.user32
 SW_HIDE, SW_MAXIMIZE, SW_SHOW, SW_RESTORE = 0, 3, 5, 9
-MONITOR_DEFAULTTONEAREST = 2
+MONITOR_DEFAULTTONEAREST = win32.MONITOR_DEFAULTTONEAREST
 SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE = 0x0001, 0x0004, 0x0010
-
-
-class MONITORINFO(ctypes.Structure):
-    _fields_ = [("cbSize", ctypes.wintypes.DWORD),
-                ("rcMonitor", ctypes.wintypes.RECT),
-                ("rcWork", ctypes.wintypes.RECT),
-                ("dwFlags", ctypes.wintypes.DWORD)]
 
 
 # 핸들을 돌려주는 함수는 restype 을 밝혀 둬야 한다. 기본값(c_int)이면
@@ -101,9 +94,8 @@ def place_once():
             mon = _U.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
         if not mon:
             mon = _U.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST)
-        mi = MONITORINFO()
-        mi.cbSize = ctypes.sizeof(MONITORINFO)
-        if not _U.GetMonitorInfoW(ctypes.c_void_p(mon), ctypes.byref(mi)):
+        mi = win32.monitor_info(mon)
+        if mi is None:
             return
         r = ctypes.wintypes.RECT()
         if not _U.GetWindowRect(h, ctypes.byref(r)):
@@ -161,16 +153,25 @@ def hwnd():
 
 def _tell_hidden():
     """서비스에 "창을 숨겼다" 고 알린다 (안내 카드를 한 번 띄우게)."""
-    body = b"{}"
-    head = ("POST /api/hidden HTTP/1.0\r\nHost: %s:%d\r\nContent-Type: application/json\r\n"
-            "X-TM-Token: %s\r\nContent-Length: %d\r\n\r\n"
-            % (HOST, SERVICE_PORT, paths.ipc_token(), len(body)))
-    try:
-        with socket.create_connection((HOST, SERVICE_PORT), 1.0) as sock:
-            sock.sendall(head.encode("ascii") + body)
-            sock.recv(32)
-    except OSError:
-        pass
+    ipc.post(ipc.SERVICE_PORT, "/api/hidden", body={}, timeout=1.0)
+
+
+def _tell_page_shown():
+    """화면(웹 페이지)에 "다시 보인다" 고 알린다. 숨어 있는 동안 멈춰 둔 새로 읽기를 곧바로 한다.
+
+    Win32 로 직접 숨기고 보이므로 페이지의 visibilitychange 가 오지 않을 수 있다.
+    evaluate_js 는 창 스레드의 답을 기다리므로 부른 쪽(HTTP 스레드)을 묶지 않게 따로 돈다.
+    """
+    w = _WINDOW[0]
+    if w is None:
+        return
+
+    def run():
+        try:
+            w.evaluate_js("window.__lsShown && window.__lsShown()")
+        except Exception:
+            pass                     # 페이지를 다시 읽는 중이면 그쪽이 어차피 새로 읽는다
+    threading.Thread(target=run, daemon=True).start()
 
 
 def hide():
@@ -195,6 +196,7 @@ def focus():
     _U.SetForegroundWindow(h)
     _U.BringWindowToTop(h)
     _nudge(h)
+    _tell_page_shown()
 
 
 def _nudge(h):
@@ -291,7 +293,7 @@ class FocusHandler(BaseHTTPRequestHandler):
         host = (self.headers.get("Host") or "").lower()
         if (host not in ("127.0.0.1:%d" % port, "localhost:%d" % port)
                 or self.headers.get("Origin") is not None
-                or not paths.token_ok(self.headers.get("X-TM-Token"))):
+                or not paths.token_ok(self.headers.get(ipc.TOKEN_HEADER))):
             return self._reply(403, "forbidden")
         path = self.path.split("?")[0]
         if path == "/focus":
@@ -325,14 +327,7 @@ def watch_service():
 
 def already_open():
     """창이 이미 떠 있으면 그 창을 앞으로 불러오고 True."""
-    try:
-        with socket.create_connection(("127.0.0.1", UI_PORT), 0.4) as s:
-            s.sendall(("POST /focus HTTP/1.0\r\nHost: 127.0.0.1:%d\r\nX-TM-Token: %s\r\n"
-                       "Content-Length: 0\r\n\r\n" % (UI_PORT, paths.ipc_token())).encode("ascii"))
-            s.recv(16)
-        return True
-    except OSError:
-        return False
+    return ipc.post(ipc.UI_PORT, "/focus", timeout=0.4) is not None
 
 
 def main():
@@ -344,7 +339,7 @@ def main():
         pass
 
     try:
-        guard = ThreadingHTTPServer(("127.0.0.1", UI_PORT), FocusHandler)
+        guard = ThreadingHTTPServer((ipc.HOST, ipc.UI_PORT), FocusHandler)
         threading.Thread(target=guard.serve_forever, daemon=True).start()
         threading.Thread(target=watch_service, daemon=True).start()
     except OSError:

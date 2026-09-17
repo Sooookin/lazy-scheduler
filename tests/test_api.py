@@ -9,17 +9,9 @@ import pytest
 
 import app
 import autostart
+import ipc
 import paths
 import store
-
-
-@pytest.fixture
-def server():
-    srv = app.Server(("127.0.0.1", 0), app.Handler)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield srv.server_address[1]
-    srv.shutdown()
-    srv.server_close()
 
 
 def call(port, method, path, body=None, headers=None, token=True, host=None, ctype="application/json"):
@@ -182,7 +174,7 @@ def ui_server(monkeypatch):
     monkeypatch.setattr(ui, "_destroy_all", lambda: destroyed.append(1))
     srv = app.Server(("127.0.0.1", 0), ui.FocusHandler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    monkeypatch.setattr(app, "UI_PORT", srv.server_address[1])
+    monkeypatch.setattr(ipc, "UI_PORT", srv.server_address[1])
     yield srv.server_address[1], focused, destroyed
     srv.shutdown()
     srv.server_close()

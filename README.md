@@ -19,15 +19,21 @@ dates before you commit.
 
 ```
 main.py          entry point (--ui opens the window, --selftest checks a build)
-app.py           HTTP service, scheduler, notification decisions
-ui.py            the native WebView2 window process
-store.py         reading/writing data.json, backups, the overview payload
+
+  core — no Windows here; a phone app reuses these rules and this data format
+store.py         reading/writing data.json, backups, revision, the client payloads
 recur.py         recurrence rules, business days, Korean holidays
+tokens.py        colours, weights, metrics — the one place they are defined
+
+  desktop — Windows only
+app.py           HTTP API (see "API contract"), scheduler, notification decisions
+ui.py            the native WebView2 window process
 toast.py         the notification cards (drawn with Pillow)
 tray.py          tray icon, badge, menu
-paths.py         where every file lives (resources vs. user data)
 autostart.py     "run at login" and the desktop shortcut
-tokens.py        colours, weights, metrics — the one place they are defined
+win32.py         shared Win32 structures (monitors)
+ipc.py           how the service and the window process reach each other
+paths.py         where every file lives (resources vs. user data)
 
 assets/          things the app ships with: app.ico, fonts/Paperlogy-*.ttf
 web/             the window itself: index.html, app.js, style.css, fonts/*.woff2
@@ -37,6 +43,20 @@ docs/            screenshots for this file
 ```
 
 Your own schedule never lives here — it is in `%APPDATA%\LazyScheduler\`.
+
+## API contract
+
+The window talks to the service only through the HTTP API, and any other client
+(a phone app) should do the same.
+
+- `GET /api/ping` → `{api, schema}`. `api` goes up only on a breaking change
+  (a field removed or its meaning changed); adding fields is not breaking.
+- `GET /api/overview` → today's view. Items in `tasks` carry only
+  `store.PUBLIC_TASK_FIELDS`; storage-only fields such as `done_dates` stay on disk.
+- `GET /api/occurrences?from=YYYY-MM-DD&to=YYYY-MM-DD[&kind=routine,...]` →
+  `{rev, items: [{id, date, time, done}]}`. Join with overview items by `id`.
+- `rev` is a fingerprint of `data.json`. It changes whenever the data changes and
+  only then, so a client can keep what it fetched until `rev` moves.
 
 ## Development
 

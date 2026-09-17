@@ -16,6 +16,7 @@
   · 파일이 깨졌으면 옆으로 치워 두고 백업에서 되살린다. 빈 데이터로 덮어쓰지 않는다.
   · 읽기-고치기-쓰기는 transaction() 안에서 한 번에 한다.
 """
+import hashlib
 import json
 import os
 import re
@@ -102,35 +103,59 @@ def _replace(tmp, path):
     os.replace(tmp, path)          # 여기서도 안 되면 진짜 문제다. 그대로 올린다.
 
 
+def _digest(raw):
+    """파일 내용의 지문 (revision). 내용이 같으면 같고, 한 글자라도 바뀌면 다르다.
+
+    화면은 이 값이 바뀌었을 때만 다시 물어볼 것(달력의 반복 회차)을 다시 묻는다.
+    나중에 다른 기기와 맞출 때도 "내가 본 것 이후로 바뀌었나" 를 이것으로 가린다.
+    시각(mtime)을 쓰지 않는 이유: 백업에서 되살리거나 파일을 옮기면 내용은 같은데
+    시각만 바뀌고, 반대로 같은 초 안의 두 번 저장은 시각이 같을 수 있다.
+    """
+    return hashlib.sha1(raw).hexdigest()[:16]
+
+
+EMPTY_REV = "0"                 # 파일이 아직 없을 때
+
+
 def _write_json(path, obj):
-    """임시 파일에 쓰고 디스크에 내린 뒤 한 번에 바꿔 끼운다.
+    """임시 파일에 쓰고 디스크에 내린 뒤 한 번에 바꿔 끼운다. 쓴 내용의 지문을 돌려준다.
 
     fsync 없이 바꿔 끼우면 전원이 나갔을 때 내용이 빈 파일이 남을 수 있다.
     """
     paths.ensure_data_dir()
     tmp = path + ".tmp"
+    raw = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
     try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(obj, f, ensure_ascii=False, indent=2)
+        with open(tmp, "wb") as f:
+            f.write(raw)
             f.flush()
             os.fsync(f.fileno())
         _replace(tmp, path)
     except OSError as e:
         raise StoreError("저장하지 못했습니다 (%s)" % e) from e
+    return _digest(raw)
+
+
+def _load_raw(path):
+    """(내용, 이유, 지문). 파일이 없으면 (None, None, None) · 깨졌으면 (None, 이유, None)."""
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except FileNotFoundError:
+        return None, None, None
+    except OSError as e:
+        # 잠겨 있거나(백신 검사 등) 권한이 없다. 비었다고 보면 다음 저장이 일정을 지운다.
+        raise StoreError("일정 파일을 읽을 수 없습니다 (%s)" % e) from e
+    try:
+        return json.loads(raw.decode("utf-8")), None, _digest(raw)
+    except (ValueError, UnicodeDecodeError) as e:
+        return None, "%s: %s" % (type(e).__name__, e), None
 
 
 def _load_json(path):
     """(내용, None) · 파일이 없으면 (None, None) · 깨졌으면 (None, 이유)."""
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f), None
-    except FileNotFoundError:
-        return None, None
-    except (ValueError, UnicodeDecodeError) as e:
-        return None, "%s: %s" % (type(e).__name__, e)
-    except OSError as e:
-        # 잠겨 있거나(백신 검사 등) 권한이 없다. 비었다고 보면 다음 저장이 일정을 지운다.
-        raise StoreError("일정 파일을 읽을 수 없습니다 (%s)" % e) from e
+    obj, bad, _ = _load_raw(path)
+    return obj, bad
 
 
 def _looks_valid(d):
@@ -198,16 +223,15 @@ def _recover(reason):
 
 
 def _read():
-    """일정을 읽는다. LOCK 을 잡은 채로 불러야 한다."""
-    d, bad = _load_json(DATA)
+    """일정과 그 지문(rev)을 읽는다. LOCK 을 잡은 채로 불러야 한다."""
+    d, bad, rev = _load_raw(DATA)
     if d is not None and not _looks_valid(d):
         bad = "형식이 올바르지 않음"
     if bad:
         d = migrate(_recover(bad))
-        _write_json(DATA, d)                 # 되살린 내용을 바로 제자리에
-        return d
+        return d, _write_json(DATA, d)       # 되살린 내용을 바로 제자리에
     if d is None:
-        return _blank()
+        return _blank(), EMPTY_REV
     ver = d.get("version") or 1
     if type(ver) is not int or ver > SCHEMA_VERSION:
         # 더 새로운 앱(또는 다른 기기)이 만든 형식이다. 모르는 형식을 고쳐 쓰면 망가뜨린다.
@@ -215,9 +239,8 @@ def _read():
     if ver < SCHEMA_VERSION:
         d = migrate(d)
         _backup_before_write()
-        _write_json(DATA, d)
-        return d
-    return migrate(d)
+        return d, _write_json(DATA, d)
+    return migrate(d), rev
 
 
 def migrate(d):
@@ -308,18 +331,23 @@ def transaction():
     블록 안에서 예외가 나면 쓰지 않는다.
     """
     with LOCK:
-        d = _read()
+        d, _ = _read()
         yield d
         _backup_before_write()
         _write_json(DATA, d)
         recur.set_holidays(d.get("holidays"))
 
 
-def load():
+def snapshot():
+    """(일정, rev). 둘이 같은 순간의 것이다 - 따로 읽으면 그 사이 저장이 끼어든다."""
     with LOCK:
-        d = _read()
+        d, rev = _read()
     recur.set_holidays(d.get("holidays"))
-    return d
+    return d, rev
+
+
+def load():
+    return snapshot()[0]
 
 
 def tasks():
@@ -560,18 +588,24 @@ def _dt(day, hhmm):
 
 
 def instances(back=14, ahead=45, data=None, today=None):
-    """화면/알림이 공통으로 쓰는 평면화된 일정 목록.
+    """화면/알림이 공통으로 쓰는 평면화된 일정 목록 (오늘 기준 앞뒤 며칠)."""
+    today = today or date.today()
+    return between(today - timedelta(days=back), today + timedelta(days=ahead), data=data)
+
+
+def between(lo, hi, data=None, kinds=None):
+    """[lo, hi] 기간의 평면화된 일정 목록. kinds 를 주면 그 종류만 펼친다.
 
     항목 하나가 잘못돼 있어도(손으로 고친 파일, 예전 형식) 그 항목만 빼고 계속한다.
     예전에는 한 항목 때문에 화면이 통째로 비고 알림도 전부 멈췄다.
     """
     d = data if data is not None else load()
-    today = today or date.today()
-    lo, hi = today - timedelta(days=back), today + timedelta(days=ahead)
     out = []
     for t in d["tasks"]:
         if t.get("archived") or t.get("deleted"):
             continue
+        if kinds is not None and t.get("kind", "deadline") not in kinds:
+            continue                         # 펼치기 전에 거른다 (반복은 펼치는 값이 크다)
         try:
             out.extend(_expand(t, lo, hi))
         except Exception as e:
@@ -581,6 +615,32 @@ def instances(back=14, ahead=45, data=None, today=None):
                 paths.log("항목을 계산하지 못해 건너뜀 (%s): %s: %s"
                           % (t.get("id"), type(e).__name__, e))
     return out
+
+
+def occurrences(lo, hi, kinds=None):
+    """기간 안의 회차를 가볍게: {rev, from, to, items: [{id, date, time, done}]}.
+
+    항목 내용(제목 · 메모 · 규칙)은 싣지 않는다. 받는 쪽은 overview 의 항목과
+    id 로 잇는다. 반복 20개를 한 달 펼치면 회차가 350개쯤 되는데, 예전에는
+    회차마다 제목 · 메모 · 규칙을 통째로 실어 140KB 가 넘었다.
+    rev 는 이 목록을 만든 일정 파일의 지문이다. 같은 rev 면 다시 물을 필요가 없다.
+    """
+    d, rev = snapshot()
+    items = [{"id": i["id"], "date": i["date"], "time": i["time"], "done": i["done"]}
+             for i in between(lo, hi, data=d, kinds=kinds) if i["date"]]
+    return {"rev": rev, "from": lo.isoformat(), "to": hi.isoformat(), "items": items}
+
+
+# 화면에 내보내는 항목 필드 - 받는 쪽(창 화면 · 나중의 휴대폰 화면)과의 약속이다.
+# 저장 형식과 일부러 떼어 둔다. done_dates · skip_dates 는 날마다 늘어나는데
+# 화면은 읽지 않는다 (회차의 완료 여부는 overview · occurrences 가 이미 계산해 준다).
+# 동기화는 이 목록이 아니라 저장 형식 전체를 주고받는다.
+PUBLIC_TASK_FIELDS = ("id", "title", "note", "kind", "tag", "due_date", "due_time",
+                      "notify_min", "muted", "pinned", "done", "rule")
+
+
+def public_task(t):
+    return {k: t[k] for k in PUBLIC_TASK_FIELDS if k in t}
 
 
 def _rule_of(t):
@@ -606,17 +666,23 @@ def _expand(t, lo, hi):
         born = (t.get("created") or "")[:10]
         start = max(lo, date.fromisoformat(born)) if born else lo
         skips = set(t.get("skip_dates") or [])
-        return [_inst(t, day, pre) for day in recur.occurrences(t.get("rule") or {}, start, hi)
+        # 완료한 날짜 목록은 쓰는 동안 계속 늘어난다 (매 영업일 반복이면 한 해에 250개).
+        # 회차마다 목록을 처음부터 훑지 않게 한 번만 집합으로 만든다.
+        done = set(t.get("done_dates") or [])
+        return [_inst(t, day, pre, done) for day in recur.occurrences(t.get("rule") or {}, start, hi)
                 if day.isoformat() not in skips]
     if not t.get("due_date"):
         return [_inst(t, None, pre)]
     return [_inst(t, date.fromisoformat(t["due_date"]), pre)]
 
 
-def _inst(t, day, pre=None):
+def _inst(t, day, pre=None, done_dates=None):
     routine = t.get("kind") == "routine"
     iso = day.isoformat() if day else None          # 한 번만 짓는다
-    done = (iso in (t.get("done_dates") or [])) if (routine and day) else bool(t.get("done"))
+    if routine and day:
+        done = iso in (done_dates if done_dates is not None else (t.get("done_dates") or []))
+    else:
+        done = bool(t.get("done"))
     due_dt = _dt(day, t.get("due_time")) if day else None
     rule_n, rule_text = pre if pre is not None else _rule_of(t)
     return {
@@ -641,8 +707,15 @@ def _inst(t, day, pre=None):
 
 
 def overview(data=None, now=None):
-    """한 화면 개요. 마감 있는 일을 앞세우고, 반복 업무는 따로 묶는다."""
-    d = data if data is not None else load()
+    """한 화면 개요. 마감 있는 일을 앞세우고, 반복 업무는 따로 묶는다.
+
+    data 를 주지 않으면 파일을 읽고, 그 내용의 지문(rev)도 함께 싣는다.
+    """
+    rev = None
+    if data is None:
+        d, rev = snapshot()
+    else:
+        d = data
     now = now or datetime.now()
     today = now.date()
     ti = today.isoformat()
@@ -717,7 +790,8 @@ def overview(data=None, now=None):
             "done": len(donetoday),
             "total": len(todays),
         },
-        "tasks": live,
+        "tasks": [public_task(t) for t in live],
         "settings": settings(d),
         "notice": NOTICE,
+        "rev": rev,
     }

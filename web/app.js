@@ -120,7 +120,10 @@ function wireWindow(){
     if(has()) window.pywebview.api.toggle_max();
     setTimeout(syncMax, 80);            /* 창이 실제로 움직인 뒤에 본다 */
   };
-  $('#w-close').onclick = () => has() ? window.pywebview.api.close() : window.close();
+  $('#w-close').onclick = () => {
+    HIDDEN = true;                      /* 숨어 있는 동안 새로 읽기를 멈춘다 (아래 "새로 읽기") */
+    has() ? window.pywebview.api.close() : window.close();
+  };
   syncMax();
 }
 wireWindow();
@@ -278,11 +281,6 @@ function render(o){
   $('#c-up').classList.toggle('hot', o.upcoming.length > 0);
   $('#c-rt').textContent = o.routines.length;
   $('#c-float').textContent = o.floating.length;
-  $('#s-lead').value = o.settings.notify_min != null ? o.settings.notify_min : 30;
-  $('#s-brief').value = o.settings.brief_time || '08:30';
-  $('#s-biz').checked = bizOn();
-  $('#s-auto').checked = !!o.settings.autostart;
-  $('#s-hold').checked = o.settings.hold_when_busy !== false;
   if($('#m-manage').classList.contains('on')) drawManage();
   if(view === 'cal') drawCal();
   queueFit();
@@ -403,7 +401,9 @@ function toggleRt(){
 }
 $('#rt-head').onclick = toggleRt;
 
+let lastLoad = 0;                   /* 마지막으로 새로 읽은 때 (ms) */
 const load = () => api('/api/overview').then(o => {
+  lastLoad = Date.now();
   render(o);
   if(!load._first){                 /* 주소에 #cal 이 있으면 달력으로 시작 */
     load._first = true;
@@ -784,9 +784,31 @@ const CAL_MAX = 3;                  /* 한 칸에 보여줄 최대 개수, 나�
 /* 달력에 얹을 반복 발생.
    규칙을 펼치는 일은 서버(recur.py)가 한다. 화면에서 또 구현하면 두 곳이
    언젠가 어긋나고, 어긋난 쪽이 달력이면 없는 날에 일이 있다고 말하게 된다.
-   보고 있는 달을 덮을 만큼만 물어본다. */
+   보고 있는 달을 덮을 만큼만 물어본다.
+
+   받는 것은 회차(id · 날짜 · 시각 · 완료)뿐이다. 제목 · 규칙은 overview 의
+   반복 업무 줄에 이미 있으므로 id 로 잇는다.
+
+   다시 물을지는 "보고 있는 달 + 일정 파일의 지문(rev)" 으로 정한다. 예전에는
+   달만 봐서, 달력에서 반복 회차를 완료해도 달을 넘기기 전까지 완료 전 모습이
+   남았고, 한 번 더 누르면 되돌리는 대신 또 완료를 보냈다. */
 let RT = {key:null, items:[], busy:null};
 const routinesOn = () => !!STATE && STATE.settings.show_routines !== false;
+let DAY_KEY = null;                 /* 열려 있는 하루 목록의 날짜 */
+
+/* 회차에 반복 항목의 내용을 입힌다. overview 에 아직 없는 항목(방금 추가됨)은
+   다음 새로 읽기에서 들어오므로 여기서는 건너뛴다. */
+function routineItems(){
+  const defs = {};
+  (STATE.routines || []).forEach(r => defs[r.id] = r);
+  const out = [];
+  RT.items.forEach(o => {
+    const def = defs[o.id];
+    /* next_date 도 이 회차로: 수정 창의 "이번 회차 건너뛰기" 가 누른 날짜를 건너뛴다 */
+    if(def) out.push(Object.assign({}, def, {date:o.date, time:o.time, done:o.done, next_date:o.date}));
+  });
+  return out;
+}
 
 const byWhen = (a, b) =>
   (a.done ? 1 : 0) - (b.done ? 1 : 0) ||
@@ -801,22 +823,23 @@ const asRoutine = i => Object.assign({}, i, {due_date:i.date, due_time:i.time, _
 function dayItems(key){
   const out = deadlines().filter(t => cellDate(t.due_date) === key);
   if(routinesOn())
-    RT.items.forEach(i => { if(cellDate(i.date) === key) out.push(asRoutine(i)); });
+    routineItems().forEach(i => { if(cellDate(i.date) === key) out.push(asRoutine(i)); });
   return out.sort(byWhen);
 }
 
 function ensureRoutines(y, m){
   if(!routinesOn()) return;
-  const key = y + '-' + m;
+  const key = y + '-' + m + '@' + STATE.rev;
   if(RT.key === key || RT.busy === key) return;
-  const DAY = 864e5, t0 = dObj(STATE.today);
-  const back = Math.max(0, Math.ceil((t0 - new Date(y, m, 1)) / DAY) + 7);
-  const ahead = Math.max(0, Math.ceil((new Date(y, m + 1, 0) - t0) / DAY) + 7);
+  /* 주말 마감을 옆 달 칸으로 옮기는 경우까지 덮게 앞뒤로 한 주씩 더 */
+  const from = iso(new Date(y, m, 1 - 7)), to = iso(new Date(y, m + 1, 7));
   RT.busy = key;
-  api('/api/all?back=' + back + '&ahead=' + ahead).then(d => {
-    RT = {key:key, items:(d.items || []).filter(i => i.kind === 'routine' && i.date), busy:null};
+  api('/api/occurrences?kind=routine&from=' + from + '&to=' + to).then(d => {
+    if(RT.busy !== key) return;               /* 그 사이 더 새 것을 물었다 */
+    RT = {key:key, items:d.items || [], busy:null};
     drawCal();
-  }).catch(() => { RT.busy = null; });
+    if(DAY_KEY && $('#m-day').classList.contains('on')) dayModal(DAY_KEY, dayItems(DAY_KEY));
+  }).catch(() => { if(RT.busy === key) RT.busy = null; });
 }
 let calCur = null;                  /* 보고 있는 달 {y, m} - m 은 0~11 */
 let view = 'home';
@@ -875,6 +898,7 @@ function chipEl(t){
 }
 
 function dayModal(key, list){
+  DAY_KEY = key;
   /* 주말 마감을 앞 영업일 칸에 얹었으므로, 목록에서는 실제 날짜를 밝혀 준다 */
   const wknd = weekendOn() ? 0 : list.filter(t => isWeekend(t.due_date)).length;
   $('#day-title').innerHTML = fmtDay(key) + ' <i class="opt">' + list.length + '건' +
@@ -899,7 +923,11 @@ function dayModal(key, list){
     el.title = t.done ? '눌러서 완료 취소' : '눌러서 완료';
     el.onclick = () => {
       api('/api/task/' + encodeURIComponent(t.id) + '/done', {date: t.due_date, done: !t.done})
-        .then(() => api('/api/overview')).then(o => {
+        .then(() => {
+          /* 새 회차 목록이 오기 전에도 누른 결과가 곧바로 보이게 */
+          if(t._rt) RT.items.forEach(o => { if(o.id === t.id && o.date === t.date) o.done = !t.done; });
+          return api('/api/overview');
+        }).then(o => {
           render(o);
           dayModal(key, dayItems(key));    /* 반복도 그대로 남는다 */
         });
@@ -928,7 +956,7 @@ function drawCal(){
   });
   if(routinesOn()){
     const pm = y + '-' + String(m + 1).padStart(2, '0');
-    RT.items.forEach(i => {
+    routineItems().forEach(i => {
       if(i.date.slice(0, 7) !== pm) return;          /* 보고 있는 달만 */
       const k = cellDate(i.date);
       (byDate[k] = byDate[k] || []).push(asRoutine(i));
@@ -1099,7 +1127,17 @@ function drawManage(){
 }
 
 /* ══════════ 설정 ══════════ */
-$('#btn-settings').onclick = () => openM('#m-settings');
+/* 설정 창의 값은 창을 열 때 한 번만 채운다. 예전에는 45초마다 새로 읽을 때마다
+   채워서, 고치던 값이 저장을 누르기 전에 조용히 예전 값으로 되돌아갔다. */
+function fillSettings(){
+  const st = STATE.settings;
+  $('#s-lead').value = st.notify_min != null ? st.notify_min : 30;
+  $('#s-brief').value = st.brief_time || '08:30';
+  $('#s-biz').checked = bizOn();
+  $('#s-auto').checked = !!st.autostart;
+  $('#s-hold').checked = st.hold_when_busy !== false;
+}
+$('#btn-settings').onclick = () => { if(STATE) fillSettings(); openM('#m-settings'); };
 $('#s-save').onclick = () => api('/api/settings', {
     notify_min:+$('#s-lead').value, brief_time:$('#s-brief').value,
     business_only:$('#s-biz').checked, autostart:$('#s-auto').checked,
@@ -1121,5 +1159,20 @@ $('#s-quit').onclick = () => confirmBox('완전히 종료할까요?',
       '<div class="sk-row"><span class="sk c"></span><span class="sk l" style="width:' + w + '%"></span>' +
       '<span class="sk r"></span></div>').join('');
 });
+/* ══════════ 새로 읽기 ══════════
+   45초마다 다시 읽는다. 창이 숨어 있는 동안에는 묻지 않는다 - × 로 숨겨 둔 창이
+   하루 종일 서비스를 두드릴 까닭이 없다. 다시 보이는 순간 곧바로 한 번 읽는다.
+   창은 Win32 로 숨기고 보이므로 visibilitychange 가 오지 않을 수 있다. 그래서
+   창 프로세스가 보일 때 __lsShown 을 불러 주고(ui.py), × 를 누를 때 HIDDEN 을 세운다. */
+const POLL_MS = 45000;
+let HIDDEN = false;
+const onScreen = () => !HIDDEN && !document.hidden;
+function wake(){
+  HIDDEN = false;
+  if(Date.now() - lastLoad > 3000) load();
+}
+window.__lsShown = wake;
+document.addEventListener('visibilitychange', () => { if(!document.hidden) wake(); });
+addEventListener('focus', () => { if(HIDDEN || Date.now() - lastLoad > POLL_MS) wake(); });
 load();
-setInterval(load, 45000);
+setInterval(() => { if(onScreen()) load(); }, POLL_MS);

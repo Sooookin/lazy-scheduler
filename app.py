@@ -3,26 +3,29 @@
 import ctypes, json, os, socket, subprocess, sys, threading, time, traceback, webbrowser
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 import autostart
+import ipc
 import paths
 import recur, store, toast, tray
 
 BASE = paths.APP_DIR
 WEB = os.path.normpath(paths.WEB_DIR)
-HOST, PORT = "127.0.0.1", 8777
-UI_PORT = 8779                  # 창 프로세스(ui.py) 가 듣는 포트
+HOST, PORT = ipc.HOST, ipc.SERVICE_PORT
 LATE_GRACE = 90                 # 마감이 지난 뒤에도 이 분 안에는 알린다
-CRLF = bytes([13, 10])
 URL = f"http://{HOST}:{PORT}/"
 NO_WINDOW = 0x08000000
 MAX_BODY = 256 * 1024           # 요청 본문 한도. 일정 한 건은 수 KB 를 넘지 않는다
 DRAIN_MAX = 64 * 1024           # 거절한 뒤 흘려 버릴 최대 바이트
 DRAIN_WAIT = 0.25               # 그때 기다릴 시간(초)
-TOKEN_HEADER = "X-TM-Token"
+TOKEN_HEADER = ipc.TOKEN_HEADER
 TOKEN_SLOT = b"__TM_TOKEN__"    # index.html 에서 비밀값으로 바꿔 끼울 자리
 WEEK = "월화수목금토일"
+# HTTP API 의 약속 번호. 응답 형식을 깨는 변경(필드를 빼거나 뜻을 바꿈)을 하면 올린다.
+# 필드를 더하는 것은 깨는 변경이 아니다. 다른 화면(휴대폰 앱 등)은 /api/ping 으로 확인한다.
+API_VERSION = 1
+SPAN_MAX = 750                  # 한 번에 펼칠 수 있는 최대 기간(일)
 
 BROWSERS = [
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -84,27 +87,28 @@ def _dpi_aware():
             pass
 
 
-def _ipc(path, timeout):
-    """창 프로세스(ui.py)에 요청한다. 창이 받아들였으면 True."""
-    head = ("POST %s HTTP/1.0\r\nHost: %s:%d\r\n%s: %s\r\nContent-Length: 0\r\n\r\n"
-            % (path, HOST, UI_PORT, TOKEN_HEADER, paths.ipc_token()))
-    try:
-        with socket.create_connection((HOST, UI_PORT), timeout) as sock:
-            sock.sendall(head.encode("ascii"))
-            # 상태줄만 보면 된다. 본문까지 기다리면 안 된다 - recv 한 번은 헤더만 담고 끝나기도 한다.
-            status = sock.recv(64).split(CRLF, 1)[0].split(b" ")
-            return len(status) > 1 and status[1] == b"200"
-    except OSError:
-        return False
-
-
 def focus_ui():
     """이미 떠 있는 창을 앞으로 불러온다. 창이 없으면 False.
 
     창 프로세스를 새로 띄우는 데 몇 초가 걸리므로, 살아 있는 창이 있으면
     프로세스를 만들지 않고 그 창을 쓴다.
     """
-    return _ipc("/focus", 0.5)
+    return ipc.post(ipc.UI_PORT, "/focus", timeout=0.5) == 200
+
+
+def _spawn_ui(*flags):
+    """창 프로세스(main.py --ui)를 띄운다. 기다리지 않는다."""
+    if paths.FROZEN:
+        # --windowed 빌드는 표준 입출력 핸들이 없다. 명시하지 않으면
+        # Popen 이 부모 핸들을 복제하려다 실패할 수 있다.
+        subprocess.Popen([sys.executable, "--ui", *flags], cwd=BASE,
+                         creationflags=NO_WINDOW,
+                         stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen([paths.python_runner(), os.path.join(BASE, "main.py"), "--ui", *flags],
+                         cwd=BASE, creationflags=NO_WINDOW)
 
 
 def open_window():
@@ -115,21 +119,8 @@ def open_window():
     log(f"open_window: frozen={paths.FROZEN} exe={sys.executable!r}")
     try:
         __import__("webview")        # 네이티브 창을 쓸 수 있는지 확인만 한다
-        if paths.FROZEN:
-            # --windowed 빌드는 표준 입출력 핸들이 없다. 명시하지 않으면
-            # Popen 이 부모 핸들을 복제하려다 실패할 수 있다.
-            subprocess.Popen([sys.executable, "--ui"], cwd=BASE,
-                             creationflags=NO_WINDOW,
-                             stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-            log("open_window: 창 프로세스 생성 요청 완료")
-        else:
-            exe = sys.executable or "python.exe"
-            pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
-            runner = pyw if os.path.exists(pyw) else exe
-            subprocess.Popen([runner, os.path.join(BASE, "main.py"), "--ui"],
-                             cwd=BASE, creationflags=NO_WINDOW)
+        _spawn_ui()
+        log("open_window: 창 프로세스 생성 요청 완료")
         return
     except Exception:
         log("네이티브 창 실패 -> Edge 폴백: " + traceback.format_exc())
@@ -165,7 +156,7 @@ def _hint_hidden():
 
 def close_ui():
     """창 프로세스에 종료를 알린다. 창이 없으면 그냥 넘어간다."""
-    _ipc("/quit", 0.6)
+    ipc.post(ipc.UI_PORT, "/quit", timeout=0.6)
 
 
 def shutdown():
@@ -268,19 +259,44 @@ class Handler(BaseHTTPRequestHandler):
         if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
             raise ApiError(403, "인증되지 않은 요청입니다")
 
+    def _query(self, name):
+        q = parse_qs(urlparse(self.path).query).get(name)
+        return q[0] if q else None
+
     def _span(self, name, default):
         """/api/all 의 기간(일). 너무 긴 기간은 반복 규칙을 그만큼 펼쳐야 해서 막는다."""
-        from urllib.parse import parse_qs, urlparse
-        q = parse_qs(urlparse(self.path).query).get(name)
-        if not q:
+        raw = self._query(name)
+        if raw is None:
             return default
         try:
-            v = int(q[0])
+            v = int(raw)
         except (TypeError, ValueError):
             raise ApiError(400, "기간이 올바르지 않습니다") from None
-        if not (0 <= v <= 750):
-            raise ApiError(400, "기간은 0~750일 사이여야 합니다")
+        if not (0 <= v <= SPAN_MAX):
+            raise ApiError(400, "기간은 0~%d일 사이여야 합니다" % SPAN_MAX)
         return v
+
+    def _range(self):
+        """from · to (YYYY-MM-DD, 둘 다 포함). 너무 길거나 거꾸로면 400."""
+        try:
+            lo = date.fromisoformat(self._query("from") or "")
+            hi = date.fromisoformat(self._query("to") or "")
+        except ValueError:
+            raise ApiError(400, "from · to 는 YYYY-MM-DD 날짜여야 합니다") from None
+        if hi < lo:
+            raise ApiError(400, "to 가 from 보다 앞섭니다")
+        if (hi - lo).days > SPAN_MAX:
+            raise ApiError(400, "기간은 %d일을 넘을 수 없습니다" % SPAN_MAX)
+        return lo, hi
+
+    def _kinds(self):
+        raw = self._query("kind")
+        if not raw:
+            return None
+        kinds = tuple(k for k in raw.split(",") if k)
+        if not kinds or any(k not in store.KINDS for k in kinds):
+            raise ApiError(400, "kind 는 %s 중에서 고릅니다" % ", ".join(store.KINDS))
+        return kinds
 
     def _body(self):
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
@@ -341,7 +357,15 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/notify-plan":
             return self._send(200, notify_plan())
         if p == "/api/ping":
-            return self._send(200, {"ok": True})
+            # 화면이 자기가 아는 약속으로 이야기하고 있는지 확인할 때 쓴다
+            return self._send(200, {"ok": True, "api": API_VERSION, "schema": store.SCHEMA_VERSION})
+        if p == "/api/occurrences":
+            # 기간 안의 회차만: 누가 · 언제 · 했는지. 제목 · 규칙 같은 항목 내용은
+            # overview 에 한 번만 실려 있으니 여기서 회차마다 되풀이하지 않는다.
+            # 기간은 날짜로 받는다 - "오늘부터 며칠" 은 묻는 쪽과 서버의 오늘이
+            # 다르면(시간대 · 자정 무렵) 엉뚱한 달을 준다.
+            lo, hi = self._range()
+            return self._send(200, store.occurrences(lo, hi, kinds=self._kinds()))
         if p == "/api/all":
             # 달력은 보고 있는 달만 물어본다. 기간을 안 주면 예전처럼 -60 / +120.
             back = self._span("back", 60)
@@ -713,18 +737,7 @@ def prewarm_window():
     if focus_ui():
         return
     try:
-        if paths.FROZEN:
-            subprocess.Popen([sys.executable, "--ui", "--hidden"], cwd=BASE,
-                             creationflags=NO_WINDOW,
-                             stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-        else:
-            exe = sys.executable or "python.exe"
-            pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
-            runner = pyw if os.path.exists(pyw) else exe
-            subprocess.Popen([runner, os.path.join(BASE, "main.py"), "--ui", "--hidden"],
-                             cwd=BASE, creationflags=NO_WINDOW)
+        _spawn_ui("--hidden")
         log("prewarm_window: 숨긴 창 미리 생성")
     except Exception:
         log("prewarm_window 실패(무시): " + traceback.format_exc())
