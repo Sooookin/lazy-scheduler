@@ -20,6 +20,7 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.lazyscheduler.app.BuildConfig
 import com.lazyscheduler.app.core.Instance
 import com.lazyscheduler.app.core.Task
@@ -81,7 +82,9 @@ object Cloud {
             FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(idToken, null)).await()
             null
         } catch (e: GetCredentialCancellationException) {
-            "로그인을 취소했습니다"
+            // Google also reports a misconfigured app (SHA-1 not registered) as "cancelled".
+            Log.w(TAG, "credential cancelled", e)
+            "로그인이 취소되었습니다. 직접 취소하지 않았다면 Firebase 의 Android 앱 SHA-1 등록을 확인하세요."
         } catch (e: NoCredentialException) {
             "이 휴대폰에 Google 계정이 없습니다"
         } catch (e: GetCredentialException) {
@@ -161,6 +164,39 @@ object Cloud {
             ref(uid, task.id).set(mapOf("id" to task.id, "deleted" to true, "schema" to SCHEMA,
                 "updated" to FieldValue.serverTimestamp()))
         }
+    }
+
+    // ---------- for reminders (no screen open) ----------
+
+    private suspend fun readTasks(uid: String, source: Source): List<Task>? = runCatching {
+        tasks(uid).get(source).await().documents.mapNotNull { Task.from(it.id, it.data) }.filter { !it.deleted }
+    }.getOrNull()
+
+    private suspend fun readSettings(uid: String, source: Source): Map<String, Any?>? = runCatching {
+        settings(uid).get(source).await().data ?: emptyMap()
+    }.getOrNull()
+
+    /** Latest from the server, or this phone's copy when offline. Null if neither is available. */
+    suspend fun fetchTasks(uid: String): List<Task>? = readTasks(uid, Source.DEFAULT) ?: readTasks(uid, Source.CACHE)
+    suspend fun fetchSettings(uid: String): Map<String, Any?> =
+        readSettings(uid, Source.DEFAULT) ?: readSettings(uid, Source.CACHE) ?: emptyMap()
+
+    suspend fun cachedTasks(uid: String): List<Task> = readTasks(uid, Source.CACHE) ?: emptyList()
+    suspend fun cachedSettings(uid: String): Map<String, Any?> = readSettings(uid, Source.CACHE) ?: emptyMap()
+
+    /** Completed or deleted since the reminder was scheduled (as far as this phone knows)? */
+    suspend fun isClosed(uid: String, taskId: String, date: String): Boolean {
+        if (taskId.isEmpty()) return false
+        val snap = runCatching { tasks(uid).document(taskId).get(Source.CACHE).await() }.getOrNull() ?: return false
+        val t = Task.from(taskId, snap.data) ?: return !snap.exists()
+        return t.deleted || (if (t.kind == "routine") date in t.doneDates else t.done)
+    }
+
+    /** [완료] on a reminder card. Queued on the phone if offline, sent when back online. */
+    fun completeFromCard(uid: String, taskId: String, kind: String, date: String) {
+        if (taskId.isEmpty()) return
+        val task = Task(id = taskId, title = "", kind = kind)
+        setDone(uid, Instance(task, runCatching { java.time.LocalDate.parse(date) }.getOrNull(), false), true)
     }
 
     fun add(uid: String, title: String, kind: String, dueDate: String?, dueTime: String) {

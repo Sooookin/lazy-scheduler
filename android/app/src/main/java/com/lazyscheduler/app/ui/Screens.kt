@@ -1,6 +1,13 @@
 package com.lazyscheduler.app.ui
 
+import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,6 +66,7 @@ import com.lazyscheduler.app.core.Plan
 import com.lazyscheduler.app.core.Recur
 import com.lazyscheduler.app.core.Task
 import com.lazyscheduler.app.data.Cloud
+import com.lazyscheduler.app.reminders.Reminders
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -161,7 +169,19 @@ private fun Home(user: FirebaseUser) {
     var routineMenu by remember { mutableStateOf<Task?>(null) }
     var account by remember { mutableStateOf(false) }
 
+    // ---- reminders on this phone ----
+    var remindOn by remember { mutableStateOf(Reminders.enabled(context)) }
+    var canExact by remember { mutableStateOf(Reminders.canExact(context)) }
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 && !Reminders.canNotify(context)) askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    LaunchedEffect(now) { canExact = Reminders.canExact(context) }      // re-checked after returning from settings
+
     val loaded = tasks
+    LaunchedEffect(loaded, settings, remindOn, canExact) {
+        loaded?.let { Reminders.reschedule(context, it, settings) }
+    }
     // Holidays first, in the same step: the business-day dates below depend on them.
     val o = remember(loaded, today, extraHolidays) {
         Recur.setHolidays(extraHolidays)
@@ -196,6 +216,13 @@ private fun Home(user: FirebaseUser) {
                     }
                     DropdownMenu(expanded = account, onDismissRequest = { account = false }) {
                         DropdownMenuItem(text = { Text(user.email ?: "로그인됨") }, onClick = {}, enabled = false)
+                        DropdownMenuItem(
+                            text = { Text(if (remindOn) "✓ 이 휴대폰에서 알림 받기" else "이 휴대폰에서 알림 받기") },
+                            onClick = {
+                                remindOn = !remindOn
+                                Reminders.setEnabled(context, remindOn, loaded, settings)
+                                account = false
+                            })
                         DropdownMenuItem(text = { Text("로그아웃") }, onClick = { account = false; Cloud.signOut(context) })
                     }
                 }
@@ -226,6 +253,23 @@ private fun Home(user: FirebaseUser) {
                 }
             }
             Spacer(Modifier.height(8.dp))
+            if (remindOn && !canExact) {
+                // Android 14+ turns exact alarms off by default. Without them reminders can be minutes late.
+                Row(
+                    Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .background(Ink.pale)
+                        .combinedClickable(onClick = {
+                            runCatching {
+                                context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.parse("package:" + context.packageName)))
+                            }
+                        })
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Text("정확한 시각에 알리려면 '알람 및 리마인더' 를 허용해 주세요 ›",
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.muted)
+                }
+            }
 
             if (o == null) {
                 Message("불러오는 중…", "처음에는 서버에서 받아 오느라 조금 걸립니다.")
