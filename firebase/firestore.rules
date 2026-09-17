@@ -1,0 +1,43 @@
+rules_version = '2';
+
+// LazyScheduler - who may read and write what. Design: docs/sync.md section 7.
+// The API key inside the apps is not a secret; these rules are the lock.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Same limits as store.clean_task on the PC, so both sides refuse the same things.
+    function validTask(taskId) {
+      let d = request.resource.data;
+      return d.id == taskId
+        && d.schema is int
+        && (d.get('deleted', false) == true
+            || (d.title is string && d.title.size() > 0 && d.title.size() <= 200
+                && d.get('note', '') is string && d.get('note', '').size() <= 2000
+                && d.get('tag', '') is string && d.get('tag', '').size() <= 50
+                && d.kind in ['routine', 'deadline', 'floating']));
+    }
+
+    // Each person's own items and settings. Nobody else, not even other signed-in users.
+    match /users/{uid} {
+      match /tasks/{taskId} {
+        allow read: if signedInAs(uid);
+        allow create, update: if signedInAs(uid) && validTask(taskId);
+        allow delete: if signedInAs(uid);
+      }
+      match /meta/{docId} {
+        allow read, write: if signedInAs(uid);
+      }
+    }
+
+    // Shared, read-only data such as the public-holiday list.
+    // Updated from the Firebase console, never from an app.
+    match /config/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

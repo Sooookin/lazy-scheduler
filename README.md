@@ -38,8 +38,9 @@ paths.py         where every file lives (resources vs. user data)
 assets/          things the app ships with: app.ico, fonts/Paperlogy-*.ttf
 web/             the window itself: index.html, app.js, style.css, fonts/*.woff2
 tools/           things you run while developing (see below)
-tests/           pytest; tests/vectors holds the recurrence cases
-docs/            screenshots for this file
+tests/           pytest; tests/vectors holds the recurrence cases (shared with the phone app)
+docs/            screenshots for this file; sync.md is the PC ↔ phone sync design
+firebase/        Firestore security rules and config (deploy with the Firebase CLI)
 ```
 
 Your own schedule never lives here — it is in `%APPDATA%\LazyScheduler\`.
