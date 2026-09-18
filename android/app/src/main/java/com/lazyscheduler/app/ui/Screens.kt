@@ -64,6 +64,7 @@ import com.google.firebase.auth.FirebaseUser
 import com.lazyscheduler.app.core.Instance
 import com.lazyscheduler.app.core.Plan
 import com.lazyscheduler.app.core.Recur
+import com.lazyscheduler.app.core.ReminderPlan
 import com.lazyscheduler.app.core.Task
 import com.lazyscheduler.app.data.Cloud
 import com.lazyscheduler.app.reminders.Reminders
@@ -73,18 +74,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 private val WD = listOf("월", "화", "수", "목", "금", "토", "일")
-
-private fun dayLabel(d: LocalDate, today: LocalDate): String {
-    val diff = java.time.temporal.ChronoUnit.DAYS.between(today, d)
-    return when {
-        diff == 0L -> "오늘"
-        diff == 1L -> "내일"
-        diff == 2L -> "모레"
-        diff == -1L -> "어제"
-        diff < 0 -> "${-diff}일 지남"
-        else -> "${d.monthValue}/${d.dayOfMonth} (${WD[d.dayOfWeek.value - 1]})"
-    }
-}
 
 @Composable
 fun App() {
@@ -164,9 +153,9 @@ private fun Home(user: FirebaseUser) {
     val extraHolidays = (settings["holidays"] as? List<String>)
 
     var tab by remember { mutableStateOf(Tab.TODAY) }
-    var adding by remember { mutableStateOf(false) }
-    var menuFor by remember { mutableStateOf<Instance?>(null) }
-    var routineMenu by remember { mutableStateOf<Task?>(null) }
+    // The editor: null = closed. Editing(null, …) = a new item. The date is the occurrence
+    // that "이번 회차 건너뛰기" skips.
+    var editor by remember { mutableStateOf<Editing?>(null) }
     var account by remember { mutableStateOf(false) }
 
     // ---- reminders on this phone ----
@@ -191,7 +180,7 @@ private fun Home(user: FirebaseUser) {
     Scaffold(
         containerColor = Ink.bg,
         floatingActionButton = {
-            Pill("＋  새 항목", primary = true, modifier = Modifier.navigationBarsPadding()) { adding = true }
+            Pill("＋  새 항목", primary = true, modifier = Modifier.navigationBarsPadding()) { editor = Editing(null, null) }
         },
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).statusBarsPadding()) {
@@ -283,15 +272,15 @@ private fun Home(user: FirebaseUser) {
             }
             LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 96.dp)) {
                 if (tab == Tab.ROUTINES) {
-                    if (o.routines.isEmpty()) item { Empty("반복 업무가 없습니다", "반복 업무는 지금은 PC 에서 추가합니다.") }
+                    if (o.routines.isEmpty()) item { Empty("반복 업무가 없습니다", "＋ 새 항목 → 반복되는 일") }
                     items(o.routines, key = { it.first.id }) { (task, next) ->
-                        RoutineRow(task, next, today) { routineMenu = task }
+                        RoutineRow(task, next, today) { editor = Editing(task, next?.date) }
                     }
                 } else {
                     if (rows.isEmpty()) item {
                         when (tab) {
                             Tab.TODAY -> Empty("오늘 할 일이 없습니다", o.upcoming.firstOrNull()?.let {
-                                "다음 마감은 ${dayLabel(it.date!!, today)} · ${it.task.title}"
+                                "다음 마감은 ${dateLabel(it.date!!, today)} · ${it.task.title}"
                             } ?: "다가오는 7일에도 마감이 없습니다.")
                             Tab.UPCOMING -> Empty("앞으로 7일, 마감 없음", "")
                             else -> Empty("메모가 없습니다", "＋ 새 항목 → 메모")
@@ -300,52 +289,33 @@ private fun Home(user: FirebaseUser) {
                     items(rows, key = { it.task.id + "@" + it.date }) { i ->
                         ItemRow(i, today, now, showDate = tab == Tab.UPCOMING,
                             onTap = { Cloud.setDone(uid, i, !i.done) },
-                            onLong = { menuFor = i })
+                            onLong = { editor = Editing(i.task, i.date) })
                     }
                 }
             }
         }
     }
 
-    menuFor?.let { i ->
-        AlertDialog(
-            onDismissRequest = { menuFor = null },
-            containerColor = Ink.light,
-            title = { Text(i.task.title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium) },
-            text = {
-                Text(if (i.kind == "routine") "이 회차만 건너뛰거나, 반복 업무 전체를 삭제할 수 있습니다." else "이 항목을 삭제할까요?",
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-            },
-            confirmButton = {
-                TextButton(onClick = { Cloud.delete(uid, i.task); menuFor = null }) { Text("삭제", color = Color(0xFF9A3B2E)) }
-            },
-            dismissButton = {
-                Row {
-                    if (i.kind == "routine" && i.date != null)
-                        TextButton(onClick = { Cloud.skip(uid, i); menuFor = null }) { Text("이번 회차 건너뛰기", color = Ink.midInk) }
-                    TextButton(onClick = { menuFor = null }) { Text("취소", color = Ink.faint) }
-                }
+    editor?.let { e ->
+        ItemEditor(
+            existing = e.task,
+            today = today,
+            businessOnly = settings["business_only"] != false,
+            defaultLead = ReminderPlan.defaultLead(settings),
+            skipDate = e.date,
+            onDismiss = { editor = null },
+            onSave = { fields -> Cloud.save(uid, e.task, fields); editor = null },
+            onDelete = { e.task?.let { Cloud.delete(uid, it) }; editor = null },
+            onSkip = {
+                if (e.task != null && e.date != null) Cloud.skip(uid, Instance(e.task, e.date, false))
+                editor = null
             },
         )
-    }
-    routineMenu?.let { t ->
-        AlertDialog(
-            onDismissRequest = { routineMenu = null },
-            containerColor = Ink.light,
-            title = { Text(t.title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium) },
-            text = { Text(t.ruleText + (if (t.dueTime.isNotEmpty()) " · ${t.dueTime}" else ""),
-                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium) },
-            confirmButton = {
-                TextButton(onClick = { Cloud.delete(uid, t); routineMenu = null }) { Text("반복 업무 삭제", color = Color(0xFF9A3B2E)) }
-            },
-            dismissButton = { TextButton(onClick = { routineMenu = null }) { Text("닫기", color = Ink.faint) } },
-        )
-    }
-    if (adding) AddSheet(today, onDismiss = { adding = false }) { title, kind, date, time ->
-        Cloud.add(uid, title, kind, date, time)
-        adding = false
     }
 }
+
+/** What the editor is open on: an existing item (and the occurrence it was opened from), or null for new. */
+private data class Editing(val task: Task?, val date: LocalDate?)
 
 @Composable
 private fun Empty(title: String, body: String) {
@@ -391,10 +361,10 @@ private fun ItemRow(i: Instance, today: LocalDate, now: LocalTime, showDate: Boo
             Spacer(Modifier.width(8.dp))
             if (i.kind == "routine") Tag("반복")
             when (Plan.urgency(i, today, now)) {
-                "late" -> Badge(if (i.date != null && i.date.isBefore(today)) dayLabel(i.date, today) else "지남", Ink.deep, Ink.onMid)
+                "late" -> Badge(if (i.date != null && i.date.isBefore(today)) dateLabel(i.date, today) else "지남", Ink.deep, Ink.onMid)
                 "soon" -> Badge("임박", Ink.mint, Ink.deep)
             }
-            val whenText = if (showDate && i.date != null) dayLabel(i.date, today) + (if (i.time.isNotEmpty()) " " + i.time else "") else i.time
+            val whenText = if (showDate && i.date != null) dateLabel(i.date, today) + (if (i.time.isNotEmpty()) " " + i.time else "") else i.time
             if (whenText.isNotEmpty()) {
                 Spacer(Modifier.width(8.dp))
                 Text(whenText, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.midInk)
@@ -420,7 +390,7 @@ private fun RoutineRow(task: Task, next: Instance?, today: LocalDate, onTap: () 
             val label = when {
                 next?.date == null -> "예정 없음"
                 next.date == today -> if (next.done) "오늘 완료" else "오늘"
-                else -> dayLabel(next.date, today)
+                else -> dateLabel(next.date, today)
             }
             if (next?.date == today && next.done != true) Badge(label, Ink.deep, Ink.onMid)
             else Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.midInk)
@@ -458,60 +428,3 @@ private fun Pill(text: String, primary: Boolean, modifier: Modifier = Modifier, 
         contentPadding = PaddingValues(horizontal = 22.dp),
     ) { Text(text, style = androidx.compose.material3.MaterialTheme.typography.labelLarge) }
 }
-
-// ---------------- add ----------------
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddSheet(today: LocalDate, onDismiss: () -> Unit, onSave: (String, String, String?, String) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf("deadline") }
-    var date by remember { mutableStateOf(Recur.nextBusinessDay(today)) }
-    var time by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Ink.light) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 24.dp).imePadding()) {
-            Text("새 항목", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(14.dp))
-            OutlinedTextField(
-                value = title, onValueChange = { if (it.length <= 200) title = it },
-                label = { Text("이름") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ink.mid, focusedLabelColor = Ink.midInk, cursorColor = Ink.mid),
-            )
-            Spacer(Modifier.height(14.dp))
-            Chips(listOf("deadline" to "마감이 있는 일", "floating" to "기한 없는 메모"), kind) { kind = it }
-            if (kind == "deadline") {
-                Spacer(Modifier.height(16.dp))
-                Text("언제까지 · ${dayLabel(date, today)}", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.muted)
-                Spacer(Modifier.height(8.dp))
-                val choices = listOf(0L, 1L, 2L, 7L).map { today.plusDays(it) }
-                Chips(choices.map { it.toString() to dayLabel(it, today) }, date.toString()) { date = LocalDate.parse(it) }
-                Spacer(Modifier.height(16.dp))
-                Text("시각 (선택)", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.muted)
-                Spacer(Modifier.height(8.dp))
-                Chips(listOf("" to "없음", "09:00" to "09:00", "12:00" to "12:00", "15:00" to "15:00", "18:00" to "18:00"), time) { time = it }
-            }
-            Spacer(Modifier.height(22.dp))
-            Pill("추가", primary = true, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                onSave(title.trim(), kind, if (kind == "deadline") date.toString() else null, time)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Chips(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((value, label) in options) {
-            val on = value == selected
-            Box(
-                Modifier.clip(RoundedCornerShape(14.dp))
-                    .background(if (on) Ink.mid else Ink.pale)
-                    .combinedClickable(onClick = { onPick(value) })
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = if (on) Ink.onMid else Ink.muted)
-            }
-        }
-    }
-}
-

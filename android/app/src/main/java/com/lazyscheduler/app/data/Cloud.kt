@@ -199,20 +199,43 @@ object Cloud {
         setDone(uid, Instance(task, runCatching { java.time.LocalDate.parse(date) }.getOrNull(), false), true)
     }
 
-    fun add(uid: String, title: String, kind: String, dueDate: String?, dueTime: String) {
-        val id = UUID.randomUUID().toString().replace("-", "")
-        logged("add") {
-            ref(uid, id).set(mapOf(
-                "id" to id, "title" to title.trim().take(200), "note" to "", "tag" to "",
-                "kind" to kind,
-                "due_date" to if (kind == "deadline") dueDate else null,
-                "due_time" to if (kind == "deadline") dueTime else "",
-                "notify_min" to null, "muted" to false, "pinned" to false, "rule" to null,
-                "created" to LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS).toString(),
-                "done" to false, "done_at" to null,
-                "done_dates" to emptyMap<String, Boolean>(), "skip_dates" to emptyMap<String, Boolean>(),
-                "schema" to SCHEMA, "updated" to FieldValue.serverTimestamp(),
-            ))
+    /** The fields the editor can change, as stored. */
+    private fun editable(t: Task): Map<String, Any?> = mapOf(
+        "title" to t.title, "note" to t.note, "kind" to t.kind, "due_date" to t.dueDate,
+        "due_time" to t.dueTime, "notify_min" to t.notifyMin, "muted" to t.muted, "rule" to t.rule,
+    )
+
+    /** Int and Long are the same number here (the form makes Int, Firestore gives back Long). */
+    private fun canon(v: Any?): Any? = when (v) {
+        is Int -> v.toLong()
+        is Map<*, *> -> v.entries.associate { (k, x) -> k.toString() to canon(x) }
+        is List<*> -> v.map(::canon)
+        else -> v
+    }
+
+    /**
+     * Add a new item, or save an edit. An edit sends only the fields that changed
+     * (docs/sync.md section 4), so an edit here and a completion on the PC both survive.
+     */
+    fun save(uid: String, existing: Task?, fields: Map<String, Any?>) {
+        if (existing != null) {
+            val before = editable(existing)
+            val changed = fields.filter { (k, v) -> canon(before[k]) != canon(v) }
+            if (changed.isEmpty()) return
+            logged("edit") { ref(uid, existing.id).update(changed + ("updated" to FieldValue.serverTimestamp())) }
+            return
         }
+        val id = UUID.randomUUID().toString().replace("-", "")
+        val doc = linkedMapOf<String, Any?>(
+            "id" to id, "title" to "", "note" to "", "tag" to "", "kind" to "deadline",
+            "due_date" to null, "due_time" to "", "notify_min" to null, "muted" to false, "pinned" to false,
+            "rule" to null, "created" to LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS).toString(),
+            "done" to false, "done_at" to null,
+            "done_dates" to emptyMap<String, Boolean>(), "skip_dates" to emptyMap<String, Boolean>(),
+            "schema" to SCHEMA,
+        )
+        doc.putAll(fields)
+        doc["updated"] = FieldValue.serverTimestamp()
+        logged("add") { ref(uid, id).set(doc) }
     }
 }
