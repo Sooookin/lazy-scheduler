@@ -1,19 +1,28 @@
 # LazyScheduler
 
-A small Windows desktop app for people whose work is mostly recurring: it keeps
-track of routine tasks that land on business days rather than plain calendar
-dates — the second business day of the month, the last Thursday, three business
-days before month end — and quietly shifts anything that falls on a weekend or a
-Korean public holiday. Alongside those you can drop in one-off deadlines and
-loose notes with no date at all. Close the window and it keeps running in the
-background, sliding a soft notification card into the corner of the screen a
-little before something is due, so the whole thing stays out of your way until
-it actually has something to say.
+For people whose work is mostly recurring: it keeps track of routine tasks that
+land on business days rather than plain calendar dates — the second business day
+of the month, the last Thursday, three business days before month end — and
+quietly shifts anything that falls on a weekend or a Korean public holiday.
+Alongside those you can drop in one-off deadlines and loose notes with no date at
+all. Close the window and it keeps running in the background, sliding a soft
+notification card into the corner of the screen a little before something is due,
+so the whole thing stays out of your way until it actually has something to say.
 
 ![Overview](docs/home.png)
 
 Adding a routine — pick how often, pick the rule, and it shows you the next five
 dates before you commit.
+
+There are two apps: a **Windows desktop app** (Python, a WebView2 window) and an
+**Android app** (Kotlin, Compose). Sign in with Google and they show the same
+items, settings and completions; both keep working offline and send their changes
+up when a connection comes back. Reminders fire on each device on its own, so the
+phone does not need the PC. Sync is optional — without signing in, the desktop app
+is exactly what it was, and everything stays on your machine.
+
+The design, including how edits from two devices are merged, is in
+[docs/sync.md](docs/sync.md).
 
 ## Layout
 
@@ -44,6 +53,7 @@ tools/           things you run while developing (see below)
 tests/           pytest; tests/vectors holds the recurrence cases (shared with the phone app)
 docs/            screenshots for this file; sync.md is the PC ↔ phone sync design
 firebase/        Firestore security rules and config (deploy with the Firebase CLI)
+android/         the Android app (Kotlin, Compose, Firestore SDK)
 ```
 
 Your own schedule never lives here — it is in `%APPDATA%\LazyScheduler\`.

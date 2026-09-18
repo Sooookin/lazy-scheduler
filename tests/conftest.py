@@ -12,7 +12,7 @@ import tempfile
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SANDBOX = tempfile.mkdtemp(prefix="todo-manager-tests-")
+SANDBOX = tempfile.mkdtemp(prefix="lazy-scheduler-tests-")
 os.environ["APPDATA"] = SANDBOX
 sys.path.insert(0, ROOT)
 
