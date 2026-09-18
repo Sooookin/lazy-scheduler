@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:1480px; min-height:1250px; padding:40px 44px}
+    h1{font-weight:300; font-size:28px; color:var(--ink2); margin:0 0 8px; letter-spacing:-.5px}
+    .lede{font-size:13.5px; line-height:1.75; font-weight:400; margin:0 0 24px; max-width:1000px}
+    .g{display:grid; grid-template-columns:1fr 1fr; gap:22px}
+    .v{padding:12px 12px 16px; position:relative}
+    .v img{display:block; width:100%; border-radius:12px}
+    .v .h{display:flex; align-items:baseline; gap:10px; margin:12px 4px 4px}
+    .v .h b{font-size:18px; font-weight:500; color:var(--ink2)}
+    .v .h span{font-size:13.5px; color:var(--ink2)}
+    .v p{margin:0 4px; font-size:12.5px; line-height:1.65; font-weight:400; color:var(--faint)}
+    .v.pick{box-shadow:0 0 0 2.5px var(--mid), 4px 4px 12px var(--dark), -4px -4px 10px var(--light)}
+    .badge{position:absolute; right:22px; top:22px; background:var(--mid); color:var(--onmid); font-size:12px;
+      padding:5px 12px; border-radius:12px}
+    .spec{margin-top:22px; padding:14px 18px; font-size:12.5px; line-height:1.8; font-weight:400}
+    .spec code{font-family:Consolas,monospace; font-size:12px; color:var(--mid-ink)}
+  </style>
+</helmet>
+
+<div class="paper page">
+  <div class="grain"></div>
+  <h1>2 · 종이 결 — 실제 앱 화면에서 비교</h1>
+  <p class="lede">결은 세 겹입니다: 고운 요철(240px, 진하기 .71) · 큰 얼룩(1120px, .25) · 잔 티끌(180px, .14).
+    "얼룩덜룩"은 거의 큰 얼룩 층 탓입니다. 칸마다 결이 고정(background-attachment:fixed)이라 얼룩이 칸 경계에서 끊겨 더 도드라집니다.
+    아래는 샘플 일정을 띄운 실제 앱에 값만 바꿔 입힌 캡처입니다.</p>
+  <div class="g">
+    <div class="card v"><img src="grain-a.jpg" alt=""><div class="h"><b>A</b><span>지금</span></div>
+      <p>얼룩 + 요철 + 티끌. 넓은 빈 칸일수록 얼룩이 구름처럼 보입니다.</p></div>
+    <div class="card v"><img src="grain-b.jpg" alt=""><div class="h"><b>B</b><span>큰 얼룩만 뺌</span></div>
+      <p>종이 느낌은 그대로, 얼룩만 사라짐. 가장 작은 변화.</p></div>
+    <div class="card v pick"><img src="grain-c.jpg" alt=""><span class="badge">추천</span>
+      <div class="h"><b>C</b><span>얼룩 빼고 · 요철 절반 · 바탕 한 단계 밝게</span></div>
+      <p>가까이 보면 종이, 멀리서 보면 깨끗한 면. 글자 대비도 조금 좋아집니다.</p></div>
+    <div class="card v"><img src="grain-d.jpg" alt=""><div class="h"><b>D</b><span>결 없이 밝게만</span></div>
+      <p>가장 깔끔하지만 평범해집니다. 앱의 개성이 줄어듭니다.</p></div>
+  </div>
+  <div class="card spec">C 로 가면 바뀌는 값 — <code>--paper</code>: 요철 .71 → .34 · 얼룩 .25 → 0 · 티끌 .14 → .06 ·
+    <code>--bg / --card</code> #e7ebea → #eef1f0 · <code>--light</code> #fbfdfd → #ffffff · <code>--dark</code> #bbc2c1 → #c6cccb.
+    tokens.py 한 곳만 고치면 알림 카드(toast.py)와 휴대폰 앱이 같이 바뀝니다.</div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1480,"height":1250}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

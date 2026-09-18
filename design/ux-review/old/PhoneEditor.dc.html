@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .ph{width:390px; height:844px}
+    .under{position:absolute; inset:0; padding:56px 20px; opacity:.5; z-index:2}
+    .under h1{margin:0; font-size:25px; font-weight:500; color:var(--ink2)}
+    .dim{position:absolute; inset:0; background:rgba(43,38,32,.30); z-index:3}
+    .sheet{position:absolute; left:0; right:0; bottom:0; top:48px; z-index:4; border-radius:24px 24px 0 0;
+      background:var(--light); padding:10px 20px 0; display:flex; flex-direction:column}
+    .handle{width:38px; height:4px; border-radius:2px; background:var(--dark); margin:0 auto 14px}
+    .top{display:flex; align-items:center}
+    .top .x{font-size:14px; color:var(--faint)}
+    .top h2{flex:1; text-align:center; margin:0; font-size:16px; font-weight:500; color:var(--ink2)}
+    .top .s{font-size:14px; color:var(--mid-ink)}
+    .name{margin-top:14px; font-size:20px; color:var(--ink2); padding-bottom:10px; box-shadow:inset 0 -1.5px 0 var(--mid)}
+    .heard{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--faint); font-weight:400}
+    .heard .chip{height:28px; font-size:12px}
+    .kinds{display:flex; gap:6px; margin-top:14px}
+    .kinds .chip{flex:1; justify-content:center; height:34px}
+    .lbl{font-size:12px; color:var(--faint); font-weight:400; margin:14px 0 7px}
+    .say{display:flex; flex-wrap:wrap; gap:7px; align-items:center; font-size:15.5px; color:var(--ink2)}
+    .say .slot{height:38px; padding:0 14px; border-radius:12px; display:inline-flex; align-items:center; gap:6px; background:var(--pale); font-size:15px}
+    .say .slot::after{content:"▾"; font-size:10px; color:var(--faint)}
+    .prev{margin-top:10px; padding:10px 14px; border-radius:14px; background:var(--bg); font-size:13px; color:var(--mid-ink); line-height:1.6}
+    .prev b{font-weight:500; color:var(--ink2); display:block; font-size:12px}
+    .chips{display:flex; flex-wrap:wrap; gap:6px}
+    .sw{display:flex; align-items:center; gap:12px; margin:14px 0 8px; font-size:14px; color:var(--ink2)}
+    .sw .tg{margin-left:auto; width:44px; height:26px; border-radius:13px; background:var(--mid); position:relative}
+    .sw .tg::after{content:""; position:absolute; right:3px; top:3px; width:20px; height:20px; border-radius:50%; background:var(--onmid)}
+    .save{position:absolute; left:20px; right:20px; bottom:22px; height:50px; border-radius:26px; background:var(--mid);
+      color:var(--onmid); display:grid; place-items:center; font-size:15px; box-shadow:0 6px 16px var(--midshadow)}
+  </style>
+</helmet>
+
+<div class="paper ph">
+  <div class="grain"></div>
+  <div class="under"><h1>오늘</h1></div>
+  <div class="dim"></div>
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="top"><span class="x">취소</span><h2>새 항목</h2><span class="s">자세히 ›</span></div>
+    <div class="name">매월 둘째 영업일 월간 보고</div>
+    <div class="heard">이렇게 알아들었어요
+      <span class="chip on">반복</span><span class="chip">매월 2번째 영업일</span><span class="num">2</span>
+    </div>
+
+    <div class="kinds"><span class="chip">할 일</span><span class="chip on">반복</span><span class="chip">메모</span></div>
+
+    <div class="lbl">언제 <span class="num" style="vertical-align:middle; margin-left:4px">6</span></div>
+    <div class="say"><span class="slot">매월</span><span class="slot">둘째</span><span class="slot">영업일</span></div>
+    <div class="prev"><b>다음</b>10/2 (금) · 11/3 (화) · 12/2 (수) · 1/5 (화) · 2/2 (화)</div>
+
+    <div class="lbl">시각</div>
+    <div class="chips"><span class="chip">없음</span><span class="chip on">09:00</span><span class="chip">12:00</span><span class="chip">15:00</span><span class="chip ghost">직접…</span></div>
+
+    <div class="sw">알림 받기<span class="num">7</span><span class="tg"></span></div>
+    <div class="chips"><span class="chip">정각</span><span class="chip">10분 전</span><span class="chip on">30분 전</span><span class="chip">1시간 전</span></div>
+  </div>
+  <div class="save" style="z-index:5">추가</div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

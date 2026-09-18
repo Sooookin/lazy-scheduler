@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .win{width:1020px; height:880px}
+    .dim{position:absolute; inset:0; background:rgba(43,38,32,.20); z-index:3}
+    .behind{position:absolute; inset:34px 24px 20px; opacity:.55; z-index:2}
+    .behind .bar{height:56px; border-radius:18px; background:var(--light); margin-top:66px}
+    .behind .b1{position:absolute; left:0; top:140px; width:52%; bottom:0; border-radius:18px; background:var(--card)}
+    .behind .b2{position:absolute; right:0; top:140px; width:46%; height:300px; border-radius:18px; background:var(--card)}
+
+    .sheet{position:absolute; left:50%; top:44px; transform:translateX(-50%); width:600px; z-index:4;
+      padding:24px 28px 20px; border-radius:22px; background:var(--card);
+      box-shadow:0 24px 60px rgba(43,38,32,.28), inset 0 1px 0 var(--light)}
+    .top{display:flex; align-items:center; gap:12px}
+    .top h2{margin:0; font-size:18px; font-weight:500; color:var(--ink2)}
+    .kinds{display:flex; margin-left:auto; padding:3px; border-radius:12px; background:var(--pale)}
+    .kinds span{padding:6px 13px; border-radius:9px; font-size:12.5px; color:var(--faint)}
+    .kinds span.on{background:var(--light); color:var(--ink2); box-shadow:1px 1px 3px var(--dark)}
+    .name{margin-top:16px; height:50px; display:flex; align-items:center; padding:0 16px; border-radius:14px;
+      background:var(--bg); box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light);
+      font-size:16px; color:var(--ink2)}
+    .name .note{margin-left:auto; font-size:12px; color:var(--mid-ink)}
+    .lbl{font-size:12px; color:var(--faint); font-weight:400; margin:20px 0 9px; display:flex; align-items:center; gap:8px}
+
+    .sentence{padding:16px 18px; border-radius:16px; background:var(--light); box-shadow:1px 1px 4px var(--dark)}
+    .say{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:17px; color:var(--ink2)}
+    .say .slot{display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 14px; border-radius:12px;
+      background:var(--pale); color:var(--ink2); font-size:15.5px}
+    .say .slot::after{content:"▾"; font-size:10px; color:var(--faint)}
+    .say .slot.open{background:var(--mid); color:var(--onmid)}
+    .say .slot.open::after{color:var(--onmid)}
+    .menu{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px}
+    .dates{margin-top:14px; padding-top:12px; box-shadow:inset 0 1px 0 var(--rule); font-size:13px; color:var(--mid-ink)}
+    .dates b{font-weight:500; color:var(--ink2); margin-right:8px}
+    .dates .shift{display:block; margin-top:6px; font-size:12px; color:var(--faint); font-weight:400}
+    .chips{display:flex; flex-wrap:wrap; gap:6px}
+    .sw{display:flex; align-items:center; gap:12px; margin:20px 0 10px; font-size:13.5px; color:var(--ink2)}
+    .sw .tg{width:40px; height:24px; border-radius:12px; background:var(--mid); position:relative; flex:none}
+    .sw .tg::after{content:""; position:absolute; right:3px; top:3px; width:18px; height:18px; border-radius:50%; background:var(--onmid)}
+    .sw small{font-size:12px; color:var(--faint); font-weight:400}
+    .foot{display:flex; align-items:center; gap:10px; margin-top:22px; padding-top:16px; box-shadow:inset 0 1px 0 var(--rule)}
+    .foot .l{font-size:12.5px; color:var(--mid-ink)}
+    .foot .sp{flex:1}
+    .foot .k{font-size:11px; opacity:.75; margin-left:4px}
+  </style>
+</helmet>
+
+<div class="paper win">
+  <div class="grain"></div>
+  <div class="behind"><div class="bar"></div><div class="b1"></div><div class="b2"></div></div>
+  <div class="dim"></div>
+
+  <div class="sheet">
+    <div class="top">
+      <h2>새 반복 업무</h2>
+      <div class="kinds"><span>할 일</span><span class="on">반복</span><span>메모</span></div>
+    </div>
+    <div class="name">월간 성과 집계<span class="note">+ 메모</span></div>
+
+    <div class="lbl">언제 <span class="num">6</span></div>
+    <div class="sentence">
+      <div class="say">
+        <span class="slot">매월</span>
+        <span class="slot open">마지막</span>
+        <span class="slot">영업일</span>
+        <span>에</span>
+      </div>
+      <div class="menu">
+        <span class="chip">첫째</span><span class="chip">둘째</span><span class="chip">셋째</span>
+        <span class="chip on">마지막</span><span class="chip">말일 며칠 전</span><span class="chip ghost">직접 숫자…</span>
+      </div>
+      <div class="dates"><b>다음</b>9/30 (수) · 10/30 (금) · 11/30 (월) · 12/31 (목) · 1/29 (금)
+        <span class="shift">10월 말일(31일)이 토요일이라 마지막 영업일은 10/30 (금) 이에요.</span></div>
+    </div>
+
+    <div class="lbl">시각</div>
+    <div class="chips">
+      <span class="chip">없음</span><span class="chip on">09:00</span><span class="chip">12:00</span>
+      <span class="chip">15:00</span><span class="chip">18:00</span><span class="chip ghost">직접…</span>
+    </div>
+
+    <div class="sw"><span class="tg"></span>알림 받기 <small>오전 8:30 에 알려요</small><span class="num">7</span></div>
+    <div class="chips">
+      <span class="chip">정각</span><span class="chip">10분 전</span><span class="chip on">30분 전 · 기본</span>
+      <span class="chip">1시간 전</span><span class="chip">하루 전</span>
+    </div>
+
+    <div class="foot">
+      <span class="l">매월 마지막 영업일 · 09:00</span>
+      <span class="sp"></span>
+      <span class="btn">취소</span>
+      <span class="btn primary">추가<span class="k">⏎</span></span>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1020,"height":880}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

@@ -52,6 +52,7 @@ android {
         unitTests.all {
             // The recurrence spec shared with the PC app (tests/vectors/recurrence.json)
             it.systemProperty("vectors", rootProject.file("../tests/vectors/recurrence.json").absolutePath)
+            it.systemProperty("suggest", rootProject.file("../tests/vectors/suggest.json").absolutePath)
         }
     }
 }

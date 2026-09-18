@@ -8,58 +8,74 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.google.firebase.auth.FirebaseUser
 import com.lazyscheduler.app.core.Instance
 import com.lazyscheduler.app.core.Plan
@@ -68,12 +84,14 @@ import com.lazyscheduler.app.core.ReminderPlan
 import com.lazyscheduler.app.core.Task
 import com.lazyscheduler.app.data.Cloud
 import com.lazyscheduler.app.reminders.Reminders
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
-
-private val WD = listOf("월", "화", "수", "목", "금", "토", "일")
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 @Composable
 fun App() {
@@ -89,9 +107,9 @@ fun App() {
 @Composable
 private fun Message(title: String, body: String) {
     Column(Modifier.fillMaxSize().background(Ink.bg).padding(32.dp), verticalArrangement = Arrangement.Center) {
-        Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
-        Text(body, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+        Text(body, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -107,12 +125,11 @@ private fun SignIn() {
         Modifier.fillMaxSize().background(Ink.bg).statusBarsPadding().padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("LazyScheduler", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
+        Text("LazyScheduler", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(10.dp))
-        Text("PC 와 같은 Google 계정으로 로그인하면\n일정이 그대로 이어집니다.",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+        Text("PC 와 같은 Google 계정으로 로그인하면\n일정이 그대로 이어집니다.", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(28.dp))
-        Pill(if (busy) "로그인하는 중…" else "Google 계정으로 로그인", primary = true, enabled = !busy) {
+        Primary(if (busy) "로그인하는 중…" else "Google 계정으로 로그인", enabled = !busy) {
             busy = true
             error = null
             scope.launch {
@@ -122,22 +139,28 @@ private fun SignIn() {
         }
         error?.let {
             Spacer(Modifier.height(14.dp))
-            Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, color = Color(0xFF9A3B2E))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = Ink.danger)
         }
     }
 }
 
 // ---------------- home ----------------
 
-private enum class Tab(val label: String) { TODAY("오늘"), UPCOMING("예정"), ROUTINES("반복"), MEMOS("메모") }
+private enum class Tab(val label: String) { TODAY("오늘"), UPCOMING("다가오는"), ROUTINES("루틴"), MEMOS("메모") }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** "되돌리기" for five seconds after complete · skip · later · delete. */
+private class Undo(val text: String, val undo: () -> Unit)
+
+/** A row's swipe-left buttons. */
+private class Act(val label: String, val color: Color, val run: () -> Unit)
+
 @Composable
 private fun Home(user: FirebaseUser) {
     val uid = user.uid
     val tasks by remember(uid) { Cloud.tasksFlow(uid) }.collectAsState(initial = null)
     val settings by remember(uid) { Cloud.settingsFlow(uid) }.collectAsState(initial = emptyMap())
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // The list depends on the clock ("지남", "임박", today's date): tick every 30 s.
     var now by remember { mutableStateOf(LocalTime.now()) }
@@ -151,12 +174,63 @@ private fun Home(user: FirebaseUser) {
     }
     @Suppress("UNCHECKED_CAST")
     val extraHolidays = (settings["holidays"] as? List<String>)
+    val businessOnly = settings["business_only"] != false
 
     var tab by remember { mutableStateOf(Tab.TODAY) }
     // The editor: null = closed. Editing(null, …) = a new item. The date is the occurrence
-    // that "이번 회차 건너뛰기" skips.
+    // that "건너뛰기" skips.
     var editor by remember { mutableStateOf<Editing?>(null) }
-    var account by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var overview by remember { mutableStateOf(false) }
+    var openRow by remember { mutableStateOf<String?>(null) }
+
+    // ---- undo ----
+    var undo by remember { mutableStateOf<Undo?>(null) }
+    LaunchedEffect(undo) { if (undo != null) { delay(5_000); undo = null } }
+
+    // Deleting waits five seconds (so "되돌리기" really undoes it); the list hides it at once.
+    val gone = remember { mutableStateMapOf<String, Task>() }
+    val jobs = remember { HashMap<String, Job>() }
+    fun flushDeletes() {
+        for (id in jobs.keys.toList()) {
+            jobs.remove(id)?.cancel()
+            gone[id]?.let { Cloud.delete(uid, it) }
+        }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { flushDeletes() }     // leaving the app: send now
+    DisposableEffect(uid) { onDispose { flushDeletes() } }
+
+    fun removeSoon(t: Task) {
+        gone[t.id] = t
+        jobs.remove(t.id)?.cancel()
+        jobs[t.id] = scope.launch {
+            delay(5_000)
+            jobs.remove(t.id)
+            Cloud.delete(uid, t)
+        }
+        undo = Undo("「${t.title}」 삭제") { jobs.remove(t.id)?.cancel(); gone.remove(t.id) }
+    }
+    fun toggle(i: Instance) {
+        if (i.done) { Cloud.setDone(uid, i, false); return }
+        Cloud.setDone(uid, i, true)
+        undo = Undo("「${i.task.title}」 완료") { Cloud.setDone(uid, i, false) }
+    }
+    fun skip(i: Instance) {
+        val d = i.date ?: return
+        Cloud.skip(uid, i)
+        undo = Undo("${dateLabel(d, today)} 「${i.task.title}」 건너뜀") { Cloud.unskip(uid, i) }
+    }
+    /** 오늘 · 지난 것은 내일로, 앞으로의 것은 하루 뒤로 (영업일만 쓰면 주말 · 공휴일을 건너뛴다). */
+    fun later(t: Task) {
+        val from = t.dueDate
+        val cur = from?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val base = if (cur != null && cur.isAfter(today)) cur else today
+        val to = base.plusDays(1).let { if (businessOnly) Recur.nextBusinessDay(it) else it }
+        Cloud.save(uid, t, mapOf("due_date" to to.toString()))
+        undo = Undo("「${t.title}」 → ${dateLabel(to, today)}") {
+            Cloud.save(uid, t.copy(dueDate = to.toString()), mapOf("due_date" to from))
+        }
+    }
 
     // ---- reminders on this phone ----
     var remindOn by remember { mutableStateOf(Reminders.enabled(context)) }
@@ -171,127 +245,160 @@ private fun Home(user: FirebaseUser) {
     LaunchedEffect(loaded, settings, remindOn, canExact) {
         loaded?.let { Reminders.reschedule(context, it, settings) }
     }
+    val visible = remember(loaded, gone.toMap()) { loaded?.filter { it.id !in gone } }
     // Holidays first, in the same step: the business-day dates below depend on them.
-    val o = remember(loaded, today, extraHolidays) {
+    val o = remember(visible, today, extraHolidays) {
         Recur.setHolidays(extraHolidays)
-        loaded?.let { Plan.overview(it, today) }
+        visible?.let { Plan.overview(it, today) }
     }
 
-    Scaffold(
-        containerColor = Ink.bg,
-        floatingActionButton = {
-            Pill("＋  새 항목", primary = true, modifier = Modifier.navigationBarsPadding()) { editor = Editing(null, null) }
-        },
-    ) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).statusBarsPadding()) {
-            // header
-            Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 12.dp, top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.fillMaxSize().background(Ink.bg)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            // ---- header: date | ring (centre) | settings ----
+            Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 16.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("${today.monthValue}월 ${today.dayOfMonth}일 ${WD[today.dayOfWeek.value - 1]}요일",
-                        style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
-                    Text(
-                        when {
-                            o == null -> "불러오는 중…"
-                            o.left > 0 -> "남은 일 ${o.left}건"
-                            else -> "오늘 할 일을 다 했습니다"
-                        },
-                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                        color = if ((o?.left ?: 0) > 0) Ink.midInk else Ink.faint,
-                    )
+                    Text("${today.monthValue}월 ${today.dayOfMonth}일", style = MaterialTheme.typography.bodyMedium)
+                    Text("${WDS[today.dayOfWeek.value - 1]}요일", style = MaterialTheme.typography.headlineMedium)
                 }
                 Box {
-                    TextButton(onClick = { account = true }) {
-                        Text("⋯", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                    val all = o?.let { it.overdue + it.todays } ?: emptyList()
+                    Ring(o?.left ?: 0, all.count { it.done }, all.size) { overview = true }
+                    DropdownMenu(expanded = overview, onDismissRequest = { overview = false }, containerColor = Ink.card,
+                        shape = RoundedCornerShape(16.dp)) {
+                        TodayOverview(all, today)
                     }
-                    DropdownMenu(expanded = account, onDismissRequest = { account = false }) {
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    Box(Modifier.size(44.dp).raised(22.dp, 2.5.dp).clip(CircleShape).tap { menu = true }, contentAlignment = Alignment.Center) {
+                        Gear()
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = Ink.card) {
                         DropdownMenuItem(text = { Text(user.email ?: "로그인됨") }, onClick = {}, enabled = false)
                         DropdownMenuItem(
                             text = { Text(if (remindOn) "✓ 이 휴대폰에서 알림 받기" else "이 휴대폰에서 알림 받기") },
                             onClick = {
                                 remindOn = !remindOn
                                 Reminders.setEnabled(context, remindOn, loaded, settings)
-                                account = false
+                                menu = false
                             })
-                        DropdownMenuItem(text = { Text("로그아웃") }, onClick = { account = false; Cloud.signOut(context) })
+                        DropdownMenuItem(text = { Text("로그아웃") }, onClick = { menu = false; Cloud.signOut(context) })
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            // tabs
-            Row(
-                Modifier.padding(horizontal = 18.dp).clip(RoundedCornerShape(12.dp)).background(Ink.pale).padding(3.dp),
-            ) {
-                for (t in Tab.entries) {
-                    val count = when (t) {
-                        Tab.TODAY -> (o?.overdue?.size ?: 0) + (o?.todays?.size ?: 0)
-                        Tab.UPCOMING -> o?.upcoming?.size ?: 0
-                        Tab.ROUTINES -> o?.routines?.size ?: 0
-                        Tab.MEMOS -> o?.floating?.size ?: 0
-                    }
-                    val on = t == tab
-                    Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(9.dp))
-                            .background(if (on) Ink.light else Color.Transparent)
-                            .combinedClickable(onClick = { tab = t })
-                            .padding(vertical = 9.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("${t.label} $count", style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                            color = if (on) Ink.ink2 else Ink.faint)
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
             if (remindOn && !canExact) {
                 // Android 14+ turns exact alarms off by default. Without them reminders can be minutes late.
                 Row(
-                    Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                        .background(Ink.pale)
-                        .combinedClickable(onClick = {
+                    Modifier.padding(horizontal = 16.dp).padding(top = 10.dp).fillMaxWidth().inset(12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .tap {
                             runCatching {
                                 context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
                                     Uri.parse("package:" + context.packageName)))
                             }
-                        })
+                        }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
                     Text("정확한 시각에 알리려면 '알람 및 리마인더' 를 허용해 주세요 ›",
-                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.muted)
+                        style = MaterialTheme.typography.labelMedium, color = Ink.muted)
                 }
             }
+            Spacer(Modifier.height(18.dp))
 
-            if (o == null) {
-                Message("불러오는 중…", "처음에는 서버에서 받아 오느라 조금 걸립니다.")
-                return@Column
-            }
-            val rows: List<Instance> = when (tab) {
-                Tab.TODAY -> (o.overdue + o.todays).sortedWith(compareBy({ it.done }, { it.date ?: LocalDate.MAX }, { it.time.ifEmpty { "99:99" } }))
-                Tab.UPCOMING -> o.upcoming
-                Tab.MEMOS -> o.floating
-                Tab.ROUTINES -> emptyList()
-            }
-            LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 96.dp)) {
-                if (tab == Tab.ROUTINES) {
-                    if (o.routines.isEmpty()) item { Empty("반복 업무가 없습니다", "＋ 새 항목 → 반복되는 일") }
-                    items(o.routines, key = { it.first.id }) { (task, next) ->
-                        RoutineRow(task, next, today) { editor = Editing(task, next?.date) }
-                    }
-                } else {
-                    if (rows.isEmpty()) item {
-                        when (tab) {
-                            Tab.TODAY -> Empty("오늘 할 일이 없습니다", o.upcoming.firstOrNull()?.let {
-                                "다음 마감은 ${dateLabel(it.date!!, today)} · ${it.task.title}"
-                            } ?: "다가오는 7일에도 마감이 없습니다.")
-                            Tab.UPCOMING -> Empty("앞으로 7일, 마감 없음", "")
-                            else -> Empty("메모가 없습니다", "＋ 새 항목 → 메모")
+            // ---- the paper: index tabs on a stack of sheets ----
+            val counts = mapOf(
+                Tab.TODAY to ((o?.overdue?.size ?: 0) + (o?.todays?.size ?: 0)),
+                Tab.UPCOMING to (o?.upcoming?.size ?: 0),
+                Tab.ROUTINES to (o?.routines?.size ?: 0),
+                Tab.MEMOS to (o?.floating?.size ?: 0),
+            )
+            Row(Modifier.padding(start = 12.dp).height(38.dp), horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.Bottom) {
+                for (t in Tab.entries) {
+                    val on = t == tab
+                    Row(
+                        Modifier.height(if (on) 38.dp else 34.dp)
+                            .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                            .background(if (on) Ink.card else Ink.sheet2)
+                            .tap { tab = t; openRow = null }
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (on) {
+                            Box(Modifier.width(3.dp).height(13.dp).clip(RoundedCornerShape(2.dp)).background(Ink.mid))
+                            Spacer(Modifier.width(6.dp))
                         }
-                    }
-                    items(rows, key = { it.task.id + "@" + it.date }) { i ->
-                        ItemRow(i, today, now, showDate = tab == Tab.UPCOMING,
-                            onTap = { Cloud.setDone(uid, i, !i.done) },
-                            onLong = { editor = Editing(i.task, i.date) })
+                        Text(t.label, style = MaterialTheme.typography.labelLarge, color = if (on) Ink.ink2 else Ink.faint)
+                        Spacer(Modifier.width(5.dp))
+                        Text("${counts[t]}", style = MaterialTheme.typography.labelMedium, color = Ink.midInk)
                     }
                 }
+            }
+            val sheet = RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+            Box(Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp)) {
+                val d = LocalDensity.current
+                Box(Modifier.matchParentSize().graphicsLayer {
+                    translationX = with(d) { 9.dp.toPx() }; translationY = with(d) { 9.dp.toPx() }; rotationZ = .35f
+                }.shadow(3.dp, sheet, spotColor = Ink.dark).background(Ink.sheet3, sheet))
+                Box(Modifier.matchParentSize().graphicsLayer {
+                    translationX = with(d) { 4.5.dp.toPx() }; translationY = with(d) { 4.5.dp.toPx() }; rotationZ = -.2f
+                }.shadow(3.dp, sheet, spotColor = Ink.dark).background(Ink.sheet2, sheet))
+                Box(Modifier.matchParentSize().shadow(5.dp, sheet, spotColor = Ink.dark).background(Ink.card, sheet)) {
+                    if (o == null) {
+                        Message("불러오는 중…", "처음에는 서버에서 받아 오느라 조금 걸립니다.")
+                    } else {
+                        TabList(tab, o, today, now, openRow, { openRow = it },
+                            open = { t, d -> editor = Editing(t, d) },
+                            toggle = ::toggle,
+                            actsFor = { i ->
+                                when {
+                                    i.done -> if (i.kind == "routine") emptyList() else listOf(Act("삭제", Ink.danger) { removeSoon(i.task) })
+                                    i.kind == "routine" -> listOf(Act("건너뛰기", Ink.midInk) { skip(i) })
+                                    i.kind == "deadline" -> listOf(
+                                        Act(if (i.date != null && i.date.isAfter(today)) "↷ 하루 뒤로" else "↷ 내일로", Ink.midInk) { later(i.task) },
+                                        Act("삭제", Ink.danger) { removeSoon(i.task) })
+                                    else -> listOf(Act("삭제", Ink.danger) { removeSoon(i.task) })
+                                }
+                            },
+                            routineActs = { t, next ->
+                                listOfNotNull(
+                                    next?.takeIf { !it.done }?.let { n -> Act("건너뛰기", Ink.midInk) { skip(n) } },
+                                    Act("삭제", Ink.danger) { removeSoon(t) },
+                                )
+                            })
+                    }
+                }
+            }
+        }
+
+        // ---- new item ----
+        Box(
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 22.dp)
+                .shadow(8.dp, RoundedCornerShape(27.dp), spotColor = Ink.midShadow)
+                .clip(RoundedCornerShape(27.dp)).background(Ink.mid).tap { editor = Editing(null, null) }
+                .padding(horizontal = 22.dp, vertical = 16.dp),
+        ) { Text("＋  새 항목", style = MaterialTheme.typography.labelLarge, color = Ink.onMid) }
+
+        // ---- undo ----
+        AnimatedVisibility(
+            visible = undo != null,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp),
+            enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 },
+        ) {
+            var shown by remember { mutableStateOf<Undo?>(null) }
+            undo?.let { shown = it }
+            val u = shown
+            Row(
+                Modifier.widthIn(max = 360.dp).shadow(10.dp, RoundedCornerShape(24.dp), spotColor = Ink.deep)
+                    .clip(RoundedCornerShape(24.dp)).background(Ink.deep).padding(start = 18.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(u?.text ?: "", Modifier.weight(1f, fill = false).padding(vertical = 14.dp),
+                    style = MaterialTheme.typography.labelLarge, color = Ink.onMid, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(12.dp))
+                Box(
+                    Modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = .14f))
+                        .tap { u?.undo?.invoke(); undo = null }.padding(horizontal = 14.dp, vertical = 8.dp),
+                ) { Text("되돌리기", style = MaterialTheme.typography.labelLarge, color = Color.White) }
             }
         }
     }
@@ -300,16 +407,17 @@ private fun Home(user: FirebaseUser) {
         ItemEditor(
             existing = e.task,
             today = today,
-            businessOnly = settings["business_only"] != false,
+            businessOnly = businessOnly,
             defaultLead = ReminderPlan.defaultLead(settings),
             skipDate = e.date,
             onDismiss = { editor = null },
             onSave = { fields -> Cloud.save(uid, e.task, fields); editor = null },
-            onDelete = { e.task?.let { Cloud.delete(uid, it) }; editor = null },
+            onDelete = { e.task?.let { removeSoon(it) }; editor = null },
             onSkip = {
-                if (e.task != null && e.date != null) Cloud.skip(uid, Instance(e.task, e.date, false))
+                if (e.task != null && e.date != null) skip(Instance(e.task, e.date, false))
                 editor = null
             },
+            onLater = e.task?.takeIf { it.kind == "deadline" && !it.done && it.dueDate != null }?.let { t -> { later(t); editor = null } },
         )
     }
 }
@@ -318,113 +426,252 @@ private fun Home(user: FirebaseUser) {
 private data class Editing(val task: Task?, val date: LocalDate?)
 
 @Composable
+private fun TabList(
+    tab: Tab, o: com.lazyscheduler.app.core.Overview, today: LocalDate, now: LocalTime,
+    openRow: String?, setOpen: (String?) -> Unit,
+    open: (Task, LocalDate?) -> Unit, toggle: (Instance) -> Unit,
+    actsFor: (Instance) -> List<Act>, routineActs: (Task, Instance?) -> List<Act>,
+) {
+    LazyColumn(contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 120.dp)) {
+        when (tab) {
+            Tab.ROUTINES -> {
+                if (o.routines.isEmpty()) item { Empty("루틴이 없습니다", "＋ 새 항목 → 루틴") }
+                items(o.routines, key = { it.first.id }) { (task, next) ->
+                    SwipeRow(task.id, openRow, setOpen, routineActs(task, next), null, onTap = { open(task, next?.date) }) { hide ->
+                        RoutineRow(task, next, today, hide)
+                    }
+                    Rule()
+                }
+            }
+            else -> {
+                val rows: List<Instance> = when (tab) {
+                    Tab.TODAY -> (o.overdue + o.todays).sortedWith(compareBy({ it.done }, { it.date ?: LocalDate.MAX }, { it.time.ifEmpty { "99:99" } }))
+                    Tab.UPCOMING -> o.upcoming
+                    else -> o.floating
+                }
+                if (rows.isEmpty()) item {
+                    when (tab) {
+                        Tab.TODAY -> Empty("오늘 할 일이 없습니다", o.upcoming.firstOrNull()?.let {
+                            "다음 마감은 ${dateLabel(it.date!!, today)} · ${it.task.title}"
+                        } ?: "다가오는 7일에도 마감이 없습니다.")
+                        Tab.UPCOMING -> Empty("앞으로 7일, 마감 없음", "")
+                        else -> Empty("메모가 없습니다", "＋ 새 항목 → 메모")
+                    }
+                }
+                // Today: "지난 일" and "오늘" get a name when both are there
+                val late = if (tab == Tab.TODAY) rows.filter { it.date != null && it.date.isBefore(today) && !it.done } else emptyList()
+                val rest = rows.filter { it !in late }
+                if (late.isNotEmpty()) item(key = "g-late") { Group("지난 일") }
+                items(late, key = { "L" + it.task.id + "@" + it.date }) { i -> InstanceRow(i, today, now, tab, openRow, setOpen, open, toggle, actsFor) }
+                if (late.isNotEmpty() && rest.isNotEmpty()) item(key = "g-today") { Group("오늘") }
+                items(rest, key = { it.task.id + "@" + it.date }) { i -> InstanceRow(i, today, now, tab, openRow, setOpen, open, toggle, actsFor) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstanceRow(
+    i: Instance, today: LocalDate, now: LocalTime, tab: Tab, openRow: String?, setOpen: (String?) -> Unit,
+    open: (Task, LocalDate?) -> Unit, toggle: (Instance) -> Unit, actsFor: (Instance) -> List<Act>,
+) {
+    val id = i.task.id + "@" + i.date
+    SwipeRow(id, openRow, setOpen, actsFor(i), onSwipeRight = if (i.done) null else ({ toggle(i) }),
+        onTap = { open(i.task, i.date) }) { hide ->
+        ItemRow(i, today, now, showDate = tab == Tab.UPCOMING, hide = hide) { toggle(i) }
+    }
+    Rule()
+}
+
+@Composable
+private fun Group(text: String) {
+    Text(text, Modifier.padding(start = 12.dp, top = 12.dp, bottom = 2.dp), style = MaterialTheme.typography.bodySmall)
+}
+
+@Composable
+private fun Rule() {
+    Box(Modifier.padding(horizontal = 10.dp).fillMaxWidth().height(1.dp).background(Ink.rule))
+}
+
+@Composable
 private fun Empty(title: String, body: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium, color = Ink.muted)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = Ink.muted)
         if (body.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
-            Text(body, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            Text(body, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * One row that slides. Left: the buttons (36dp pills, 8dp apart, 10dp from the edge,
+ * 16dp from the row's rounded end; the row's time fades out so nothing touches).
+ * Right, past 96dp: done. A tap on an open row closes it; on a closed row opens the item.
+ */
 @Composable
-private fun ItemRow(i: Instance, today: LocalDate, now: LocalTime, showDate: Boolean, onTap: () -> Unit, onLong: () -> Unit) {
-    val barColor = when (i.kind) { "routine" -> Ink.mint; "floating" -> Ink.dark; else -> Ink.mid }
-    Column {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                .combinedClickable(onClick = onTap, onLongClick = onLong)
-                .padding(vertical = 14.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+private fun SwipeRow(
+    id: String, openId: String?, setOpen: (String?) -> Unit, actions: List<Act>,
+    onSwipeRight: (() -> Unit)?, onTap: () -> Unit, content: @Composable RowScope.(hide: Float) -> Unit,
+) {
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val offset = remember { Animatable(0f) }
+    var actW by remember { mutableIntStateOf(0) }
+    val reveal = if (actions.isEmpty()) 0f else actW + with(density) { 26.dp.toPx() }
+    val doneAt = with(density) { 96.dp.toPx() }
+    LaunchedEffect(openId) { if (openId != id && offset.value < 0f) offset.animateTo(0f) }
+    val x = offset.value
+    val hide = if (reveal > 0f) (-x / reveal).coerceIn(0f, 1f) else 0f
+    val endShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+
+    Box(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        if (x > 0f) Box(
+            Modifier.matchParentSize().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp))
+                .background(Ink.mint.copy(alpha = (x / doneAt).coerceIn(0f, 1f) * .7f)),
+            contentAlignment = Alignment.CenterStart,
+        ) { Text("✓  완료", Modifier.padding(start = 18.dp), style = MaterialTheme.typography.labelLarge, color = Ink.deep) }
+        if (actions.isNotEmpty()) Row(
+            Modifier.align(Alignment.CenterEnd).padding(end = 10.dp).alpha(hide).onSizeChanged { actW = it.width },
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(Modifier.width(3.dp).height(22.dp).clip(RoundedCornerShape(2.dp)).background(barColor))
-            Spacer(Modifier.width(12.dp))
-            Box(
-                Modifier.size(22.dp).clip(CircleShape)
-                    .background(if (i.done) Ink.mid else Color.Transparent)
-                    .border(1.5.dp, if (i.done) Ink.mid else Ink.dark, CircleShape),
+            for (a in actions) Box(
+                Modifier.height(36.dp).raised(18.dp, 2.5.dp).clip(RoundedCornerShape(18.dp))
+                    .tap { setOpen(null); scope.launch { offset.animateTo(0f) }; a.run() }
+                    .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center,
-            ) {
-                if (i.done) Text("✓", color = Ink.onMid, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
-            }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                i.task.title,
-                modifier = Modifier.weight(1f),
-                style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-                color = if (i.done) Ink.dim else Ink.body,
-                textDecoration = if (i.done) TextDecoration.LineThrough else null,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.width(8.dp))
-            if (i.kind == "routine") Tag("반복")
-            when (Plan.urgency(i, today, now)) {
-                "late" -> Badge(if (i.date != null && i.date.isBefore(today)) dateLabel(i.date, today) else "지남", Ink.deep, Ink.onMid)
-                "soon" -> Badge("임박", Ink.mint, Ink.deep)
-            }
-            val whenText = if (showDate && i.date != null) dateLabel(i.date, today) + (if (i.time.isNotEmpty()) " " + i.time else "") else i.time
-            if (whenText.isNotEmpty()) {
-                Spacer(Modifier.width(8.dp))
-                Text(whenText, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.midInk)
-            }
+            ) { Text(a.label, style = MaterialTheme.typography.labelMedium, color = a.color, maxLines = 1) }
         }
-        HorizontalDivider(color = Ink.rule, thickness = 1.dp)
+        Row(
+            Modifier.offset { IntOffset(x.roundToInt(), 0) }.fillMaxWidth()
+                .then(if (x < 0f) Modifier.shadow(5.dp, endShape, spotColor = Ink.dark) else Modifier)
+                .clip(if (x != 0f) endShape else RectangleShape)
+                .background(Ink.card)
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { dx ->
+                        scope.launch {
+                            val max = if (onSwipeRight != null) doneAt * 1.4f else 0f
+                            offset.snapTo((offset.value + dx).coerceIn(-reveal * 1.12f, max))
+                        }
+                    },
+                    onDragStarted = { if (openId != null && openId != id) setOpen(null) },
+                    onDragStopped = {
+                        val v = offset.value
+                        when {
+                            v >= doneAt && onSwipeRight != null -> { offset.animateTo(0f); onSwipeRight() }
+                            reveal > 0f && v < -reveal / 2 -> { offset.animateTo(-reveal); setOpen(id) }
+                            else -> { offset.animateTo(0f); if (openId == id) setOpen(null) }
+                        }
+                    },
+                )
+                .tap { if (offset.value < 0f) { scope.launch { offset.animateTo(0f) }; setOpen(null) } else onTap() }
+                .heightIn(min = 60.dp).padding(start = 2.dp, end = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) { content(hide) }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RoutineRow(task: Task, next: Instance?, today: LocalDate, onTap: () -> Unit) {
-    Column {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).combinedClickable(onClick = onTap)
-                .padding(vertical = 14.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(task.title, style = androidx.compose.material3.MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(task.ruleText, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, maxLines = 1)
-            }
-            val label = when {
-                next?.date == null -> "예정 없음"
-                next.date == today -> if (next.done) "오늘 완료" else "오늘"
-                else -> dateLabel(next.date, today)
-            }
-            if (next?.date == today && next.done != true) Badge(label, Ink.deep, Ink.onMid)
-            else Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.midInk)
-            if (task.dueTime.isNotEmpty()) {
-                Spacer(Modifier.width(8.dp))
-                Text(task.dueTime, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = Ink.midInk)
+private fun RowScope.ItemRow(i: Instance, today: LocalDate, now: LocalTime, showDate: Boolean, hide: Float, onCheck: () -> Unit) {
+    CheckDot(i.done, onCheck)
+    Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
+        Text(
+            i.task.title, style = MaterialTheme.typography.bodyLarge,
+            color = if (i.done) Ink.dim else Ink.body,
+            textDecoration = if (i.done) TextDecoration.LineThrough else null,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        val sub = when {
+            i.kind == "routine" -> "루틴 · " + i.task.ruleText
+            i.date != null && i.date.isBefore(today) -> dateLabel(i.date, today) + (if (i.time.isNotEmpty()) " " + i.time else "")
+            else -> ""
+        }
+        if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    Row(Modifier.alpha(1f - hide), verticalAlignment = Alignment.CenterVertically) {
+        when (Plan.urgency(i, today, now)) {
+            "late" -> Badge(if (i.date != null && i.date.isBefore(today)) dateLabel(i.date, today) else "지남", Ink.deep, Ink.onMid)
+            "soon" -> Badge("임박", Ink.mint, Ink.deep)
+        }
+        val whenText = if (showDate && i.date != null) dateLabel(i.date, today) + (if (i.time.isNotEmpty()) " " + i.time else "") else i.time
+        if (whenText.isNotEmpty()) {
+            Spacer(Modifier.width(8.dp))
+            Text(whenText, style = MaterialTheme.typography.labelLarge, color = if (i.done) Ink.dim else Ink.body)
+        }
+    }
+}
+
+@Composable
+private fun RowScope.RoutineRow(task: Task, next: Instance?, today: LocalDate, hide: Float) {
+    Column(Modifier.weight(1f).padding(start = 14.dp, top = 10.dp, bottom = 10.dp)) {
+        Text(task.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(task.ruleText + (if (task.dueTime.isNotEmpty()) " · " + task.dueTime else ""),
+            style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    Box(Modifier.alpha(1f - hide)) {
+        when {
+            next?.date == null -> Text("예정 없음", style = MaterialTheme.typography.labelMedium, color = Ink.faint)
+            next.date == today -> if (next.done) Badge("완료", Ink.pale, Ink.muted) else Badge("오늘", Ink.deep, Ink.onMid)
+            else -> Text(dateLabel(next.date, today), style = MaterialTheme.typography.labelLarge, color = Ink.body)
+        }
+    }
+}
+
+/** The ring's popover: what is left today, without leaving the tab you are on. */
+@Composable
+private fun TodayOverview(all: List<Instance>, today: LocalDate) {
+    val left = all.filter { !it.done }.sortedWith(compareBy({ it.date ?: LocalDate.MAX }, { it.time.ifEmpty { "99:99" } }))
+    Column(Modifier.widthIn(min = 250.dp, max = 300.dp).padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(if (left.isEmpty()) "다 끝났습니다" else "${left.size}건 남음", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.weight(1f))
+            val late = left.count { it.date != null && it.date.isBefore(today) }
+            if (late > 0) Text("지난 것 ${late}건", style = MaterialTheme.typography.bodySmall)
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule2))
+        if (left.isEmpty()) Text("오늘 남은 일이 없습니다.", Modifier.padding(vertical = 14.dp), style = MaterialTheme.typography.bodyMedium)
+        for (i in left.take(6)) {
+            Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(3.dp).height(13.dp).clip(RoundedCornerShape(2.dp))
+                    .background(when (i.kind) { "routine" -> Ink.mid; "floating" -> Ink.mint; else -> Ink.ink2 }))
+                Spacer(Modifier.width(10.dp))
+                Text(i.task.title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Ink.body,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val over = i.date != null && i.date.isBefore(today)
+                Text(if (over) dateLabel(i.date!!, today) else i.time, style = MaterialTheme.typography.bodySmall,
+                    color = if (over) Ink.midInk else Ink.faint)
             }
         }
-        HorizontalDivider(color = Ink.rule, thickness = 1.dp)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule))
+        Text((if (left.size > 6) "외 ${left.size - 6}건 · " else "") + "완료 ${all.count { it.done }} · 전체 ${all.size}",
+            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), style = MaterialTheme.typography.bodySmall,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
 @Composable
 private fun Badge(text: String, bg: Color, fg: Color) {
     Box(Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
-        Text(text, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = fg)
+        Text(text, style = MaterialTheme.typography.labelSmall, color = fg)
     }
 }
 
+/** A drawn gear (the font has no symbol for it). */
 @Composable
-private fun Tag(text: String) {
-    Box(Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Ink.dark, RoundedCornerShape(8.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-        Text(text, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = Ink.faint)
+private fun Gear() {
+    Canvas(Modifier.size(18.dp)) {
+        val c = Offset(size.width / 2, size.height / 2)
+        val w = 1.7.dp.toPx()
+        drawCircle(Ink.muted, radius = size.minDimension * .27f, center = c, style = Stroke(w))
+        drawCircle(Ink.muted, radius = size.minDimension * .11f, center = c, style = Stroke(w))
+        for (k in 0 until 8) {
+            val a = Math.toRadians(k * 45.0)
+            val r0 = size.minDimension * .32f
+            val r1 = size.minDimension * .46f
+            drawLine(Ink.muted, Offset(c.x + r0 * cos(a).toFloat(), c.y + r0 * sin(a).toFloat()),
+                Offset(c.x + r1 * cos(a).toFloat(), c.y + r1 * sin(a).toFloat()), strokeWidth = w * 1.4f)
+        }
     }
-}
-
-@Composable
-private fun Pill(text: String, primary: Boolean, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(
-        onClick = onClick, enabled = enabled, modifier = modifier.height(48.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (primary) Ink.mid else Ink.light, contentColor = if (primary) Ink.onMid else Ink.ink2,
-            disabledContainerColor = Ink.pale, disabledContentColor = Ink.faint),
-        contentPadding = PaddingValues(horizontal = 22.dp),
-    ) { Text(text, style = androidx.compose.material3.MaterialTheme.typography.labelLarge) }
 }

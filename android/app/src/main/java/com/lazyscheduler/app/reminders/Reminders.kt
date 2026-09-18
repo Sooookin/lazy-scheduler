@@ -168,6 +168,8 @@ object Reminders {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
+            // A late item stays until it is answered (완료 · 10분 뒤 · open), like the PC's late cards.
+            .setOngoing(late)
             .setContentIntent(openApp(ctx))
             .addAction(0, "완료", pending(ctx, ACTION_DONE, key, extras))
             .addAction(0, "${SNOOZE_MIN}분 뒤", pending(ctx, ACTION_SNOOZE, key, extras))

@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .win{width:1020px; height:880px; display:flex; flex-direction:column}
+    .tb{height:34px; display:flex; align-items:center; gap:10px; padding:0 8px 0 14px; font-size:12px; color:var(--faint)}
+    .tb .ic{width:14px; height:14px; border-radius:4px; background:var(--mid)}
+    .tb .sp{flex:1}
+    .tb .w{width:40px; text-align:center; font-size:13px; color:var(--muted)}
+    .app{flex:1; display:flex; flex-direction:column; gap:16px; padding:10px 24px 20px; min-height:0}
+
+    .head{display:flex; align-items:center; gap:18px}
+    .date{display:flex; flex-direction:column; gap:6px; min-width:250px}
+    .date .d{font-size:24px; font-weight:500; color:var(--ink2); letter-spacing:-.5px}
+    .date .d small{font-size:15px; font-weight:300; color:var(--faint); margin-left:8px}
+    .prog{display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--mid-ink)}
+    .prog .bar{width:120px; height:5px; border-radius:3px; background:var(--pale); overflow:hidden}
+    .prog .bar i{display:block; width:40%; height:100%; background:var(--mid); border-radius:3px}
+    .head .sp{flex:1}
+    .search{display:flex; align-items:center; gap:8px; width:230px; height:38px; padding:0 14px; border-radius:19px;
+      background:var(--bg); box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light);
+      font-size:12.5px; color:var(--faint)}
+    .search .k{margin-left:auto; font-size:11px; padding:1px 6px; border-radius:5px; box-shadow:inset 0 0 0 1px var(--rule2)}
+    .seg{display:flex; padding:3px; border-radius:12px; background:var(--pale)}
+    .seg span{padding:7px 14px; border-radius:9px; font-size:12.5px; color:var(--faint)}
+    .seg span.on{background:var(--light); color:var(--ink2); box-shadow:1px 1px 3px var(--dark)}
+    .gear{width:38px; height:38px; border-radius:50%; display:grid; place-items:center; font-size:16px; color:var(--muted);
+      box-shadow:2px 2px 6px var(--dark), -2px -2px 6px var(--light)}
+
+    .add{display:flex; align-items:center; gap:12px; height:56px; padding:0 10px 0 18px; border-radius:18px;
+      background:var(--light); box-shadow:0 0 0 2px var(--mid), 0 6px 18px var(--midshadow)}
+    .add .plus{width:26px; height:26px; border-radius:50%; background:var(--mid); color:var(--onmid);
+      display:grid; place-items:center; font-size:16px; flex:none}
+    .add .txt{font-size:15.5px; color:var(--ink2); white-space:nowrap}
+    .add .txt i{display:inline-block; width:1.5px; height:18px; background:var(--mid); vertical-align:-3px; margin-left:1px}
+    .add .got{display:flex; gap:6px; margin-left:auto}
+    .add .got .chip{height:28px; font-size:12px; background:var(--pale)}
+    .add .got .chip b{font-weight:500; color:var(--ink2)}
+    .add .hint{font-size:11.5px; color:var(--faint); white-space:nowrap; padding-left:4px}
+
+    .cols{flex:1; display:grid; grid-template-columns:1.12fr 1fr; gap:18px; min-height:0}
+    .col{display:flex; flex-direction:column; gap:18px; min-height:0}
+    .sec{position:relative; padding:16px 18px 10px}
+    .sec h3{display:flex; align-items:baseline; gap:8px; margin:0 0 6px; font-size:14px; font-weight:500; color:var(--ink2)}
+    .sec h3 .c{font-size:12.5px; color:var(--mid-ink)}
+    .sec h3 .r{margin-left:auto; font-size:12px; font-weight:400; color:var(--faint)}
+    .grp{font-size:11.5px; color:var(--faint); font-weight:400; padding:10px 2px 2px}
+    .row{display:flex; align-items:center; gap:12px; min-height:46px; padding:0 8px; border-radius:10px; font-size:14px; color:var(--body)}
+    .row + .row{box-shadow:inset 0 1px 0 var(--rule)}
+    .row .t{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .row .m{display:flex; align-items:center; gap:8px}
+    .row.hover{background:var(--hover); box-shadow:none}
+    .row.hover + .row{box-shadow:none}
+    .acts{display:flex; gap:4px}
+    .acts span{height:28px; padding:0 10px; border-radius:14px; display:inline-flex; align-items:center; font-size:12px;
+      color:var(--muted); background:var(--light); box-shadow:1px 1px 3px var(--dark)}
+    .rt .t small{display:block; font-size:12px; font-weight:400; color:var(--faint); margin-top:1px}
+    .rt{min-height:52px}
+    .more{font-size:12px; color:var(--mid-ink); padding:8px 8px 6px}
+
+    .toast{position:absolute; left:50%; bottom:26px; transform:translateX(-50%); display:flex; align-items:center; gap:16px;
+      height:46px; padding:0 8px 0 18px; border-radius:23px; background:var(--deep); color:var(--onmid); font-size:13.5px;
+      box-shadow:0 10px 28px rgba(8,32,43,.35); white-space:nowrap}
+    .toast .u{height:32px; padding:0 14px; border-radius:16px; display:inline-flex; align-items:center;
+      background:rgba(238,243,241,.14); color:#fff; font-size:13px}
+    .toast .x{font-size:11px; color:rgba(238,243,241,.6)}
+  </style>
+</helmet>
+
+<div class="paper win">
+  <div class="grain"></div>
+  <div class="tb"><span class="ic"></span>LazyScheduler<span class="sp"></span><span class="w">—</span><span class="w">▢</span><span class="w">✕</span></div>
+
+  <div class="app">
+    <div class="head">
+      <div class="date">
+        <div class="d">9월 18일 금요일<small>14:20</small></div>
+        <div class="prog"><span class="bar"><i></i></span>오늘 5건 중 3건 남음</div>
+      </div>
+      <span class="num">4</span>
+      <div class="sp"></div>
+      <div class="search">⌕ 검색<span class="k">Ctrl K</span></div>
+      <span class="num" style="margin-left:-10px">10</span>
+      <div class="seg"><span class="on">오늘</span><span>달력</span></div>
+      <div class="gear">⚙</div>
+    </div>
+
+    <div class="add">
+      <span class="plus">+</span>
+      <span class="txt">내일 3시 보고서 제출<i></i></span>
+      <div class="got">
+        <span class="chip">할 일</span>
+        <span class="chip"><b>내일</b> 9/19 (토) → <b>9/21 (월)</b></span>
+        <span class="chip"><b>15:00</b></span>
+        <span class="chip">알림 30분 전</span>
+      </div>
+      <span class="hint">⏎ 추가 · ⇥ 자세히</span>
+      <span class="num">2</span>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <div class="card sec" style="flex:1">
+          <h3>오늘 <span class="c">3</span><span class="r">완료 2</span></h3>
+          <div class="grp">지난 일</div>
+          <div class="row"><span class="chk"></span><span class="t">리스크 한도 점검표 회신</span><span class="m"><span class="pill late">어제</span><span class="tm">09:00</span></span></div>
+          <div class="grp">오늘</div>
+          <div class="row"><span class="chk"></span><span class="t">교보생명 체크리스트</span><span class="m"><span class="pill soon">20분 뒤</span><span class="tm">14:40</span></span></div>
+          <div class="row hover"><span class="chk" style="background:rgba(77,117,114,.12)"></span><span class="t">국내 일임 매매</span>
+            <span class="m"><span class="acts"><span>✎ 수정</span><span>내일로</span><span>⋯</span></span><span class="tm">15:00</span></span>
+            <span class="num">3</span></div>
+          <div class="row"><span class="chk done"></span><span class="t done-t">아침운용현황</span><span class="m"><span class="tm" style="color:var(--dim)">08:30</span></span></div>
+          <div class="row"><span class="chk done"></span><span class="t done-t">팀장님 해외통합</span><span class="m"><span class="tm" style="color:var(--dim)">10:35</span></span></div>
+          <span class="num pin" style="left:38px; top:118px">8</span>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card sec">
+          <h3>다가오는 일 <span class="c">2</span><span class="r">7일</span></h3>
+          <div class="row"><span class="chk"></span><span class="t">분기 리밸런싱 자료</span><span class="m"><span class="tm">월 11:00</span></span></div>
+          <div class="row"><span class="chk"></span><span class="t">퇴연 RA 비즈니스 미팅</span><span class="m"><span class="tm">목 14:00</span></span></div>
+        </div>
+        <div class="card sec">
+          <h3>반복 <span class="c">4</span><span class="r">다음 실행일</span><span class="num" style="margin-left:8px">5</span></h3>
+          <div class="row rt"><span class="t">아침운용현황<small>매 영업일 · 08:30</small></span><span class="m"><span class="tm">월</span></span></div>
+          <div class="row rt"><span class="t">iM증권 주간 코멘트<small>매주 월요일 · 10:00</small></span><span class="m"><span class="tm">월</span></span></div>
+          <div class="row rt"><span class="t">월간 성과 집계<small>매월 마지막 영업일</small></span><span class="m"><span class="tm">9/30 (수)</span></span></div>
+          <div class="more">반복 4개 모두 보기 ›</div>
+        </div>
+        <div class="card sec">
+          <h3>메모 <span class="c">2</span></h3>
+          <div class="row"><span class="chk"></span><span class="t">휴넷 교육 듣기</span></div>
+          <div class="row"><span class="chk"></span><span class="t">RA18 자기평가서 초안</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast">‘아침운용현황’ 완료<span class="u">↩ 되돌리기</span><span class="x">5초</span><span class="num" style="margin-right:4px">1</span></div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1020,"height":880}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

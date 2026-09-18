@@ -28,10 +28,10 @@
 <div class="app">
 
   <header class="top">
-    <div class="date">
-      <div class="d-day" id="dow">—</div>
+    <div class="lh">
+      <div class="date"><div class="d-day" id="dow">—</div></div>
+      <div class="clock" id="clock">--:--</div>
     </div>
-    <div class="clock" id="clock">--:--</div>
     <div class="ring-slot">
       <button class="ring-wrap" id="ring-btn" type="button"
               aria-haspopup="dialog" aria-expanded="false" title="남은 일 보기">
@@ -42,10 +42,6 @@
         <div class="ring-txt"><b id="left">0</b><span>남음</span></div>
       </button>
       <div class="pop" id="pop-left" role="dialog" aria-label="남은 일"></div>
-    </div>
-    <div class="views" id="views">
-      <button data-v="home" class="on">오늘</button>
-      <button data-v="cal">달력</button>
     </div>
     <div class="acts">
       <button class="pill-btn" id="btn-add" title="새 항목" aria-label="새 항목">
@@ -70,59 +66,81 @@
     <button class="s-btn" id="strip-btn" hidden></button>
   </div>
 
-  <main class="grid" id="v-home">
-    <section class="col">
-      <div class="card">
-        <h2>오늘 <span class="badge" id="c-today">0</span><i class="h-note" id="today-note"></i></h2>
-        <div class="list" id="today"></div>
-      </div>
-    </section>
-    <section class="col" id="col-right">
-      <div class="card" id="card-up">
-        <h2>다가오는 마감 <span class="badge" id="c-up">0</span><i class="h-note">7일</i></h2>
-        <div class="list" id="upcoming"></div>
-      </div>
-      <div class="card" id="card-memo">
-        <h2>메모 <span class="badge" id="c-float">0</span></h2>
-        <div class="list" id="floating"></div>
-      </div>
-      <div class="card fold" id="card-rt">
-        <h2 id="rt-head">반복 업무 <span class="badge" id="c-rt">0</span><i class="h-note">다음 실행일<i class="caret"></i></i></h2>
-        <div class="list" id="routines"></div>
-      </div>
-    </section>
-  </main>
-
-  <section class="cal card" id="v-cal" hidden>
-    <div class="cal-top">
-      <button class="cbtn" id="cal-prev" title="이전 달" aria-label="이전 달">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
-      <b class="cal-ym" id="cal-ym">—</b>
-      <button class="cbtn" id="cal-next" title="다음 달" aria-label="다음 달">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-      </button>
-      <button class="link" id="cal-now">이번 달</button>
-      <button class="cbtn wide" id="cal-we" title="주말 칸 표시 / 숨김">주말</button>
-      <button class="cbtn wide" id="cal-rt" title="반복 업무 표시 / 숨김">반복</button>
-      <div class="cal-gap"></div>
-      <span class="cal-legend">
-        <span><i class="sw p"></i>지남</span>
-        <span><i class="sw t"></i>오늘</span>
-        <span><i class="sw f"></i>예정</span>
-        <span><i class="sw d"></i>완료</span>
-      </span>
-      <i class="h-note" id="cal-note"></i>
+  <!-- 홈: 겹쳐 쌓인 종이 한 묶음. 오늘/달력은 맨 위 장 왼쪽 위의 인덱스 탭으로 넘긴다 -->
+  <div class="desk" id="desk">
+    <div class="s3" aria-hidden="true"></div><div class="s2" aria-hidden="true"></div>
+    <div class="dtabs" id="views" role="tablist">
+      <button class="dtab on" data-v="home" role="tab" aria-selected="true">오늘</button>
+      <button class="dtab" data-v="cal" role="tab" aria-selected="false">달력</button>
     </div>
-    <div class="cal-head" id="cal-head"></div>
-    <div class="cal-grid" id="cal-grid"></div>
-  </section>
+    <div class="sheet">
+      <main class="home" id="v-home">
+        <section class="col" id="col-left">
+          <div class="sec">
+            <h2>오늘 <span class="badge" id="c-today">0</span><i class="h-note" id="today-note"></i></h2>
+            <div class="list" id="today"></div>
+          </div>
+        </section>
+        <div class="vr"></div>
+        <section class="col" id="col-right">
+          <div class="sec" id="sec-up">
+            <h2>다가오는 마감 <span class="badge" id="c-up">0</span><i class="h-note">7일</i></h2>
+            <div class="list" id="upcoming"></div>
+          </div>
+          <div class="sec" id="sec-memo">
+            <h2>메모 <span class="badge" id="c-float">0</span></h2>
+            <div class="list" id="floating"></div>
+          </div>
+          <div class="sec" id="sec-rt">
+            <h2>루틴 <span class="badge" id="c-rt">0</span><i class="h-note">다음 실행일</i></h2>
+            <div class="list" id="routines"></div>
+          </div>
+        </section>
+        <div class="vr vr2"></div>
+        <section class="col" id="col-rt"></section>
+      </main>
+
+      <section class="cal" id="v-cal" hidden>
+        <div class="cal-top">
+          <button class="cbtn" id="cal-prev" title="이전 달" aria-label="이전 달">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <b class="cal-ym" id="cal-ym">—</b>
+          <button class="cbtn" id="cal-next" title="다음 달" aria-label="다음 달">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button class="link" id="cal-now">이번 달</button>
+          <button class="cbtn wide" id="cal-we" title="주말 칸 표시 / 숨김">주말</button>
+          <button class="cbtn wide" id="cal-rt" title="루틴 표시 / 숨김">루틴</button>
+          <div class="cal-gap"></div>
+          <span class="cal-legend">
+            <span><i class="sw p"></i>지남</span>
+            <span><i class="sw t"></i>오늘</span>
+            <span><i class="sw f"></i>예정</span>
+            <span><i class="sw d"></i>완료</span>
+          </span>
+          <i class="h-note" id="cal-note"></i>
+        </div>
+        <div class="cal-head" id="cal-head"></div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </section>
+    </div>
+  </div>
 
   <footer class="foot">
     <button class="link" id="btn-manage">전체 항목 관리</button>
     <span id="status"></span>
   </footer>
 </div>
+
+<!-- 완료 · 삭제 · 건너뛰기 · 내일로 뒤 5초 동안 되돌릴 수 있다 -->
+<div class="undo" id="undo" role="status" aria-live="polite">
+  <span class="u-msg" id="undo-msg"></span>
+  <button type="button" class="u-btn" id="undo-btn">되돌리기</button>
+</div>
+
+<!-- 시각 고르기: 칸을 누르면 시 → 분, 두 번이면 끝 -->
+<div class="tp" id="tp" role="dialog" aria-label="시각 고르기"></div>
 
 <div class="veil" id="veil"></div>
 
@@ -138,11 +156,11 @@
 
 <!-- ── 새 항목 ── -->
 <div class="modal wide" id="m-add" role="dialog" aria-modal="true" aria-label="새 항목">
-  <h3>새 항목</h3>
+  <h3 id="a-head">새 할 일</h3>
   <div class="tabs" id="add-tabs">
-    <button data-k="routine" class="on">반복되는 일</button>
-    <button data-k="deadline">마감이 있는 일</button>
-    <button data-k="floating">기한 없는 메모</button>
+    <button data-k="deadline" class="on">할 일</button>
+    <button data-k="routine">루틴</button>
+    <button data-k="floating">메모</button>
   </div>
   <div class="row">
     <div class="g14"><label for="a-title">이름</label><input id="a-title" autocomplete="off"></div>
@@ -167,6 +185,7 @@
     <div>
       <button class="ghost danger" id="e-del">삭제</button>
       <button class="ghost" id="e-skip">이번 회차 건너뛰기</button>
+      <button class="ghost" id="e-later">내일로</button>
     </div>
     <div>
       <button class="ghost" data-close>취소</button>
@@ -180,8 +199,8 @@
   <h3>전체 항목 <i class="opt">누르면 수정</i></h3>
   <div class="tabs" id="mg-tabs">
     <button data-k="all" class="on">전체</button>
-    <button data-k="routine">반복</button>
-    <button data-k="deadline">마감</button>
+    <button data-k="deadline">할 일</button>
+    <button data-k="routine">루틴</button>
     <button data-k="floating">메모</button>
     <button data-k="done">완료</button>
   </div>
@@ -197,7 +216,7 @@
   <span class="step">일정과 알림</span>
   <div class="row">
     <div><label for="s-lead">기본 알림 (분 전)</label><input id="s-lead" class="min5" type="number" min="0" step="5"></div>
-    <div><label for="s-brief">아침 브리핑 시각</label><input id="s-brief" type="time" step="300" title="직접 입력할 수 있습니다 (5분 단위)"></div>
+    <div><label for="s-brief">아침 브리핑 시각</label><input id="s-brief" class="tf" data-tf data-req autocomplete="off" title="누르면 시 → 분. 숫자로 쳐도 됩니다 (930 · 21 · 930p)"></div>
   </div>
   <label class="chk"><input type="checkbox" id="s-biz"> 영업일 기준으로만 쓰기 <i class="opt">주말 선택 차단 · 공휴일 자동 보정</i></label>
   <!-- Windows 가 알려주는 상태(SHQueryUserNotificationState)를 따른다. 전체 화면 ·

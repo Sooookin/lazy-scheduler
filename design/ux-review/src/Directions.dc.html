@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:1860px; height:900px; padding:40px 44px}
+    h1{font-weight:300; font-size:26px; color:var(--ink2); margin:0 0 8px; letter-spacing:-.5px}
+    .lede{font-size:13.5px; line-height:1.75; font-weight:400; margin:0 0 26px; max-width:1200px}
+    .g{display:grid; grid-template-columns:repeat(3,560px); gap:32px}
+    .mini{width:560px; height:420px; border-radius:18px; position:relative; overflow:hidden; background:var(--bg); background-image:var(--wash);
+      box-shadow:0 0 0 1px var(--rule2), 0 14px 30px rgba(43,38,32,.12)}
+    .d h2{margin:16px 2px 4px; font-size:17px; font-weight:500; color:var(--ink2)}
+    .d h2 small{font-size:12px; color:var(--mid-ink); margin-left:8px; font-weight:400}
+    .d p{margin:0 2px; font-size:12.5px; line-height:1.7; font-weight:400}
+    .d ul{margin:8px 2px 0; padding-left:16px; font-size:12.5px; line-height:1.7; font-weight:400; color:var(--faint)}
+
+    /* A · binder */
+    .a .stack1, .a .stack2{position:absolute; left:92px; right:18px; top:22px; bottom:18px; border-radius:14px; background:var(--card)}
+    .a .stack2{transform:translate(8px,8px) rotate(.8deg); box-shadow:2px 3px 8px var(--dark); background:#e2e7e6}
+    .a .stack1{box-shadow:3px 4px 10px var(--dark), -3px -3px 8px var(--light); padding:18px 22px}
+    .a .tabs{position:absolute; left:18px; top:40px; display:flex; flex-direction:column; gap:6px}
+    .a .tab{width:84px; height:44px; border-radius:12px 0 0 12px; padding:0 12px; display:flex; align-items:center; font-size:13px; color:var(--faint);
+      background:#dde3e2; box-shadow:-2px 2px 5px var(--dark)}
+    .a .tab.on{background:var(--card); color:var(--ink2); width:90px; box-shadow:-3px 3px 8px var(--dark)}
+    .a .tab.on::before{content:""; width:3px; height:18px; border-radius:2px; background:var(--mid); margin-right:8px}
+    .a .big{display:flex; align-items:flex-end; gap:12px}
+    .a .big b{font-size:78px; font-weight:300; line-height:.85; color:var(--ink2); letter-spacing:-3px}
+    .a .big span{font-size:14px; color:var(--faint); padding-bottom:6px; line-height:1.4}
+    .a .ln{display:flex; align-items:center; gap:12px; height:40px; font-size:13.5px; color:var(--body); box-shadow:inset 0 -1px 0 var(--rule)}
+    .a .ln:first-of-type{margin-top:14px}
+
+    /* B · ribbon */
+    .b .rib{margin:26px 22px 0; height:92px; border-radius:18px; position:relative; padding:0 16px}
+    .b .scale{position:absolute; left:16px; right:16px; bottom:12px; display:flex; justify-content:space-between; font-size:10.5px; color:var(--faint)}
+    .b .track{position:absolute; left:16px; right:16px; top:44px; height:4px; border-radius:2px; background:var(--pale)}
+    .b .past{position:absolute; left:16px; top:44px; height:4px; width:52%; border-radius:2px; background:var(--mid)}
+    .b .now{position:absolute; top:14px; bottom:14px; left:calc(16px + 52%); width:2px; background:var(--deep)}
+    .b .now::after{content:"14:20"; position:absolute; top:-2px; left:6px; font-size:11px; color:var(--deep)}
+    .b .pin{position:absolute; top:38px; width:16px; height:16px; border-radius:50%; background:var(--card); box-shadow:0 0 0 2.5px var(--mid)}
+    .b .pin.d{background:var(--mid)}
+    .b .pin.l{box-shadow:0 0 0 2.5px var(--deep)}
+    .b .hd{display:flex; justify-content:space-between; align-items:center; padding:18px 24px 0}
+    .b .hd b{font-size:22px; font-weight:500; color:var(--ink2)}
+    .b .ring{width:52px; height:52px; border-radius:50%; display:grid; place-items:center; font-size:17px; color:var(--ink2)}
+    .b .list{margin:14px 22px; border-radius:16px; padding:6px 14px}
+    .b .ln{display:flex; align-items:center; gap:12px; height:42px; font-size:13.5px; box-shadow:inset 0 -1px 0 var(--rule)}
+    .b .ln:last-child{box-shadow:none}
+    .b .ln .tm{width:44px}
+
+    /* C · receipt + stamp */
+    .c .rc{position:absolute; left:50%; top:22px; transform:translateX(-50%); width:330px; bottom:0; background:#fbfcfb; padding:20px 22px;
+      box-shadow:0 10px 24px rgba(43,38,32,.16)}
+    .c .rc::after{content:""; position:absolute; left:0; right:0; bottom:-10px; height:12px;
+      background:radial-gradient(circle at 6px 0, transparent 6px, #fbfcfb 6.5px) 0 0/12px 12px repeat-x}
+    .c .dt{display:flex; align-items:flex-end; justify-content:space-between; padding-bottom:12px; border-bottom:1.5px dashed var(--dark)}
+    .c .dt b{font-size:52px; font-weight:300; line-height:.9; color:var(--ink2); letter-spacing:-2px}
+    .c .dt span{font-size:12px; color:var(--faint); text-align:right; line-height:1.5}
+    .c .ln{display:flex; align-items:baseline; gap:10px; padding:11px 0; font-size:13.5px; border-bottom:1px dashed var(--rule2); position:relative}
+    .c .ln .tm{width:40px; font-size:12.5px}
+    .c .ln .dots{flex:1; border-bottom:1.5px dotted var(--dark); transform:translateY(-4px)}
+    .c .stamp{position:absolute; right:-6px; top:2px; transform:rotate(-12deg); border:2px solid var(--mid); color:var(--mid);
+      border-radius:8px; padding:1px 8px; font-size:12px; letter-spacing:2px; opacity:.85}
+    .c .tot{display:flex; justify-content:space-between; padding-top:12px; font-size:13px; color:var(--ink2)}
+  </style>
+</helmet>
+
+<div class="paper page">
+  <div class="grain"></div>
+  <h1>6 · 조금 더 과감하게 — 세 가지 방향</h1>
+  <p class="lede">지금의 종이 · 청록 · Paperlogy 는 그대로 두고, "종이" 라는 소재를 더 밀어붙인 세 방향입니다. 기능과 배치 규칙(링 · 누르면 열기 · 되돌리기)은
+    모두 같고, 인상만 다릅니다. 하나를 고르시면 PC · 휴대폰 전체를 그 방향으로 다듬습니다. 섞는 것도 가능합니다(예: A 의 큰 날짜 + C 의 도장).</p>
+
+  <div class="g">
+    <div class="d">
+      <div class="mini a">
+        <div class="tabs"><div class="tab on">오늘</div><div class="tab">다가오는</div><div class="tab">루틴</div><div class="tab">메모</div><div class="tab">달력</div></div>
+        <div class="stack2"></div>
+        <div class="stack1">
+          <div class="big"><b>18</b><span>9월<br>금요일 · 3건 남음</span></div>
+          <div class="ln"><span class="chk"></span>리스크 한도 점검표 회신<span class="pill late" style="margin-left:auto">어제</span></div>
+          <div class="ln"><span class="chk"></span>교보생명 체크리스트<span class="tm" style="margin-left:auto">14:40</span></div>
+          <div class="ln"><span class="chk"></span>국내 일임 매매<span class="tm" style="margin-left:auto">15:00</span></div>
+          <div class="ln"><span class="chk done"></span><span class="done-t">아침운용현황</span><span class="tm" style="margin-left:auto; color:var(--dim)">08:30</span></div>
+        </div>
+      </div>
+      <h2>A · 바인더 인덱스 탭 <small>조용하고 단단함</small></h2>
+      <p>화면이 종이 묶음이 됩니다. 보기 전환은 옆으로 튀어나온 인덱스 탭, 날짜는 커다란 가는 숫자.
+        탭을 누르면 해당 종이가 맨 앞으로 넘어오는 움직임.</p>
+      <ul><li>휴대폰: 탭이 화면 위쪽 가장자리로</li><li>위험도 낮음 · 지금 구조와 가장 가까움</li></ul>
+    </div>
+
+    <div class="d">
+      <div class="mini b">
+        <div class="hd"><b>9월 18일 금요일</b><div class="ring raise">3</div></div>
+        <div class="rib raise">
+          <div class="track"></div><div class="past"></div>
+          <span class="pin d" style="left:calc(16px + 11% - 8px)"></span>
+          <span class="pin d" style="left:calc(16px + 27% - 8px)"></span>
+          <span class="pin l" style="left:calc(16px + 15% - 8px)"></span>
+          <span class="pin" style="left:calc(16px + 58% - 8px)"></span>
+          <span class="pin" style="left:calc(16px + 62% - 8px)"></span>
+          <div class="now"></div>
+          <div class="scale"><span>07</span><span>09</span><span>11</span><span>13</span><span>15</span><span>17</span><span>19</span></div>
+        </div>
+        <div class="list raise">
+          <div class="ln"><span class="tm">14:40</span><span class="chk"></span>교보생명 체크리스트<span class="pill soon" style="margin-left:auto">20분 뒤</span></div>
+          <div class="ln"><span class="tm">15:00</span><span class="chk"></span>국내 일임 매매</div>
+          <div class="ln"><span class="tm" style="color:#9a3b2e">어제</span><span class="chk"></span>리스크 한도 점검표 회신</div>
+        </div>
+      </div>
+      <h2>B · 하루 띠 <small>시간이 한눈에</small></h2>
+      <p>하루가 한 줄의 띠로 보입니다. 지난 시간은 채워지고, 지금 선 오른쪽에 남은 일들이 핀으로 꽂힙니다.
+        "오후에 몰려 있다" 가 읽힙니다. 핀을 누르면 그 항목이 열림.</p>
+      <ul><li>휴대폰: 띠가 헤더 아래 가로로, 손가락으로 훑기</li><li>시각 없는 일은 띠 밖 목록에만</li></ul>
+    </div>
+
+    <div class="d">
+      <div class="mini c">
+        <div class="rc">
+          <div class="dt"><b>18</b><span>2026 · 09<br>FRIDAY</span></div>
+          <div class="ln"><span class="tm">어제</span>리스크 한도 점검표<span class="dots"></span>☐</div>
+          <div class="ln"><span class="tm">08:30</span><span class="done-t">아침운용현황</span><span class="dots"></span><span class="stamp">완료</span></div>
+          <div class="ln"><span class="tm">14:40</span>교보생명 체크리스트<span class="dots"></span>☐</div>
+          <div class="ln"><span class="tm">15:00</span>국내 일임 매매<span class="dots"></span>☐</div>
+          <div class="tot"><span>남은 일</span><b style="font-weight:500">3</b></div>
+        </div>
+      </div>
+      <h2>C · 영수증과 도장 <small>가장 개성 있음</small></h2>
+      <p>오늘이 한 장의 영수증. 점선으로 이어진 시각과 할 일, 끝내면 청록 "완료" 도장이 쾅 찍히고(살짝 기울게), 맨 아래 "남은 일 3".
+        하루를 정산하는 느낌.</p>
+      <ul><li>휴대폰: 영수증이 화면 가득, 아래가 찢긴 모양</li><li>재미있지만 호불호 · 긴 제목은 두 줄로</li></ul>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1860,"height":900}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

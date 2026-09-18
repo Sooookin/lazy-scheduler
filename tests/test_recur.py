@@ -119,3 +119,36 @@ def test_describe():
     assert recur.describe({"period": "month", "basis": "business_day", "n": 2}) == "매월 2번째 영업일"
     assert recur.describe({"period": "week", "weekdays": [0, 2], "interval": 2}) == "격주 월·수요일"
     assert recur.describe({"period": "quarter", "basis": "before_end_bd", "k": 3}) == "매 분기 말 3영업일 전"
+
+
+# ---------- 날짜 하나로 규칙 고르기 ----------
+
+with open(os.path.join(HERE, "vectors", "suggest.json"), encoding="utf-8") as f:
+    SUGGEST = json.load(f)["cases"]
+
+
+@pytest.mark.parametrize("case", SUGGEST, ids=[c["date"] for c in SUGGEST])
+def test_suggestions_match_the_shared_vectors(case):
+    got = recur.suggest(date.fromisoformat(case["date"]))
+    assert [s["text"] for s in got] == case["expect"]
+    assert [s["rule"] for s in got] == case["rules"]
+
+
+@pytest.mark.parametrize("case", SUGGEST, ids=[c["date"] for c in SUGGEST])
+def test_every_suggestion_contains_the_example_date(case):
+    day = date.fromisoformat(case["date"])
+    for s in recur.suggest(day):
+        assert recur.validate_rule(s["rule"]) == s["rule"]
+        assert day in recur.occurrences(s["rule"], day - timedelta(days=40), day + timedelta(days=40)), s["text"]
+
+
+def test_weekend_example_keeps_its_own_day():
+    """토요일을 짚었으면 토요일이 빠지면 안 된다 (휴일 보정 없이)."""
+    sat = date(2026, 9, 26)
+    assert all(s["rule"]["holiday_shift"] == "none" for s in recur.suggest(sat))
+    assert not any("영업일" in s["text"] for s in recur.suggest(sat))
+
+
+def test_daily_wording_puts_calendar_days_first():
+    assert recur.describe({"period": "day", "business_only": False}) == "매일"
+    assert recur.describe({"period": "day", "business_only": True}) == "매일 · 영업일만"

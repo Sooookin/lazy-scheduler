@@ -158,6 +158,15 @@ object Cloud {
         }
     }
 
+    /** Undo of [skip]: only that day's field is removed. */
+    fun unskip(uid: String, i: Instance) {
+        val day = i.date ?: return
+        logged("unskip") {
+            ref(uid, i.task.id).update(FieldPath.of("skip_dates", day.toString()), FieldValue.delete(),
+                FieldPath.of("updated"), FieldValue.serverTimestamp())
+        }
+    }
+
     /** Replaces the item with a bare tombstone, as store.remove does on the PC. */
     fun delete(uid: String, task: Task) {
         logged("delete") {

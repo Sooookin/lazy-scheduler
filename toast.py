@@ -63,7 +63,7 @@ _BASE = dict(
     #
     #   18 │3│11│  64  │ 16 │ ────── 제목 ────── │ 18
     #      ▍    10:00        퇴연 RA 비즈니스 미팅      ✕
-    #           10분 뒤       반복 · 매월 마지막 목요일
+    #           10분 뒤       루틴 · 매월 마지막 목요일
     #   ├──────────────── 40 ────────────────────────┤
     #   │     완료    │    10분 뒤   │      열기        │
     #
@@ -258,12 +258,10 @@ def _texture_sheet(w, h):
     def noise(size, sigma):
         return Image.effect_noise(size, sigma).point(lambda v: max(0, min(255, v)))
     tooth = noise((w, h), 48).filter(ImageFilter.GaussianBlur(0.6 * SCALE)).filter(ImageFilter.EMBOSS)
-    tooth = tooth.point(lambda v: 255 - int(abs(v - 128) * 0.20))          # 0~26 만큼 어둡게
-    bw, bh = max(2, w // (40 * max(1, int(SCALE)))), max(2, h // (40 * max(1, int(SCALE))))
-    blotch = noise((bw, bh), 40).resize((w, h), Image.BICUBIC).filter(ImageFilter.GaussianBlur(6 * SCALE))
-    blotch = blotch.point(lambda v: 255 - int(max(0, v - 118) * 0.09))
-    speck = noise((w, h), 70).point(lambda v: 255 - (10 if v > 235 else 0))
-    return ImageChops.multiply(ImageChops.multiply(tooth, blotch), speck)
+    # 결 C (디자인 2차): 창 화면과 같이 요철은 절반, 큰 얼룩은 뺀다 - 얼룩이 넓은 면을 얼룩덜룩하게 만들었다
+    tooth = tooth.point(lambda v: 255 - int(abs(v - 128) * 0.10))          # 0~13 만큼 어둡게
+    speck = noise((w, h), 70).point(lambda v: 255 - (5 if v > 235 else 0))
+    return ImageChops.multiply(tooth, speck)
 
 
 def _texture(w, h):
@@ -482,7 +480,7 @@ def _draw_normal(item, hover):
 
     lines = _wrap(item["title"], f_ttl,
                   lambda k: tw_first if k == 0 else tw, TITLE_LINES)
-    # 시각을 위로 뽑았으니 아래 줄은 "무엇인지"(반복 · 매월 마지막 목요일)를 쓴다.
+    # 시각을 위로 뽑았으니 아래 줄은 "무엇인지"(루틴 · 매월 마지막 목요일)를 쓴다.
     # meta 를 주지 않은 옛 호출(안내 · 미리보기)은 예전처럼 sub 를 그대로 쓴다.
     under = item.get("meta") or item.get("sub") or ""
     subs = _wrap(under, f_sub, tw, SUB_LINES) if under else []
@@ -886,6 +884,8 @@ class Card:
         self.hover = None
         self.over = False
         self.born = time.time()
+        self.life = None if item.get("fold") else _life(item)
+        self.grace_until = 0.0
         self.closing = False
         self.dead = False
         self.surface = _Surface()
@@ -990,6 +990,7 @@ class Card:
 
     def on_leave(self):
         self.over = False
+        self.grace_until = time.time() + LEAVE_GRACE_S
         if self.hover is not None:
             self.hover = None
             self.redraw()
@@ -1166,9 +1167,22 @@ def _should_hold():
     return _foreground_is_fullscreen()
 
 # ---------------- 쌓기 · 수명 · 보류 ----------------
-LIFE_MS = 11000               # 카드가 화면에 머무는 시간
-HOLD_MAX = 25                 # 마우스를 올려두면 이 초까지는 기다린다
-HARD_LIFE = 32                # 이 초를 넘긴 카드는 무조건 닫는다
+# 카드가 떠 있는 시간 (초). 11초였는데 "보기도 전에 사라진다" 는 말을 들었다.
+LIFE_S = 30                   # 보통 알림
+LIFE_LIST_S = 45              # 여러 건을 묶은 카드 (아침 브리핑 · 놓친 알림 · 보류했던 알림)
+LEAVE_GRACE_S = 5             # 마우스를 뗀 뒤 다시 셀 때까지의 여유
+# 마감이 지난 알림은 저절로 닫지 않는다 - 완료 · 10분 뒤 · ✕ 중 하나를 누를 때까지 남는다.
+
+
+def _life(item):
+    """이 알림이 저절로 닫히기까지의 초. None 이면 직접 닫을 때까지."""
+    if item.get("rows") is not None:
+        return LIFE_LIST_S
+    if item.get("late"):
+        return None
+    return LIFE_S
+
+
 MAX_CARDS = 3
 # 발표 · 화면 공유 중에는 카드를 띄우지 않고 모아 둔다. 설정에서 끌 수 있다.
 HOLD_WHEN_BUSY = True
@@ -1328,7 +1342,8 @@ def _pump():
             if card.closing:
                 continue
             age = now - card.born
-            if age > HARD_LIFE or (age > LIFE_MS / 1000 and not (card.over and age < HOLD_MAX)):
+            # 마우스를 올려 둔 동안은 닫지 않는다. 뗀 뒤에는 잠깐 여유를 둔다.
+            if card.life is not None and age > card.life and not card.over and now > card.grace_until:
                 card.close()
                 changed = True
 
@@ -1363,7 +1378,7 @@ def prewarm():
     """
     started = time.perf_counter()
     samples = (
-        {"title": "알림", "when": "10:00", "rel": "10분 뒤", "meta": "반복",
+        {"title": "알림", "when": "10:00", "rel": "10분 뒤", "meta": "루틴",
          "on_done": _noop, "on_snooze": _noop, "can_open": True},
         {"title": "알림", "when": "10:00", "rel": "지남", "late": True, "on_done": _noop},
         {"title": "알림", "sub": "안내"},

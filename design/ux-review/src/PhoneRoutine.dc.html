@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:1040px; height:1140px; padding:40px 44px}
+    h1{font-weight:300; font-size:26px; color:var(--ink2); margin:0 0 8px; letter-spacing:-.5px}
+    .lede{font-size:13.5px; line-height:1.75; font-weight:400; margin:0 0 26px; max-width:900px}
+    .phones{display:flex; gap:44px}
+    .cap2{width:390px; margin-top:14px; font-size:12.5px; line-height:1.7; font-weight:400}
+    .cap2 b{color:var(--ink2); font-weight:500}
+    .ph{width:390px; height:844px; border-radius:36px; overflow:hidden; position:relative; background:var(--light);
+      box-shadow:0 0 0 8px #1f2326, 0 22px 44px rgba(0,0,0,.22)}
+    .in{padding:14px 18px}
+    .handle{width:38px; height:4px; border-radius:2px; background:var(--dark); margin:0 auto 12px}
+    .top{display:flex; align-items:center; font-size:14px}
+    .top .x{color:var(--faint)} .top h2{flex:1; text-align:center; margin:0; font-size:16px; font-weight:500; color:var(--ink2)}
+    .top .s{color:var(--mid-ink)}
+    .name{margin-top:12px; height:48px; border-radius:14px; display:flex; align-items:center; padding:0 14px; font-size:17px; color:var(--ink2)}
+    .kinds{display:flex; margin-top:12px; padding:3px; border-radius:13px}
+    .kinds span{flex:1; text-align:center; padding:8px 0; border-radius:10px; font-size:13px; color:var(--faint)}
+    .kinds span.on{color:var(--ink2)}
+    .lbl{font-size:12px; color:var(--faint); font-weight:400; margin:14px 0 8px; display:flex; justify-content:space-between}
+    .lbl a{color:var(--mid-ink)}
+    .cal{border-radius:18px; padding:10px 10px 8px}
+    .wk, .dd{display:grid; grid-template-columns:repeat(7,1fr); text-align:center; gap:2px}
+    .wk span{font-size:10.5px; color:var(--faint); padding-bottom:3px}
+    .dd span{height:36px; display:grid; place-items:center; font-size:14px; border-radius:11px; color:var(--body)}
+    .dd .o{color:var(--dim)} .dd .we{color:var(--faint)} .dd .hol{color:#9a3b2e}
+    .dd .sel{background:var(--mid); color:var(--onmid)}
+    .dd .today{box-shadow:inset 0 0 0 1.5px var(--mint)}
+    .sugg{display:flex; flex-direction:column; gap:6px; margin-top:10px}
+    .sg{display:flex; align-items:center; gap:12px; height:46px; padding:0 14px; border-radius:14px; font-size:15px; color:var(--ink2)}
+    .sg .r{width:18px; height:18px; border-radius:50%; box-shadow:inset 1.5px 1.5px 3px var(--dark), inset -1.5px -1.5px 3px var(--light); background:var(--bg)}
+    .sg small{margin-left:auto; font-size:12px; color:var(--faint); font-weight:400}
+    .sg.on{box-shadow:0 0 0 1.5px var(--mid)}
+    .sg.on .r{background:var(--mid); box-shadow:inset 0 0 0 5px var(--mid), inset 0 0 0 9px var(--onmid)}
+    .say{border-radius:16px; padding:14px; font-size:17px; color:var(--ink2); display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+    .slot{height:40px; padding:0 14px; border-radius:12px; display:inline-flex; align-items:center; gap:6px; background:var(--pale); font-size:16px}
+    .slot::after{content:"▾"; font-size:10px; color:var(--faint)}
+    .seg{display:flex; padding:3px; border-radius:12px; gap:2px}
+    .seg span{flex:1; text-align:center; padding:9px 0; border-radius:9px; font-size:13px; color:var(--faint)}
+    .seg span.on{color:var(--ink2)}
+    .prev{margin-top:10px; border-radius:14px; padding:11px 14px; font-size:13px; color:var(--mid-ink); line-height:1.6}
+    .prev b{display:block; font-size:12px; color:var(--ink2); font-weight:500}
+    .tf{height:48px; border-radius:14px; display:flex; align-items:center; padding:0 14px; font-size:15px; color:var(--ink2)}
+    .tf small{margin-left:auto; font-size:12px; color:var(--faint)}
+    .save{position:absolute; left:18px; right:18px; bottom:24px; height:52px; border-radius:26px; background:var(--mid); color:var(--onmid);
+      display:grid; place-items:center; font-size:15px; box-shadow:0 6px 16px var(--midshadow)}
+    .fade{position:absolute; left:0; right:0; bottom:0; height:110px; background:linear-gradient(to top, var(--light) 60%, rgba(251,253,253,0))}
+  </style>
+</helmet>
+
+<div class="paper page">
+  <div class="grain"></div>
+  <h1>4 · 휴대폰 루틴 추가 — 날짜를 누르고, 고르고, 끝</h1>
+  <p class="lede">PC 와 같은 흐름을 한 손 세로로. 이름 아래 곧바로 이번 달 달력이 있고, 날짜를 누르면 맞는 규칙이 큰 줄로 뜹니다.
+    고르면 문장이 채워지고, 달력에 다음 날짜들이 점으로 찍힙니다. 문장은 필요할 때만 고칩니다.</p>
+
+  <div class="phones">
+    <div>
+      <div class="ph"><div class="in">
+        <div class="handle"></div>
+        <div class="top"><span class="x">취소</span><h2>새 항목</h2><span class="s"> </span></div>
+        <div class="name inset">월간 성과 집계</div>
+        <div class="kinds inset"><span>할 일</span><span class="on raise-s">루틴</span><span>메모</span></div>
+        <div class="lbl"><span>그 일을 하는 날 하나를 누르세요</span><a>‹ 9월 ›</a></div>
+        <div class="cal inset">
+          <div class="wk"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>
+          <div class="dd">
+            <span class="o">31</span><span>1</span><span>2</span><span>3</span><span>4</span><span class="we">5</span><span class="we">6</span>
+            <span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span class="we">12</span><span class="we">13</span>
+            <span>14</span><span>15</span><span>16</span><span>17</span><span class="today">18</span><span class="we">19</span><span class="we">20</span>
+            <span>21</span><span>22</span><span>23</span><span class="hol">24</span><span class="hol">25</span><span class="hol">26</span><span class="we">27</span>
+            <span>28</span><span>29</span><span class="sel">30</span><span class="o">1</span><span class="o">2</span><span class="o">3</span><span class="o">4</span>
+          </div>
+        </div>
+        <div class="sugg">
+          <div class="sg raise-s"><span class="r"></span>매월 말일</div>
+          <div class="sg raise-s on"><span class="r"></span>매월 마지막 영업일</div>
+          <div class="sg raise-s"><span class="r"></span>매월 마지막 수요일</div>
+          <div class="sg raise-s"><span class="r"></span>매 분기 마지막 날<small>3·6·9·12월</small></div>
+          <div class="sg raise-s"><span class="r"></span>규칙 더 보기 · 직접 만들기<small>›</small></div>
+        </div>
+      </div>
+      <div class="fade"></div><div class="save">다음 · 시각 정하기</div></div>
+      <div class="cap2"><b>① 날짜로 시작.</b> 9/30 을 누르면 이 날에 맞는 규칙이 떠오릅니다(가장 흔한 넷 + 더 보기).
+        고르는 순간 ② 의 문장이 채워집니다. 많은 경우 여기서 "다음" 만 누르면 됩니다.</div>
+    </div>
+
+    <div>
+      <div class="ph"><div class="in">
+        <div class="handle"></div>
+        <div class="top"><span class="x">‹ 날짜</span><h2>월간 성과 집계</h2><span class="s"> </span></div>
+        <div class="lbl"><span>이렇게 반복해요</span><a>바꾸기</a></div>
+        <div class="say raise-s">매월 <span class="slot">마지막</span> <span class="slot">영업일</span></div>
+        <div class="lbl"><span>세는 방법</span></div>
+        <div class="seg inset"><span>달력 날</span><span class="on raise-s">영업일</span></div>
+        <div class="lbl"><span>실행하는 달</span></div>
+        <div class="seg inset"><span class="on raise-s">매월</span><span>분기 말</span><span>반기</span><span>직접</span></div>
+        <div class="prev inset"><b>다음</b>9/30 (수) · 10/30 (금) · 11/30 (월) · 12/31 (목) · 1/29 (금)</div>
+        <div class="lbl"><span>시각</span></div>
+        <div class="tf inset">시각 없음<small>누르면 시 → 분</small></div>
+        <div class="lbl"><span>알림</span></div>
+        <div class="seg inset"><span>안 받음</span><span>정각</span><span class="on raise-s">30분 전</span><span>1시간 전</span></div>
+      </div>
+      <div class="save">추가</div></div>
+      <div class="cap2"><b>② 확인하고 필요하면 고치기.</b> 문장의 칸(마지막 · 영업일)을 누르면 선택지가 펼쳐집니다.
+        "세는 방법" 이 달력 날이면 "매월 말일" 로 바뀝니다. 알림은 끄기까지 한 줄로(부정문 체크 없음).</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1040,"height":1140}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

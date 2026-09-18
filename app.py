@@ -360,6 +360,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, o)
         if p == "/api/notify-plan":
             return self._send(200, notify_plan())
+        if p == "/api/suggest":
+            # 루틴 추가의 "날짜 하나로 시작": 그 날짜를 포함하는 규칙들
+            try:
+                day = date.fromisoformat(self._query("date") or "")
+            except ValueError:
+                raise ApiError(400, "date 는 YYYY-MM-DD 날짜여야 합니다") from None
+            return self._send(200, {"items": recur.suggest(day)})
         if p == "/api/sync":
             return self._send(200, sync_status())
         if p == "/api/ping":
@@ -677,7 +684,7 @@ def _maybe_notify(i, now, default_lead, first_tick):
     # 한 문장으로 뭉쳐 보내면 카드가 다시 쪼개야 한다.
     sub = ("%d분 뒤 마감 · %s" % (mins, i["time"])) if mins > 0 else ("마감 시간 지남 · %s" % i["time"])
     rel = ("%d분 뒤" % mins) if mins > 0 else "지남"
-    kind = {"routine": "반복", "deadline": "마감", "floating": "메모"}.get(i.get("kind"), "")
+    kind = {"routine": "루틴", "deadline": "마감", "floating": "메모"}.get(i.get("kind"), "")
     detail = i.get("rule_text") or ""
     meta = (kind + " · " + detail) if (kind and detail) else (kind or detail)
     tid, day = i["id"], i["date"]

@@ -1,0 +1,217 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:960px; min-height:3480px; padding:44px 48px 56px}
+    .kick{font-size:12px; color:var(--mid-ink); letter-spacing:.2px}
+    h1{font-weight:300; font-size:34px; line-height:1.25; color:var(--ink2); margin:8px 0 12px; letter-spacing:-.6px}
+    .lede{font-size:14.5px; line-height:1.75; color:var(--body); font-weight:400; max-width:760px; margin:0}
+    h2{font-size:17px; font-weight:500; color:var(--ink2); margin:40px 0 14px; display:flex; align-items:center; gap:10px}
+    h2 small{font-size:12px; font-weight:400; color:var(--faint)}
+    .rules{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+    .rule{padding:16px 16px 18px}
+    .rule b{display:block; font-size:14px; color:var(--ink2); margin-bottom:6px}
+    .rule p{margin:0; font-size:12.5px; line-height:1.65; font-weight:400; color:var(--faint)}
+    table{width:100%; border-collapse:collapse; font-size:13px}
+    th{font-size:11.5px; font-weight:400; color:var(--faint); text-align:left; padding:8px 10px; border-bottom:1px solid var(--rule2)}
+    td{padding:11px 10px; border-bottom:1px solid var(--rule); vertical-align:top; line-height:1.55}
+    td.n{font-size:20px; font-weight:300; color:var(--ink2); white-space:nowrap}
+    td.n.good{color:var(--mid-ink); font-weight:500}
+    td .how{display:block; font-size:11.5px; font-weight:400; color:var(--faint); margin-top:2px}
+    .tier{display:inline-flex; align-items:center; height:22px; padding:0 9px; border-radius:11px; font-size:11.5px}
+    .tier.p0{background:var(--deep); color:var(--onmid)}
+    .tier.p1{background:var(--mid); color:var(--onmid)}
+    .tier.p2{background:var(--pale); color:var(--muted)}
+    .finds{display:flex; flex-direction:column; gap:10px}
+    .find{display:grid; grid-template-columns:28px 1fr 1fr; gap:14px; padding:14px 16px; align-items:start}
+    .find .t{font-size:14px; color:var(--ink2); margin-bottom:5px}
+    .find .w{font-size:11px; color:var(--faint); font-weight:400}
+    .find p{margin:0; font-size:12.5px; line-height:1.65; font-weight:400; color:var(--body)}
+    .find .fix{border-left:2px solid var(--mint); padding-left:12px}
+    .find .fix p{color:var(--ink2)}
+    .find .fix .l{font-size:11px; color:var(--mid-ink); margin-bottom:3px}
+    .shots{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+    .shot{padding:10px 10px 12px}
+    .shot img{display:block; width:100%; border-radius:10px}
+    .shot .c{font-size:12px; font-weight:400; color:var(--faint); margin-top:8px; line-height:1.55}
+    .keep{display:grid; grid-template-columns:1fr 1fr; gap:8px 26px; font-size:13px; font-weight:400; line-height:1.6}
+    .keep div::before{content:"✓"; color:var(--mid-ink); margin-right:8px; font-weight:500}
+  </style>
+</helmet>
+
+<div class="paper page">
+  <div class="grain"></div>
+
+  <div class="kick">LazyScheduler · UX review · PC + Android</div>
+  <h1>Make every everyday action one tap —<br>and every tap undoable.</h1>
+  <p class="lede">The app already looks calm and finished. What holds it back is how many steps the
+    common jobs take, and how little room there is for a mistake. This review ranks every issue by how
+    much it gets in the way of daily use. The numbered orange markers on the other boards point to the
+    same numbers below.</p>
+
+  <h2>Rules for the redesign</h2>
+  <div class="rules">
+    <div class="card rule"><b>Fast for the frequent</b><p>Checking off, adding, and seeing what's next happen
+      dozens of times a day. Each should take one action.</p></div>
+    <div class="card rule"><b>Nothing final</b><p>Complete, delete and skip always offer "되돌리기" (undo) for a few seconds.
+      No confirm dialogs needed.</p></div>
+    <div class="card rule"><b>Say it once</b><p>Each fact appears in one place. Big type goes to what the user acts on,
+      not to decoration.</p></div>
+    <div class="card rule"><b>Same words, both apps</b><p>할 일 · 반복 · 메모 everywhere: in tabs, forms,
+      cards and notifications.</p></div>
+  </div>
+
+  <h2>The daily jobs, before and after <small>steps a person has to take</small></h2>
+  <div class="card" style="padding:6px 14px 4px">
+    <table>
+      <tr><th style="width:36%">Job</th><th>Now</th><th></th><th>Proposed</th><th></th></tr>
+      <tr><td>Add “보고서 제출, 내일 3시”</td>
+        <td class="n">6</td><td>새 항목 → 마감 탭 → 이름 → 내일 → 시각 입력 → 추가<span class="how">PC · 반복 is the default tab, so every deadline starts with switching tabs</span></td>
+        <td class="n good">1</td><td>Type <b>내일 3시 보고서 제출</b> in the add bar → Enter<span class="how">the date and time are read from the text; ⇥ opens details</span></td></tr>
+      <tr><td>Check something off by mistake</td>
+        <td class="n">2+</td><td>Find it again (it moved to the bottom), click it again<span class="how">phone: no way back from a card's 완료 button</span></td>
+        <td class="n good">1</td><td>“되돌리기” on the toast / snackbar</td></tr>
+      <tr><td>Edit a routine on the phone</td>
+        <td class="n">?</td><td>Long-press, which nothing on screen tells you about</td>
+        <td class="n good">1</td><td>Tap the row. The checkbox is the only thing that completes</td></tr>
+      <tr><td>Find an item from last month</td>
+        <td class="n">4</td><td>전체 항목 관리 (tiny link) → tab → scroll → read</td>
+        <td class="n good">2</td><td>Ctrl+K / search icon → type</td></tr>
+      <tr><td>Push today's routine to tomorrow</td>
+        <td class="n">4</td><td>Edit → 이번 회차 건너뛰기 → add a one-off for tomorrow</td>
+        <td class="n good">1</td><td>Swipe left (phone) or “내일로” in the row (PC)</td></tr>
+    </table>
+  </div>
+
+  <h2>Findings <small>ranked by how much they get in the way</small></h2>
+  <div class="finds">
+
+    <div class="card find"><span class="num">1</span>
+      <div><div class="t">There is no undo <span class="tier p0">P0</span></div><div class="w">PC home · phone lists · notification cards</div>
+        <p>One click completes, and the row jumps to the bottom. On the phone a tap anywhere on the row completes.
+          Delete asks for confirmation instead of being reversible, which slows down the safe case.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>A 5-second toast (PC) / snackbar (phone) after complete, delete and skip:
+        “‘국내 일임 매매’ 완료 · 되돌리기”. Drop the delete confirm dialog.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">2</span>
+      <div><div class="t">Adding takes a whole form <span class="tier p0">P0</span></div><div class="w">PC 새 항목 · phone ＋ 새 항목</div>
+        <p>Nine fields over three sections, and the first tab is “반복되는 일” (recurring), the rarest thing to add.
+          A quick deadline needs a tab switch, a date and a time typed in a native time box (“-- --:--”).</p></div>
+      <div class="fix"><div class="l">Fix</div><p>An add bar that is always visible. Type naturally, e.g. “내일 3시 보고서”,
+        “매월 둘째 영업일 월간 보고”, “금요일까지 예산안”. The app shows what it understood as chips and Enter saves.
+        ⇥ or “자세히” opens the full editor, pre-filled.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">3</span>
+      <div><div class="t">Tap means “done”, and editing is hidden <span class="tier p0">P0</span></div><div class="w">phone lists · PC rows</div>
+        <p>On the phone, editing and deleting live behind a long-press that nothing on screen hints at.
+          On both apps the whole row is a “complete” button, which is the most destructive target on the screen.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>The checkbox completes. Tapping the row opens it. Phone: swipe right to complete,
+        swipe left for 내일로 / 삭제. PC: row actions (✎ · 내일로 · ⋯) appear on hover.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">4</span>
+      <div><div class="t">The same number three times, and a giant clock <span class="tier p1">P1</span></div><div class="w">PC header</div>
+        <p>“1건 남음” appears in the title bar, in the ring and in the card header. A 42px clock copies the taskbar
+          clock and takes the best spot on the screen, where the add bar should go.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>One progress line: “오늘 5건 중 3건 남음” with a thin bar.
+        The clock shrinks into the date line. The header space goes to the add bar and search.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">5</span>
+      <div><div class="t">Routines are the core, but hidden <span class="tier p1">P1</span></div><div class="w">PC home right column</div>
+        <p>“반복 업무” is folded into a bar at the bottom right. Above it, the fixed-height 마감 and 메모 cards
+          sit mostly empty.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>Content-sized sections: 다가오는 마감, then 반복 업무 (open, each with its next date),
+        then 메모. Sections scroll together instead of each keeping its own empty box.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">6</span>
+      <div><div class="t">The routine rule is three dropdowns <span class="tier p1">P1</span></div><div class="w">PC form · phone editor</div>
+        <p>“N번째 영업일 ▾ · 1번째 ▾ · 매월 ▾” hides every option until you open each menu, and reads like a
+          database. The preview, the best part, sits at the bottom, far from what changes it.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>A sentence built from chips: <b>매월 · 마지막 · 영업일</b>, with the next five dates right under it,
+        plus a note when a date moved because of a weekend or holiday.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">7</span>
+      <div><div class="t">Settings you have to negate <span class="tier p1">P1</span></div><div class="w">forms · settings</div>
+        <p>“이 항목은 알림 띄우지 않기” (a checkbox that turns something off). “알림 (분 전)” is a number field.
+          Settings mixes instant buttons (login, shortcut) with a Save button for the rest.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>A positive switch “알림 받기” with chips 정각 · 10분 · 30분 · 1시간 · 하루 전.
+        Settings apply as you change them, with no Save. The file path moves under “고급”.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">8</span>
+      <div><div class="t">The checkbox doesn't look like one <span class="tier p1">P1</span></div><div class="w">all lists</div>
+        <p>A very faint 18px circle, next to a colour bar whose meaning (마감 / 반복 / 메모) is never explained.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>A 20px circle with a clear teal ring that fills on hover. The kind shows as a
+        word (반복) only when it isn't obvious from the section.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">9</span>
+      <div><div class="t">Different words for the same thing <span class="tier p1">P1</span></div><div class="w">both apps</div>
+        <p>“마감이 있는 일” / “다가오는 마감” / “예정”; “반복되는 일” / “반복 업무” / “반복”; “기한 없는 메모” / “메모”.</p></div>
+      <div class="fix"><div class="l">Fix</div><p><b>할 일</b> (has a date), <b>반복</b>, <b>메모</b>. Views: <b>오늘 · 다가오는 일 · 반복 · 메모 · 달력</b>.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">10</span>
+      <div><div class="t">No search, and item management is a tiny link <span class="tier p2">P2</span></div><div class="w">PC footer</div>
+        <p>“전체 항목 관리” is an 11px link in the bottom-left corner.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>A search field in the header (Ctrl+K). Results open the editor.
+        “전체 항목” becomes a view of search with no text.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">11</span>
+      <div><div class="t">Phone: the add button covers the list, and settings are missing <span class="tier p2">P2</span></div><div class="w">phone home</div>
+        <p>The floating “＋ 새 항목” pill sits over the last row. Reminder lead time and briefing time can only be changed on the PC.
+          The account and reminder switch hide in “⋯”.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>An add bar at the bottom, in thumb reach. A proper settings page:
+        알림 · 브리핑 · 영업일 · 계정 · 동기화 상태.</p></div>
+    </div>
+
+    <div class="card find"><span class="num">12</span>
+      <div><div class="t">Small, faint text <span class="tier p2">P2</span></div><div class="w">both apps</div>
+        <p>Labels at 10–11px in the faintest colour, and 1px rules at 8.5% opacity.</p></div>
+      <div class="fix"><div class="l">Fix</div><p>Nothing under 12px. Secondary text at least 4.5:1 contrast. Rules stay subtle,
+        but row spacing does the separating.</p></div>
+    </div>
+  </div>
+
+  <h2>Today, for reference</h2>
+  <div class="shots">
+    <div class="card shot"><img src="home-now.jpg" alt="Current PC home"><div class="c">Home: the count appears three times (4),
+      routines are folded away (5), and the whole row is a complete button (3).</div></div>
+    <div class="card shot"><img src="add-now.jpg" alt="Current add form"><div class="c">Add: the recurring tab is first, the rule uses three dropdowns (6),
+      and the reminder is a negative checkbox (7).</div></div>
+  </div>
+
+  <h2>Keep</h2>
+  <div class="keep">
+    <div>The calm paper look, teal accent and Paperlogy type</div>
+    <div>Next-five-dates preview while building a rule</div>
+    <div>“This is not a business day → move to Friday?” warnings</div>
+    <div>Notification cards with 완료 · 10분 뒤 · 열기</div>
+    <div>Missed and held alerts folded into one card</div>
+    <div>Sync that just works, with its status shown in settings</div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":960,"height":3480}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:960px; min-height:1880px; padding:44px 48px 56px}
+    .kick{font-size:12px; color:var(--mid-ink)}
+    h1{font-weight:300; font-size:32px; line-height:1.3; color:var(--ink2); margin:8px 0 12px; letter-spacing:-.6px}
+    .lede{font-size:14px; line-height:1.8; font-weight:400; margin:0; max-width:780px}
+    h2{font-size:17px; font-weight:500; color:var(--ink2); margin:38px 0 14px}
+    .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+    .col{padding:16px 18px}
+    .col h3{margin:0 0 10px; font-size:13px; font-weight:500; display:flex; align-items:center; gap:8px}
+    .col h3 i{font-style:normal; font-size:11px; padding:2px 8px; border-radius:9px}
+    .keep i{background:var(--pale); color:var(--muted)} .yes i{background:var(--mid); color:var(--onmid)} .no i{background:var(--deep); color:var(--onmid)}
+    .col ul{margin:0; padding:0; list-style:none}
+    .col li{font-size:13px; line-height:1.55; padding:8px 0; box-shadow:inset 0 -1px 0 var(--rule)}
+    .col li:last-child{box-shadow:none}
+    .col li small{display:block; font-size:11.5px; color:var(--faint); font-weight:400}
+    .req{display:grid; grid-template-columns:40px 1fr 190px; gap:14px; align-items:center; padding:13px 16px}
+    .req + .req{margin-top:10px}
+    .req .n{font-size:22px; font-weight:300; color:var(--mid-ink); text-align:center}
+    .req b{display:block; font-size:14px; font-weight:500; color:var(--ink2)}
+    .req p{margin:3px 0 0; font-size:12.5px; line-height:1.65; font-weight:400}
+    .req .where{font-size:12px; color:var(--mid-ink); text-align:right}
+    .qa{padding:20px 22px}
+    .qa .q{font-size:15px; color:var(--ink2); margin-bottom:10px}
+    .qa p{margin:0 0 10px; font-size:13px; line-height:1.8; font-weight:400}
+    .two{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0}
+    .two div{padding:12px 14px; border-radius:12px; font-size:12.5px; line-height:1.7; font-weight:400}
+    .two b{font-weight:500; display:block; margin-bottom:3px; color:var(--ink2)}
+    table{width:100%; border-collapse:collapse; font-size:13px}
+    th{font-size:11.5px; font-weight:400; color:var(--faint); text-align:left; padding:8px 10px; border-bottom:1px solid var(--rule2)}
+    td{padding:10px; border-bottom:1px solid var(--rule); line-height:1.55; vertical-align:top}
+    td.now{color:var(--faint)}
+    td.new{color:var(--ink2)}
+  </style>
+</helmet>
+
+<div class="paper page">
+  <div class="grain"></div>
+  <div class="kick">LazyScheduler · 디자인 2차 정리</div>
+  <h1>정한 것, 뺀 것, 그리고 새로 고민한 것</h1>
+  <p class="lede"><b style="font-weight:500; color:var(--ink2)">확정 · 결 C · 1차 제안 전부 · "반복" → "루틴". 방향 A (배치 · 날짜 크기는 그대로, 인덱스 탭 + 쌓인 종이만). 남은 결정 · 알림 시간(5).</b><br>1차 리뷰에 주신 의견을 반영했습니다. 오른쪽 보드들이 새로 요청하신 일곱 가지를 하나씩 다룹니다.
+    화면 속 글자는 앱과 같은 한국어로, 색과 글꼴은 지금 앱의 값(tokens.py) 그대로 썼습니다.</p>
+
+  <h2>1차 리뷰에서 정리된 것</h2>
+  <div class="grid3">
+    <div class="card col yes"><h3><i>채택</i></h3><ul>
+      <li>누르면 열기 · 체크 동그라미로만 완료<small>휴대폰 · PC 목록 모두</small></li>
+      <li>되돌리기 토스트<small>완료 · 삭제 · 건너뛰기 뒤 5초 · 확정</small></li>
+      <li>용어 통일: 할 일 · 루틴 · 메모<small>확정 · "반복" 은 앞으로 "루틴"</small></li>
+    </ul></div>
+    <div class="card col keep"><h3><i>보류</i></h3><ul>
+      <li>자연어 입력창<small>지금처럼 폼으로. 아래 답변 참고</small></li>
+    </ul></div>
+    <div class="card col no"><h3><i>기각</i></h3><ul>
+      <li>"오늘 N건 중 M건 남음" 한 줄<small>원형 링 유지. 휴대폰에도 링 + 누르면 당일 개요</small></li>
+      <li>검색<small>필요 없음</small></li>
+    </ul></div>
+  </div>
+
+  <h2>새로 요청하신 것</h2>
+  <div class="card req"><span class="n">1</span><div><b>시각은 "직접" 하나만, 대신 가장 쉽게</b>
+    <p>09:00 · 12:00 같은 기본값을 모두 뺍니다. 두 번 누르면 끝나는 입력(시 → 분)을 PC와 휴대폰에 같게 넣고, PC에서는 숫자를 바로 쳐도 됩니다.</p></div><span class="where">→ 보드 "시각 입력"</span></div>
+  <div class="card req"><span class="n">2</span><div><b>PC 종이 결이 얼룩덜룩함</b>
+    <p>큰 얼룩 층(1120px)이 주범입니다. 네 가지를 비교해 <b style="display:inline">C 로 확정</b>(얼룩 빼고 · 결 절반 · 바탕 밝게).</p></div><span class="where">→ 보드 "종이 결"</span></div>
+  <div class="card req"><span class="n">3</span><div><b>휴대폰에도 PC 같은 입체감</b>
+    <p>담는 것은 올라오게(칸 · 단추), 받는 것은 눌리게(입력 · 체크) · PC와 같은 규칙을 그대로 옮깁니다.</p></div><span class="where">→ 보드 "휴대폰 홈"</span></div>
+  <div class="card req"><span class="n">4</span><div><b>루틴 추가를 가장 빠르고 쉽게 · 달력 날짜가 기본</b>
+    <p>"매 영업일"을 없애고 "매일"로. 영업일은 기본이 아니라 켜는 옵션(세는 방법)으로 바꿉니다. 날짜 하나를 고르면 맞는 규칙을 골라 주는 방식을 더합니다.</p></div><span class="where">→ 보드 "루틴 추가" (PC · 휴대폰)</span></div>
+  <div class="card req"><span class="n">5</span><div><b>PC 알림이 너무 빨리 사라짐</b>
+    <p>아래 표 참고. 휴대폰은 안드로이드가 정하는 부분이 있습니다.</p></div><span class="where">→ 아래</span></div>
+  <div class="card req"><span class="n">6</span><div><b>조금 더 과감한(섹시한) 디자인</b>
+    <p>종이라는 지금의 결을 살린 세 가지 방향. 하나를 고르시면 그 방향으로 전체를 다듬습니다.</p></div><span class="where">→ A 채택 · 보드 "A 적용 홈"</span></div>
+  <div class="card req"><span class="n">7</span><div><b>스와이프의 "내일로 · 삭제" 단추를 예쁘게</b>
+    <p>줄 전체 높이의 색 덩어리 대신, 줄 안에 떠오르는 작은 둥근 단추 두 개로 바꿨습니다.</p></div><span class="where">→ 보드 "휴대폰 홈"</span></div>
+
+  <h2>5 · 알림이 떠 있는 시간</h2>
+  <div class="card" style="padding:6px 14px 4px">
+    <table>
+      <tr><th style="width:22%"></th><th>지금</th><th>제안</th></tr>
+      <tr><td>PC · 보통 알림</td><td class="now">11초 뒤 사라짐 (마우스를 올려 두면 최대 25초)</td><td class="new"><b>30초</b> · 마우스를 올린 동안은 멈춤</td></tr>
+      <tr><td>PC · 지난 알림</td><td class="now">11초</td><td class="new"><b>직접 닫을 때까지</b> (완료 · 10분 뒤 · ✕)</td></tr>
+      <tr><td>PC · 묶음 · 브리핑</td><td class="now">11초</td><td class="new"><b>45초</b></td></tr>
+      <tr><td>휴대폰</td><td class="now">상단 팝업 약 5초 후 알림창으로 (안드로이드가 정함)</td>
+        <td class="new">팝업 시간은 앱이 바꿀 수 없음. 대신 <b>지난 알림은 밀어서 지울 수 없게</b> 고정해 두고, 완료하거나 미루면 사라지게 할 수 있습니다.</td></tr>
+    </table>
+  </div>
+
+  <h2>질문 · 자연어 입력, 규칙 말고도 가능한가</h2>
+  <div class="card qa">
+    <div class="q">가능합니다. 다만 지금 보류하신 판단이 맞다고 봅니다.</div>
+    <p>규칙 기반은 "내일 3시", "매월 둘째 영업일" 같은 정해진 표현만 알아듣습니다. 언어 모델(예: Claude API)을 쓰면
+      "다음 주 수요일 오후쯤", "분기 끝나기 사흘 전"처럼 자유로운 문장도 거의 다 알아듣습니다.</p>
+    <div class="two">
+      <div class="inset"><b>언어 모델의 장점</b>표현이 자유롭고, 이미 앱에 있는 루틴 규칙 형식으로 바로 바꿔 줄 수 있음 · 규칙보다 훨씬 덜 틀림</div>
+      <div class="inset"><b>대가</b>인터넷 필요 · 한 번에 0.5~2초 · 쓰는 만큼 비용 · 일정 문장이 외부 서버로 나감 · 드물게 그럴듯하게 틀림</div>
+    </div>
+    <p>그래서 어느 쪽이든 "이렇게 알아들었어요" 확인은 꼭 필요합니다. 나중에 하게 되면 <b>규칙으로 먼저 시도하고, 못 알아들은 것만
+      언어 모델에 묻는</b> 방식이 빠르고 싸고 안전합니다. 지금은 폼을 편하게 만드는 쪽(1 · 4번)에 집중합니다.</p>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":960,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

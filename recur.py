@@ -295,7 +295,9 @@ def describe(rule):
     p = r.get("period", "day")
 
     if p == "day":
-        return "매 영업일" if r.get("business_only", True) else "매일"
+        # 달력 날이 기본이다. 영업일만 도는 것은 덧붙여 밝힌다 (예전 "매 영업일" 은
+        # 영업일이 기본처럼 읽혔다)
+        return "매일 · 영업일만" if r.get("business_only", True) else "매일"
 
     if p == "week":
         ds = "·".join(W[i] for i in sorted(r.get("weekdays") or []))
@@ -313,6 +315,55 @@ def describe(rule):
     if len(months) == 1:
         return f"매년 {months[0]}월 " + body
     return "·".join(str(x) for x in months) + "월 " + body
+
+
+# ---------- 날짜 하나로 규칙 고르기 ----------
+SUGGEST_MAX = 7
+
+
+def suggest(day):
+    """예시 날짜 하나 → 그 날을 포함하는 규칙들 (루틴 추가의 "날짜 하나로 시작").
+
+    [{"text": 설명, "rule": 규칙}] 을 자주 쓰는 순서로. 규칙은 모두 validate_rule 을
+    통과한 표준 형식이고, 반드시 그 날짜를 회차로 가진다.
+
+    고른 날이 영업일이면 휴일 보정은 늘 쓰던 "앞 영업일로", 주말 · 공휴일이면
+    "그대로" 로 둔다 - 그날 한다고 짚은 것이니 그날이 빠지면 안 된다.
+    휴대폰 앱이 같은 것을 만든다 (tests/vectors/suggest.json 이 둘의 약속).
+    """
+    y, m, d = day.year, day.month, day.day
+    first, last_day = _month_span(y, m)
+    last = last_day.day
+    wd = day.weekday()
+    bd = [x for x in _span_days(first, last_day) if is_business_day(x)]
+    biz = day in bd
+    cands = []
+    if d == last:
+        cands.append({"period": "month", "basis": "day", "n": -1})
+    if biz and day == bd[-1]:
+        cands.append({"period": "month", "basis": "business_day", "n": -1})
+    cands.append({"period": "month", "basis": "day", "n": d})
+    if biz and day != bd[-1] and bd.index(day) < 10:
+        cands.append({"period": "month", "basis": "business_day", "n": bd.index(day) + 1})
+    if d + 7 > last:
+        cands.append({"period": "month", "basis": "weekday", "n": -1, "weekday": wd})
+    elif (d - 1) // 7 + 1 <= 4:
+        cands.append({"period": "month", "basis": "weekday", "n": (d - 1) // 7 + 1, "weekday": wd})
+    cands.append({"period": "week", "weekdays": [wd], "interval": 1, "anchor": day.isoformat()})
+    if m in (3, 6, 9, 12) and d == last:
+        cands.append({"period": "month", "basis": "day", "n": -1, "months": [3, 6, 9, 12]})
+    cands.append({"period": "month", "basis": "day", "n": d, "months": [m]})
+
+    shift = "prev" if biz else "none"
+    out, seen = [], set()
+    for c in cands:
+        rule = validate_rule(dict(c, holiday_shift=shift))
+        text = describe(rule)
+        if text in seen or day not in occurrences(rule, day, day):
+            continue
+        seen.add(text)
+        out.append({"text": text, "rule": rule})
+    return out[:SUGGEST_MAX]
 
 
 # ---------- 저장 전 확인 ----------

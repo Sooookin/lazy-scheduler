@@ -235,7 +235,8 @@ object Recur {
         if (rule.isNullOrEmpty()) return "반복"
         val r = normalize(rule)
         return when (r["period"] as? String ?: "day") {
-            "day" -> if (r["business_only"] as? Boolean != false) "매 영업일" else "매일"
+            // Calendar days first; business days only is the add-on (the old "매 영업일" read as the default)
+            "day" -> if (r["business_only"] as? Boolean != false) "매일 · 영업일만" else "매일"
             "week" -> {
                 val ds = (ints(r["weekdays"]) ?: emptyList()).sorted().joinToString("·") { W[it.coerceIn(0, 6)].toString() }
                 val iv = num(r["interval"], 1)
@@ -253,5 +254,49 @@ object Recur {
                 }
             }
         }
+    }
+
+    // ---------- start from one date ----------
+
+    const val SUGGEST_MAX = 7
+
+    /**
+     * One example date → the rules that include it, most common first (routine editor,
+     * "날짜 하나로 시작"). Same list and order as recur.suggest; tests/vectors/suggest.json
+     * holds both to it. A business day keeps the usual "앞 영업일로"; a weekend or holiday
+     * gets "그대로", so the picked day itself is never shifted away.
+     */
+    fun suggest(day: LocalDate): List<Pair<String, Map<String, Any?>>> {
+        val ym = YearMonth.from(day)
+        val d = day.dayOfMonth
+        val last = ym.lengthOfMonth()
+        val wd = weekday(day)
+        val m = day.monthValue
+        val bd = span(ym.atDay(1), ym.atEndOfMonth()).filter(::isBusinessDay)
+        val biz = day in bd
+        val c = ArrayList<Map<String, Any?>>()
+        if (d == last) c += mapOf("period" to "month", "basis" to "day", "n" to -1)
+        if (biz && day == bd.last()) c += mapOf("period" to "month", "basis" to "business_day", "n" to -1)
+        c += mapOf("period" to "month", "basis" to "day", "n" to d)
+        if (biz && day != bd.last() && bd.indexOf(day) < 10)
+            c += mapOf("period" to "month", "basis" to "business_day", "n" to bd.indexOf(day) + 1)
+        if (d + 7 > last) c += mapOf("period" to "month", "basis" to "weekday", "n" to -1, "weekday" to wd)
+        else if ((d - 1) / 7 + 1 <= 4) c += mapOf("period" to "month", "basis" to "weekday", "n" to (d - 1) / 7 + 1, "weekday" to wd)
+        c += mapOf("period" to "week", "weekdays" to listOf(wd), "interval" to 1, "anchor" to day.toString())
+        if (m in setOf(3, 6, 9, 12) && d == last)
+            c += mapOf("period" to "month", "basis" to "day", "n" to -1, "months" to listOf(3, 6, 9, 12))
+        c += mapOf("period" to "month", "basis" to "day", "n" to d, "months" to listOf(m))
+
+        val shift = if (biz) "prev" else "none"
+        val out = ArrayList<Pair<String, Map<String, Any?>>>()
+        val seen = HashSet<String>()
+        for (x in c) {
+            val rule = RuleCheck.validate(x + ("holiday_shift" to shift)).first ?: continue
+            val text = describe(rule)
+            if (text in seen || day !in occurrences(rule, day, day)) continue
+            seen += text
+            out += text to rule
+        }
+        return out.take(SUGGEST_MAX)
     }
 }

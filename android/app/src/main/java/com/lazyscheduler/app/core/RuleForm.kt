@@ -85,99 +85,116 @@ object RuleCheck {
 }
 
 /**
- * The rule editor's state, with the same choices as the PC form (web/app.js):
- * how often (period) × which day (basis key) × which months.
+ * The routine editor's state: a sentence built from pieces, the same as the PC form
+ * (web/app.js ruleToS / sToRule).
+ *
+ *   얼마나 자주  매일 · 매주 · 매월 · 매년 (매 분기: old rules only)
+ *   틀           날짜로 · 요일로 · 말일부터
+ *   세는 방법    달력 날 · 영업일          (business days are an option, not a period)
+ *   주말·공휴일  앞 영업일로 · 뒤로 · 그대로
+ *   실행하는 달  매월 · 분기 말 · 분기 초 · 반기 · 직접
+ *
+ * The stored rule format is unchanged; "매년" is a monthly rule with one month.
  */
 data class RuleForm(
-    val period: String = "month",
-    val businessOnly: Boolean = true,
+    val freq: String = "month",
+    val frame: String = "date",
+    val biz: Boolean = false,
+    val n: Int = 1,                         // 날짜로: day / business day (-1 = last)
+    val k: Int = 0,                         // 말일부터: days before the end
+    val wn: Int = 1,                        // 요일로: 1..4, -1 = last
+    val weekday: Int = 0,
     val weekdays: Set<Int> = emptySet(),
     val interval: Int = 1,
-    val basisKey: String = "bd_n",
-    val n: Int = 1,
-    val k: Int = 3,
-    val weekday: Int = 0,
-    val months: List<Int>? = null,            // null = every month
     val anchor: String? = null,
+    val shift: String = "prev",
+    val mset: String = "all",
+    val months: List<Int> = emptyList(),    // mset == "custom"
+    val ymonth: Int = 1,                    // 매년
 ) {
-    val quarter get() = period == "quarter"
+    val quarter get() = freq == "quarter"
+    /** The largest "n-th" for the chosen counting. */
+    val nTop get() = if (quarter) (if (biz) 66 else 92) else (if (biz) 23 else 31)
+    /** Counting business days never lands on a weekend, so the holiday choice does nothing then. */
+    val shiftMatters get() = freq == "week" || (freq != "day" && (frame == "weekday" || !biz))
 
     fun toRule(): Map<String, Any?> {
-        val r = linkedMapOf<String, Any?>("period" to period, "holiday_shift" to "prev")
-        when (period) {
-            "day" -> r["business_only"] = businessOnly
+        val r = linkedMapOf<String, Any?>("period" to (if (freq == "year") "month" else freq), "holiday_shift" to shift)
+        when (freq) {
+            "day" -> r["business_only"] = biz
             "week" -> {
                 r["weekdays"] = weekdays.sorted()
                 r["interval"] = interval
                 if (anchor != null) r["anchor"] = anchor
             }
             else -> {
-                r["basis"] = BASIS_OF[basisKey]
-                when (basisKey) {
-                    "bd_last", "wd_last", "day_last" -> r["n"] = -1
-                    "bd_n", "wd_n", "day_n" -> r["n"] = n
+                when (frame) {
+                    "weekday" -> { r["basis"] = "weekday"; r["n"] = wn; r["weekday"] = weekday }
+                    "end" -> { r["basis"] = if (biz) "before_end_bd" else "before_end"; r["k"] = k }
+                    else -> { r["basis"] = if (biz) "business_day" else "day"; r["n"] = n }
                 }
-                if (basisKey == "wd_n" || basisKey == "wd_last") r["weekday"] = weekday
-                if (basisKey == "be_k" || basisKey == "bebd_k") r["k"] = k
-                if (period == "month" && months != null && months.size < 12) r["months"] = months
+                if (freq == "year") r["months"] = listOf(ymonth)
+                else if (freq == "month" && mset != "all") {
+                    val set = if (mset == "custom") months.sorted() else MONTH_SETS.first { it.first == mset }.third!!
+                    if (set.isNotEmpty() && set.size < 12) r["months"] = set
+                }
             }
         }
         return r
     }
 
+    /** What is still missing, or null. */
+    fun problem(): String? = when {
+        freq == "week" && weekdays.isEmpty() -> "요일을 하나 이상 고르세요"
+        freq == "month" && mset == "custom" && months.isEmpty() -> "실행하는 달을 하나 이상 고르세요"
+        else -> null
+    }
+
     companion object {
-        val PERIODS = listOf("day" to "매 영업일", "week" to "매주", "month" to "매월", "quarter" to "분기")
-        /** key, label for months, label for quarters (same order as the PC). */
-        val BASES = listOf(
-            Triple("bd_n", "N번째 영업일", "분기 N번째 영업일"),
-            Triple("bd_last", "마지막 영업일", "분기 마지막 영업일"),
-            Triple("bebd_k", "말일 K영업일 전", "분기말 K영업일 전"),
-            Triple("wd_n", "N번째 O요일", "분기 N번째 O요일"),
-            Triple("wd_last", "마지막 O요일", "분기 마지막 O요일"),
-            Triple("day_n", "N일", "분기 N일째"),
-            Triple("day_last", "말일", "분기 마지막 날"),
-            Triple("be_k", "말일 K일 전", "분기말 K일 전"),
-        )
+        val FREQS = listOf("day" to "매일", "week" to "매주", "month" to "매월", "year" to "매년")
+        val FRAMES = listOf("date" to "날짜로", "weekday" to "요일로", "end" to "말일부터")
+        val SHIFTS = listOf("prev" to "앞 영업일로", "next" to "뒤로", "none" to "그대로")
         val MONTH_SETS = listOf(
-            "매월" to null,
-            "3·6·9·12월" to listOf(3, 6, 9, 12),
-            "1·4·7·10월" to listOf(1, 4, 7, 10),
-            "6·12월" to listOf(6, 12),
-        )
-        private val BASIS_OF = mapOf(
-            "bd_n" to "business_day", "bd_last" to "business_day", "wd_n" to "weekday", "wd_last" to "weekday",
-            "be_k" to "before_end", "bebd_k" to "before_end_bd", "day_n" to "day", "day_last" to "day",
+            Triple("all", "매월", null),
+            Triple("q1", "분기 말", listOf(3, 6, 9, 12)),
+            Triple("q2", "분기 초", listOf(1, 4, 7, 10)),
+            Triple("half", "반기", listOf(6, 12)),
+            Triple("custom", "직접", null),
         )
 
         private fun num(v: Any?, d: Int) = (v as? Number)?.toInt() ?: d
+
+        /** A new routine starts as "매월 (today)일", counted in calendar days. */
+        fun fresh(today: LocalDate) = RuleForm(n = today.dayOfMonth)
 
         /** From a saved rule (any format the PC ever wrote). */
         fun from(rule: Map<String, Any?>?): RuleForm {
             if (rule.isNullOrEmpty()) return RuleForm()
             val r = Recur.normalize(rule)
-            val period = r["period"] as? String ?: "month"
-            val n = num(r["n"], 1)
-            val last = n == -1
-            val key = when (r["basis"] as? String ?: "day") {
-                "business_day" -> if (last) "bd_last" else "bd_n"
-                "weekday" -> if (last) "wd_last" else "wd_n"
-                "before_end" -> "be_k"
-                "before_end_bd" -> "bebd_k"
-                else -> if (last) "day_last" else "day_n"
+            val base = RuleForm(anchor = r["anchor"] as? String, shift = r["holiday_shift"] as? String ?: "prev")
+            when (r["period"] as? String) {
+                "day" -> return base.copy(freq = "day", biz = r["business_only"] as? Boolean ?: true)
+                "week" -> return base.copy(freq = "week",
+                    weekdays = ((r["weekdays"] as? List<*>)?.map { num(it, 0) } ?: emptyList()).toSet(),
+                    interval = num(r["interval"], 1))
+                "month", "quarter" -> {}
+                else -> return base
             }
-            val months = (r["months"] as? List<*>)?.map { num(it, 0) }?.sorted()
-            return RuleForm(
-                period = period,
-                businessOnly = r["business_only"] as? Boolean ?: true,
-                weekdays = ((r["weekdays"] as? List<*>)?.map { num(it, 0) } ?: emptyList()).toSet(),
-                interval = num(r["interval"], 1),
-                basisKey = key,
-                n = if (last) 1 else n,
-                k = num(r["k"], 3),
-                weekday = num(r["weekday"], 0),
-                months = months?.takeIf { it.size < 12 },
-                anchor = r["anchor"] as? String,
-            )
+            var f = base.copy(freq = r["period"] as String)
+            f = when (r["basis"] as? String ?: "day") {
+                "weekday" -> f.copy(frame = "weekday", wn = num(r["n"], 1), weekday = num(r["weekday"], 0))
+                "before_end" -> f.copy(frame = "end", k = num(r["k"], 0))
+                "before_end_bd" -> f.copy(frame = "end", biz = true, k = num(r["k"], 0))
+                "business_day" -> f.copy(biz = true, n = num(r["n"], 1))
+                else -> f.copy(n = num(r["n"], 1))
+            }
+            val ms = (r["months"] as? List<*>)?.map { num(it, 0) }?.sorted()
+            if (f.freq == "month" && ms != null && ms.size == 1) return f.copy(freq = "year", ymonth = ms[0])
+            if (f.freq == "month" && ms != null && ms.isNotEmpty() && ms.size < 12) {
+                val hit = MONTH_SETS.firstOrNull { it.third == ms }
+                return f.copy(mset = hit?.first ?: "custom", months = ms)
+            }
+            return f
         }
     }
 }

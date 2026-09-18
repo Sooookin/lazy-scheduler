@@ -49,13 +49,17 @@ class RuleFormTest {
     @Test
     fun everyFormChoiceMakesAValidRuleThatReadsBackTheSame() {
         val forms = mutableListOf(
-            RuleForm(period = "day", businessOnly = false),
-            RuleForm(period = "week", weekdays = setOf(0, 3), interval = 2, anchor = "2026-09-14"),
+            RuleForm(freq = "day", biz = false),
+            RuleForm(freq = "day", biz = true),
+            RuleForm(freq = "week", weekdays = setOf(0, 3), interval = 2, anchor = "2026-09-14", shift = "next"),
         )
-        for (period in listOf("month", "quarter")) for ((key, _, _) in RuleForm.BASES) {
-            forms += RuleForm(period = period, basisKey = key, n = 2, k = 3, weekday = 3,
-                months = if (period == "month") listOf(3, 6, 9, 12) else null)
-        }
+        for (freq in listOf("month", "year", "quarter")) for (frame in listOf("date", "weekday", "end"))
+            for (biz in listOf(false, true)) for (n in listOf(2, -1)) {
+                forms += RuleForm(freq = freq, frame = frame, biz = biz, n = n, wn = n, k = 3, weekday = 3,
+                    ymonth = 9, shift = "none")
+            }
+        for (mset in listOf("q1", "q2", "half")) forms += RuleForm(mset = mset, n = 15)
+        forms += RuleForm(mset = "custom", months = listOf(2, 5, 8, 11), n = 10)
         for (f in forms) {
             val rule = f.toRule()
             val (ok, err) = RuleCheck.validate(rule)
@@ -65,18 +69,30 @@ class RuleFormTest {
     }
 
     @Test
+    fun businessDaysAreTheCountingNotThePeriod() {
+        // Same sentence, only the counting changes: "매월 3일" <-> "매월 3번째 영업일"
+        assertEquals("매월 3일", Recur.describe(RuleForm(n = 3).toRule()))
+        assertEquals("매월 3번째 영업일", Recur.describe(RuleForm(n = 3, biz = true).toRule()))
+        assertEquals("매일", Recur.describe(RuleForm(freq = "day").toRule()))
+        assertEquals("매일 · 영업일만", Recur.describe(RuleForm(freq = "day", biz = true).toRule()))
+        assertEquals("매년 9월 말일", Recur.describe(RuleForm(freq = "year", ymonth = 9, n = -1).toRule()))
+        assertEquals("3·6·9·12월 말 2일 전", Recur.describe(RuleForm(frame = "end", k = 2, mset = "q1").toRule()))
+    }
+
+    @Test
     fun readsRulesSavedByThePcWithLongNumbers() {
         val pc = mapOf<String, Any?>("period" to "month", "basis" to "weekday", "n" to -1L, "weekday" to 3L,
             "holiday_shift" to "prev")
         val f = RuleForm.from(pc)
-        assertEquals("wd_last", f.basisKey)
+        assertEquals("weekday", f.frame)
+        assertEquals(-1, f.wn)
         assertEquals(3, f.weekday)
         assertEquals("매월 마지막 목요일", Recur.describe(f.toRule()))
     }
 
     @Test
     fun previewShowsTheNextDates() {
-        val rule = RuleForm(period = "month", basisKey = "bd_n", n = 2).toRule()
+        val rule = RuleForm(biz = true, n = 2).toRule()
         assertEquals(listOf("10/2(금)", "11/3(화)"), previewDates(rule, LocalDate.of(2026, 9, 18), 2))
     }
 }
