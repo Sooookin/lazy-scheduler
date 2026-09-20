@@ -9,6 +9,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -406,6 +408,7 @@ private fun Home(user: FirebaseUser) {
     editor?.let { e ->
         ItemEditor(
             existing = e.task,
+            others = visible ?: emptyList(),
             today = today,
             businessOnly = businessOnly,
             defaultLead = ReminderPlan.defaultLead(settings),
@@ -504,6 +507,13 @@ private fun Empty(title: String, body: String) {
     }
 }
 
+/** 줄이 제자리로 돌아가는 용수철: 짧고 또렷하게, 남은 꼬리 없이. */
+private val SNAP = spring<Float>(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = 800f,
+    visibilityThreshold = 0.5f,
+)
+
 /**
  * One row that slides. Left: the buttons (36dp pills, 8dp apart, 10dp from the edge,
  * 16dp from the row's rounded end; the row's time fades out so nothing touches).
@@ -512,7 +522,7 @@ private fun Empty(title: String, body: String) {
 @Composable
 private fun SwipeRow(
     id: String, openId: String?, setOpen: (String?) -> Unit, actions: List<Act>,
-    onSwipeRight: (() -> Unit)?, onTap: () -> Unit, content: @Composable RowScope.(hide: Float) -> Unit,
+    onSwipeRight: (() -> Unit)?, onTap: () -> Unit, content: @Composable RowScope.(hide: () -> Float) -> Unit,
 ) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -520,33 +530,43 @@ private fun SwipeRow(
     var actW by remember { mutableIntStateOf(0) }
     val reveal = if (actions.isEmpty()) 0f else actW + with(density) { 26.dp.toPx() }
     val doneAt = with(density) { 96.dp.toPx() }
-    LaunchedEffect(openId) { if (openId != id && offset.value < 0f) offset.animateTo(0f) }
-    val x = offset.value
-    val hide = if (reveal > 0f) (-x / reveal).coerceIn(0f, 1f) else 0f
+    LaunchedEffect(openId) { if (openId != id && offset.value < 0f) offset.animateTo(0f, SNAP) }
+    /* 미끄러지는 값(offset.value)을 조합 단계에서 읽으면, 손가락을 움직이는 프레임마다
+       줄 전체가 다시 만들어진다(모양 · 그림자 · 색까지 새로 고른다). 그래서 여기서는
+       읽지 않고, 그리기 단계의 람다(graphicsLayer · hide()) 안에서만 읽는다 - 같은 줄을
+       위치만 바꿔 다시 그릴 뿐이다. 이것이 "밀 때 끈적인다" 의 가장 큰 원인이었다. */
+    val hide: () -> Float = { if (reveal > 0f) (-offset.value / reveal).coerceIn(0f, 1f) else 0f }
     val endShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
 
-    Box(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        if (x > 0f) Box(
-            Modifier.matchParentSize().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp))
-                .background(Ink.mint.copy(alpha = (x / doneAt).coerceIn(0f, 1f) * .7f)),
+    Box(Modifier.fillMaxWidth()) {
+        if (onSwipeRight != null) Box(
+            Modifier.matchParentSize().padding(vertical = 4.dp)
+                .graphicsLayer { alpha = (offset.value / doneAt).coerceIn(0f, 1f) }
+                .clip(RoundedCornerShape(14.dp)).background(Ink.mint.copy(alpha = .7f)),
             contentAlignment = Alignment.CenterStart,
         ) { Text("✓  완료", Modifier.padding(start = 18.dp), style = MaterialTheme.typography.labelLarge, color = Ink.deep) }
         if (actions.isNotEmpty()) Row(
-            Modifier.align(Alignment.CenterEnd).padding(end = 10.dp).alpha(hide).onSizeChanged { actW = it.width },
+            Modifier.align(Alignment.CenterEnd).padding(end = 10.dp)
+                .graphicsLayer { alpha = hide() }.onSizeChanged { actW = it.width },
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             for (a in actions) Box(
                 Modifier.height(36.dp).raised(18.dp, 2.5.dp).clip(RoundedCornerShape(18.dp))
-                    .tap { setOpen(null); scope.launch { offset.animateTo(0f) }; a.run() }
+                    .tap { setOpen(null); scope.launch { offset.animateTo(0f, SNAP) }; a.run() }
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center,
             ) { Text(a.label, style = MaterialTheme.typography.labelMedium, color = a.color, maxLines = 1) }
         }
         Row(
-            Modifier.offset { IntOffset(x.roundToInt(), 0) }.fillMaxWidth()
-                .then(if (x < 0f) Modifier.shadow(5.dp, endShape, spotColor = Ink.dark) else Modifier)
-                .clip(if (x != 0f) endShape else RectangleShape)
-                .background(Ink.card)
+            Modifier.graphicsLayer {
+                val v = offset.value
+                translationX = v
+                shape = endShape
+                clip = v != 0f
+                shadowElevation = if (v < 0f) 5.dp.toPx() else 0f
+                spotShadowColor = Ink.dark
+                ambientShadowColor = Ink.dark
+            }.fillMaxWidth().background(Ink.card)
                 .draggable(
                     orientation = Orientation.Horizontal,
                     state = rememberDraggableState { dx ->
@@ -559,13 +579,13 @@ private fun SwipeRow(
                     onDragStopped = {
                         val v = offset.value
                         when {
-                            v >= doneAt && onSwipeRight != null -> { offset.animateTo(0f); onSwipeRight() }
-                            reveal > 0f && v < -reveal / 2 -> { offset.animateTo(-reveal); setOpen(id) }
-                            else -> { offset.animateTo(0f); if (openId == id) setOpen(null) }
+                            v >= doneAt && onSwipeRight != null -> { offset.animateTo(0f, SNAP); onSwipeRight() }
+                            reveal > 0f && v < -reveal / 2 -> { offset.animateTo(-reveal, SNAP); setOpen(id) }
+                            else -> { offset.animateTo(0f, SNAP); if (openId == id) setOpen(null) }
                         }
                     },
                 )
-                .tap { if (offset.value < 0f) { scope.launch { offset.animateTo(0f) }; setOpen(null) } else onTap() }
+                .tap { if (offset.value < 0f) { scope.launch { offset.animateTo(0f, SNAP) }; setOpen(null) } else onTap() }
                 .heightIn(min = 60.dp).padding(start = 2.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) { content(hide) }
@@ -573,7 +593,7 @@ private fun SwipeRow(
 }
 
 @Composable
-private fun RowScope.ItemRow(i: Instance, today: LocalDate, now: LocalTime, showDate: Boolean, hide: Float, onCheck: () -> Unit) {
+private fun RowScope.ItemRow(i: Instance, today: LocalDate, now: LocalTime, showDate: Boolean, hide: () -> Float, onCheck: () -> Unit) {
     CheckDot(i.done, onCheck)
     Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
         Text(
@@ -589,7 +609,7 @@ private fun RowScope.ItemRow(i: Instance, today: LocalDate, now: LocalTime, show
         }
         if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
-    Row(Modifier.alpha(1f - hide), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.graphicsLayer { alpha = 1f - hide() }, verticalAlignment = Alignment.CenterVertically) {
         when (Plan.urgency(i, today, now)) {
             "late" -> Badge(if (i.date != null && i.date.isBefore(today)) dateLabel(i.date, today) else "지남", Ink.deep, Ink.onMid)
             "soon" -> Badge("임박", Ink.mint, Ink.deep)
@@ -603,13 +623,13 @@ private fun RowScope.ItemRow(i: Instance, today: LocalDate, now: LocalTime, show
 }
 
 @Composable
-private fun RowScope.RoutineRow(task: Task, next: Instance?, today: LocalDate, hide: Float) {
+private fun RowScope.RoutineRow(task: Task, next: Instance?, today: LocalDate, hide: () -> Float) {
     Column(Modifier.weight(1f).padding(start = 14.dp, top = 10.dp, bottom = 10.dp)) {
         Text(task.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(task.ruleText + (if (task.dueTime.isNotEmpty()) " · " + task.dueTime else ""),
             style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
-    Box(Modifier.alpha(1f - hide)) {
+    Box(Modifier.graphicsLayer { alpha = 1f - hide() }) {
         when {
             next?.date == null -> Text("예정 없음", style = MaterialTheme.typography.labelMedium, color = Ink.faint)
             next.date == today -> if (next.done) Badge("완료", Ink.pale, Ink.muted) else Badge("오늘", Ink.deep, Ink.onMid)

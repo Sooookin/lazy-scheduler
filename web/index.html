@@ -155,18 +155,20 @@
 </div>
 
 <!-- ── 새 항목 ── -->
-<div class="modal wide" id="m-add" role="dialog" aria-modal="true" aria-label="새 항목">
-  <h3 id="a-head">새 할 일</h3>
-  <div class="tabs" id="add-tabs">
-    <button data-k="deadline" class="on">할 일</button>
-    <button data-k="routine">루틴</button>
-    <button data-k="floating">메모</button>
+<div class="modal form" id="m-add" role="dialog" aria-modal="true" aria-label="새 항목">
+  <div class="f-head">
+    <h3 id="a-head">새 할 일</h3>
+    <div class="tabs" id="add-tabs">
+      <button data-k="deadline" class="on">할 일</button>
+      <button data-k="routine">루틴</button>
+      <button data-k="floating">메모</button>
+    </div>
   </div>
   <div class="row">
     <div class="g14"><label for="a-title">이름</label><input id="a-title" autocomplete="off"></div>
-    <div><label for="a-note">메모 <i class="opt">(선택)</i></label><input id="a-note" autocomplete="off"></div>
+    <div><label for="a-note">메모 <i class="opt">(선택)</i></label><textarea id="a-note" rows="1" autocomplete="off"></textarea></div>
   </div>
-  <div id="a-body"></div>
+  <div id="a-body" class="f-body"></div>
   <div class="btns">
     <button class="ghost" data-close>취소</button>
     <button id="a-save">추가</button>
@@ -174,13 +176,13 @@
 </div>
 
 <!-- ── 상세 / 수정 ── -->
-<div class="modal wide" id="m-edit" role="dialog" aria-modal="true" aria-label="항목 수정">
-  <h3>항목 수정</h3>
+<div class="modal form" id="m-edit" role="dialog" aria-modal="true" aria-label="항목 수정">
+  <div class="f-head"><h3>항목 수정</h3></div>
   <div class="row">
     <div class="g14"><label for="e-title">이름</label><input id="e-title" autocomplete="off"></div>
-    <div><label for="e-note">메모 <i class="opt">(선택)</i></label><input id="e-note" autocomplete="off"></div>
+    <div><label for="e-note">메모 <i class="opt">(선택)</i></label><textarea id="e-note" rows="1" autocomplete="off"></textarea></div>
   </div>
-  <div id="e-body"></div>
+  <div id="e-body" class="f-body"></div>
   <div class="btns split">
     <div>
       <button class="ghost danger" id="e-del">삭제</button>
@@ -196,7 +198,7 @@
 
 <!-- ── 전체 관리 ── -->
 <div class="modal wide tall" id="m-manage" role="dialog" aria-modal="true" aria-label="전체 항목">
-  <h3>전체 항목 <i class="opt">누르면 수정</i></h3>
+  <h3>전체 항목</h3>
   <div class="tabs" id="mg-tabs">
     <button data-k="all" class="on">전체</button>
     <button data-k="deadline">할 일</button>
@@ -216,9 +218,9 @@
   <span class="step">일정과 알림</span>
   <div class="row">
     <div><label for="s-lead">기본 알림 (분 전)</label><input id="s-lead" class="min5" type="number" min="0" step="5"></div>
-    <div><label for="s-brief">아침 브리핑 시각</label><input id="s-brief" class="tf" data-tf data-req autocomplete="off" title="누르면 시 → 분. 숫자로 쳐도 됩니다 (930 · 21 · 930p)"></div>
+    <div><label for="s-brief">아침 브리핑 시각</label><input id="s-brief" class="tf" data-tf data-req autocomplete="off" title="예: 930 · 21 · 930p"></div>
   </div>
-  <label class="chk"><input type="checkbox" id="s-biz"> 영업일 기준으로만 쓰기 <i class="opt">주말 선택 차단 · 공휴일 자동 보정</i></label>
+  <label class="chk"><input type="checkbox" id="s-biz"> 영업일 기준으로만 쓰기 <i class="opt">주말 · 공휴일 자동 보정</i></label>
   <!-- Windows 가 알려주는 상태(SHQueryUserNotificationState)를 따른다. 전체 화면 ·
        발표 모드 · 방해 금지 · 잠금 화면이 여기 걸린다. 창을 띄워 둔 채 하는
        화면 공유는 Windows 가 알려주지 않으므로 잡지 못한다 - 이름을 그렇게 적었다. -->
@@ -238,7 +240,7 @@
     <button type="button" id="s-shortcut">바탕화면에 바로가기 만들기</button>
     <button type="button" id="s-test">알림 미리보기</button>
   </div>
-  <p class="hint">내 일정은 <code>%APPDATA%\LazyScheduler\data.json</code> 에 저장됩니다.</p>
+  <p class="hint">저장 위치 <code>%APPDATA%\LazyScheduler\data.json</code></p>
   <div class="btns split">
     <div><button class="ghost danger" id="s-quit">완전히 종료</button></div>
     <div>

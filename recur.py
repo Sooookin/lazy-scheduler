@@ -263,6 +263,9 @@ def occurrences(rule, start, end):
 
 
 # ---------- 설명 문구 ----------
+_ORD = {1: "첫째", 2: "둘째", 3: "셋째", 4: "넷째"}
+
+
 def _basis_text(r, q=False):
     """q=True 면 분기 주기용 문구."""
     basis = r.get("basis", "day")
@@ -276,15 +279,17 @@ def _basis_text(r, q=False):
         return "마지막 영업일" if n == -1 else f"{n}번째 영업일"
     if basis == "weekday":
         wd = W[int(r.get("weekday", 0))]
-        return f"마지막 {wd}요일" if n == -1 else f"{n}번째 {wd}요일"
+        if n == -1:
+            return f"마지막 {wd}요일"
+        return f"{_ORD.get(n, f'{n}번째')} {wd}요일"
     if basis == "before_end":
         if k == 0:
             return "마지막 날" if q else "말일"
-        return f"말 {k}일 전"
+        return f"말일 {k}일 전"
     if basis == "before_end_bd":
         if k == 0:
             return "마지막 영업일"
-        return f"말 {k}영업일 전"
+        return f"말일 {k}영업일 전"
     return ""
 
 
@@ -317,49 +322,97 @@ def describe(rule):
     return "·".join(str(x) for x in months) + "월 " + body
 
 
-# ---------- 날짜 하나로 규칙 고르기 ----------
+# ---------- 예시 날짜 + 단위 → 규칙 고르기 ----------
 SUGGEST_MAX = 7
+UNITS = ("day", "week", "month", "year")
+# 달 간격은 열두 달을 고르게 나누는 것만 (2 · 3 · 4 · 6). 3 은 분기, 6 은 반기다.
+EVERY_MONTHS = (1, 2, 3, 4, 6)
 
 
-def suggest(day):
-    """예시 날짜 하나 → 그 날을 포함하는 규칙들 (루틴 추가의 "날짜 하나로 시작").
+def months_every(day, every):
+    """간격(달)로 도는 달 목록. 예시 날짜의 달에서 시작한다.
 
-    [{"text": 설명, "rule": 규칙}] 을 자주 쓰는 순서로. 규칙은 모두 validate_rule 을
-    통과한 표준 형식이고, 반드시 그 날짜를 회차로 가진다.
+    9월 + 3달 간격 → 3·6·9·12월, 10월 + 3달 간격 → 1·4·7·10월.
+    "분기 말 / 분기 초" 를 따로 고를 일이 없어진다 - 예시 날짜가 이미 답이다.
+    """
+    if every <= 1:
+        return None
+    return sorted({(day.month - 1 + i * every) % 12 + 1 for i in range(12 // every)})
+
+
+def _month_patterns(day):
+    """한 달 안에서 그 날을 가리키는 방법들. 자주 쓰는 순서.
+
+    같은 날 하나를 여러 가지로 읽을 수 있다 (9월 30일 = 말일 = 마지막 영업일 =
+    마지막 수요일 = 말일 0일 전...). 사람은 이 중 무엇을 뜻했는지만 고르면 된다.
+    """
+    first, last_day = _month_span(day.year, day.month)
+    last = last_day.day
+    d, wd = day.day, day.weekday()
+    bd = [x for x in _span_days(first, last_day) if is_business_day(x)]
+    biz = day in bd
+    out = []
+    if d == last:
+        out.append({"basis": "day", "n": -1})                        # 말일
+    if biz and day == bd[-1]:
+        out.append({"basis": "business_day", "n": -1})               # 마지막 영업일
+    out.append({"basis": "day", "n": d})                             # N일
+    if biz and day != bd[-1] and bd.index(day) < 10:
+        out.append({"basis": "business_day", "n": bd.index(day) + 1})  # N번째 영업일
+    if d + 7 > last:
+        out.append({"basis": "weekday", "n": -1, "weekday": wd})     # 마지막 O요일
+    elif (d - 1) // 7 + 1 <= 4:
+        out.append({"basis": "weekday", "n": (d - 1) // 7 + 1, "weekday": wd})
+    if 1 <= last - d <= 5:
+        out.append({"basis": "before_end", "k": last - d})           # 말일 K일 전
+    if biz and 1 <= len(bd) - 1 - bd.index(day) <= 5:
+        out.append({"basis": "before_end_bd", "k": len(bd) - 1 - bd.index(day)})
+    return out
+
+
+def suggest(day, unit="month", every=1):
+    """예시 날짜 하나 + 단위 → 그 날에 도는 규칙들. 자주 쓰는 순서로.
+
+    [{"text": 설명, "rule": 규칙}]. 규칙은 모두 validate_rule 을 통과한 표준 형식이고,
+    반드시 그 날짜에 돈다 - 화면에 뜬 것 중 무엇을 골라도 "그 날 하는 일" 이 된다.
+    (단위가 "일" 일 때만 예외다. 매일 하는 일에는 예시 날짜가 뜻이 없다.)
+
+    단위와 간격이 주기를 정하고, 여기서 고르는 것은 "그 주기 안에서 언제" 하나뿐이다.
+      일          날마다 · 영업일만
+      주  1 · 2   그 요일에 (격주는 예시 날짜가 있는 주가 기준)
+      월  1~6     말일 · N일 · N번째 영업일 · 마지막 O요일 · 말일 K일 전 …
+      년          그 달의 같은 방법들
 
     고른 날이 영업일이면 휴일 보정은 늘 쓰던 "앞 영업일로", 주말 · 공휴일이면
     "그대로" 로 둔다 - 그날 한다고 짚은 것이니 그날이 빠지면 안 된다.
     휴대폰 앱이 같은 것을 만든다 (tests/vectors/suggest.json 이 둘의 약속).
     """
-    y, m, d = day.year, day.month, day.day
-    first, last_day = _month_span(y, m)
-    last = last_day.day
-    wd = day.weekday()
-    bd = [x for x in _span_days(first, last_day) if is_business_day(x)]
-    biz = day in bd
-    cands = []
-    if d == last:
-        cands.append({"period": "month", "basis": "day", "n": -1})
-    if biz and day == bd[-1]:
-        cands.append({"period": "month", "basis": "business_day", "n": -1})
-    cands.append({"period": "month", "basis": "day", "n": d})
-    if biz and day != bd[-1] and bd.index(day) < 10:
-        cands.append({"period": "month", "basis": "business_day", "n": bd.index(day) + 1})
-    if d + 7 > last:
-        cands.append({"period": "month", "basis": "weekday", "n": -1, "weekday": wd})
-    elif (d - 1) // 7 + 1 <= 4:
-        cands.append({"period": "month", "basis": "weekday", "n": (d - 1) // 7 + 1, "weekday": wd})
-    cands.append({"period": "week", "weekdays": [wd], "interval": 1, "anchor": day.isoformat()})
-    if m in (3, 6, 9, 12) and d == last:
-        cands.append({"period": "month", "basis": "day", "n": -1, "months": [3, 6, 9, 12]})
-    cands.append({"period": "month", "basis": "day", "n": d, "months": [m]})
-
+    if unit not in UNITS:
+        raise RuleError("단위는 일 · 주 · 월 · 년 중 하나여야 합니다")
+    every = int(every or 1)
+    biz = is_business_day(day)
     shift = "prev" if biz else "none"
+
+    if unit == "day":
+        cands = [{"period": "day", "business_only": False},
+                 {"period": "day", "business_only": True}]
+    elif unit == "week":
+        cands = [{"period": "week", "weekdays": [day.weekday()],
+                  "interval": max(1, min(every, 52)), "anchor": day.isoformat()}]
+    else:
+        months = [day.month] if unit == "year" else months_every(day, every)
+        cands = [dict(p, period="month", **({"months": months} if months else {}))
+                 for p in _month_patterns(day)]
+
     out, seen = [], set()
     for c in cands:
-        rule = validate_rule(dict(c, holiday_shift=shift))
+        try:
+            rule = validate_rule(dict(c, holiday_shift=shift))
+        except RuleError:
+            continue
         text = describe(rule)
-        if text in seen or day not in occurrences(rule, day, day):
+        # 날마다 · 영업일만은 예시 날짜와 무관하다. 나머지는 그 날에 돌아야 한다
+        if text in seen or (unit != "day" and day not in occurrences(rule, day, day)):
             continue
         seen.add(text)
         out.append({"text": text, "rule": rule})

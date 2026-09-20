@@ -36,6 +36,17 @@ android {
         release {
             isMinifyEnabled = false
         }
+        // 실기기에서 진짜 속도를 보려면 이것을 깐다: ./gradlew installPerf
+        //
+        // debug 빌드는 Compose 를 느리게 만든다 - debuggable 이 켜져 있어 ART 가 최적화를
+        // 미루고, ui-tooling 이 조합 하나하나를 들여다볼 수 있게 갈고리를 걸어 둔다.
+        // 화면이 끈적이는 느낌의 상당 부분이 여기서 온다. release 는 스토어용 키로만
+        // 서명해야 하므로 건드리지 않고, 같은 설정에 디버그 키만 붙인 것을 따로 둔다.
+        create("perf") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     buildFeatures {

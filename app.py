@@ -361,12 +361,28 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/notify-plan":
             return self._send(200, notify_plan())
         if p == "/api/suggest":
-            # 루틴 추가의 "날짜 하나로 시작": 그 날짜를 포함하는 규칙들
+            # 루틴 편집기의 뼈대: 예시 날짜 + 단위(+간격) → 그 날에 도는 규칙들.
+            # 사람이 고르는 것은 "그 주기 안에서 언제" 하나뿐이다 (recur.suggest).
             try:
                 day = date.fromisoformat(self._query("date") or "")
             except ValueError:
                 raise ApiError(400, "date 는 YYYY-MM-DD 날짜여야 합니다") from None
-            return self._send(200, {"items": recur.suggest(day)})
+            unit = self._query("unit") or "month"
+            if unit not in recur.UNITS:
+                raise ApiError(400, "unit 은 day · week · month · year 중 하나여야 합니다")
+            try:
+                every = int(self._query("every") or 1)
+            except ValueError:
+                raise ApiError(400, "every 는 숫자여야 합니다") from None
+            if not 1 <= every <= 52:
+                raise ApiError(400, "every 는 1~52 사이여야 합니다")
+            # 규칙마다 앞으로의 날짜 셋을 함께 준다. 화면은 눌러 보기 전에
+            # 그 규칙이 언제 도는지 보여 준다 (자리를 더 쓰지 않으려고).
+            items = []
+            for it in recur.suggest(day, unit, every):
+                ds = recur.occurrences(it["rule"], day, day + timedelta(days=430))[:3]
+                items.append(dict(it, dates=[f"{d.month}/{d.day}({WEEK[d.weekday()]})" for d in ds]))
+            return self._send(200, {"items": items})
         if p == "/api/sync":
             return self._send(200, sync_status())
         if p == "/api/ping":

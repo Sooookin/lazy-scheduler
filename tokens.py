@@ -51,6 +51,9 @@ COLOR = {
     "mid":     "#4d7572",      # 장식 전용 (4.0:1)
     "mid-hi":  "#5a827e",      # 청록 버튼에 마우스를 올렸을 때
     "mid-ink": "#466a68",      # 청록을 글자로 쓸 때 (4.7:1)
+    # 달력의 공휴일 · 일요일. 진짜 달력처럼 빨강이되, 점토 바탕에 맞춰
+    # 채도를 낮춘 벽돌빛이다 (#eef1f0 위 5.5:1). 토요일은 팔레트의 청록(mid-ink)을 쓴다.
+    "hol":     "#9d4038",
     "deep":    "#08202b",
     "deep-hi": "#123140",
     "onmid":   "#eef3f1",      # 청록·먹 위에 얹는 글자
@@ -90,6 +93,9 @@ WEIGHT = {
 METRIC = {
     "rowpad": "12px",    # 목록 한 줄의 위아래 여백
     "tb":     "34px",    # 제목줄 높이
+    # 자간. 한글은 자소가 네모 칸을 꽉 채워서, 0 보다 아주 조금 벌려야 글자가
+    # 서로 붙지 않고 읽힌다. 큰 글자는 여기서 빼서 좁힌다 (calc(var(--track) - N)).
+    "track":  ".1px",
 }
 
 MOTION = {
@@ -123,10 +129,11 @@ def css_root():
         "  --hover:%s; --hover-hi:%s;" % (rgba("hover"), rgba("hover-hi")),
         "  --ink2:%(ink2)s; --body:%(body)s; --muted:%(muted)s; --faint:%(faint)s; --dim:%(dim)s;" % c,
         "  --mint:%(mint)s; --mid:%(mid)s; --mid-hi:%(mid-hi)s; --mid-ink:%(mid-ink)s;" % c,
+        "  --hol:%(hol)s;" % c,
         "  --deep:%(deep)s; --deep-hi:%(deep-hi)s; --onmid:%(onmid)s;" % c,
         "  --midshadow:%s;" % rgba("midshadow"),
         "  /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않아 큰 글자에만 남긴다. */",
         "  --w-thin:%(thin)d; --w-sec:%(sec)d; --w-pri:%(pri)d;" % WEIGHT,
-        "  --rowpad:%(rowpad)s; --tb:%(tb)s;" % METRIC,
+        "  --rowpad:%(rowpad)s; --tb:%(tb)s; --track:%(track)s;" % METRIC,
         "  --ease:%(ease)s; --t-fast:%(t-fast)s; --t-med:%(t-med)s; --t-slow:%(t-slow)s;" % MOTION,
     ])

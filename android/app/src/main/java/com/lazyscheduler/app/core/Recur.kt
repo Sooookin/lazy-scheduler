@@ -214,6 +214,8 @@ object Recur {
             .filter { !it.isBefore(start) && !it.isAfter(end) }.sorted()
     }
 
+    private val ORD = mapOf(1 to "첫째", 2 to "둘째", 3 to "셋째", 4 to "넷째")
+
     private fun basisText(r: Map<String, Any?>, q: Boolean): String {
         val n = num(r["n"], 1)
         val k = num(r["k"], 0)
@@ -222,10 +224,10 @@ object Recur {
             "business_day" -> if (n == -1) "마지막 영업일" else "${n}번째 영업일"
             "weekday" -> {
                 val wd = W[num(r["weekday"], 0).coerceIn(0, 6)]
-                if (n == -1) "마지막 ${wd}요일" else "${n}번째 ${wd}요일"
+                if (n == -1) "마지막 ${wd}요일" else "${ORD[n] ?: "${n}번째"} ${wd}요일"
             }
-            "before_end" -> if (k == 0) (if (q) "마지막 날" else "말일") else "말 ${k}일 전"
-            "before_end_bd" -> if (k == 0) "마지막 영업일" else "말 ${k}영업일 전"
+            "before_end" -> if (k == 0) (if (q) "마지막 날" else "말일") else "말일 ${k}일 전"
+            "before_end_bd" -> if (k == 0) "마지막 영업일" else "말일 ${k}영업일 전"
             else -> ""
         }
     }
@@ -256,44 +258,72 @@ object Recur {
         }
     }
 
-    // ---------- start from one date ----------
+    // ---------- one example date + a unit -> the rules that run on it ----------
 
     const val SUGGEST_MAX = 7
+    val UNITS = listOf("day", "week", "month", "year")
 
     /**
-     * One example date → the rules that include it, most common first (routine editor,
-     * "날짜 하나로 시작"). Same list and order as recur.suggest; tests/vectors/suggest.json
-     * holds both to it. A business day keeps the usual "앞 영업일로"; a weekend or holiday
-     * gets "그대로", so the picked day itself is never shifted away.
+     * Which months a "every N months" cycle runs in, counted from the example date's month.
+     * September + every 3 -> 3·6·9·12, October + every 3 -> 1·4·7·10. So "분기 말 / 분기 초"
+     * is never a question: the example date already answers it.
      */
-    fun suggest(day: LocalDate): List<Pair<String, Map<String, Any?>>> {
+    fun monthsEvery(day: LocalDate, every: Int): List<Int>? {
+        if (every <= 1) return null
+        return (0 until 12 / every).map { (day.monthValue - 1 + it * every) % 12 + 1 }.toSortedSet().toList()
+    }
+
+    /** The ways one day can be read inside its month, most common first. */
+    private fun monthPatterns(day: LocalDate): List<Map<String, Any?>> {
         val ym = YearMonth.from(day)
-        val d = day.dayOfMonth
         val last = ym.lengthOfMonth()
+        val d = day.dayOfMonth
         val wd = weekday(day)
-        val m = day.monthValue
         val bd = span(ym.atDay(1), ym.atEndOfMonth()).filter(::isBusinessDay)
         val biz = day in bd
-        val c = ArrayList<Map<String, Any?>>()
-        if (d == last) c += mapOf("period" to "month", "basis" to "day", "n" to -1)
-        if (biz && day == bd.last()) c += mapOf("period" to "month", "basis" to "business_day", "n" to -1)
-        c += mapOf("period" to "month", "basis" to "day", "n" to d)
+        val out = ArrayList<Map<String, Any?>>()
+        if (d == last) out += mapOf("basis" to "day", "n" to -1)
+        if (biz && day == bd.last()) out += mapOf("basis" to "business_day", "n" to -1)
+        out += mapOf("basis" to "day", "n" to d)
         if (biz && day != bd.last() && bd.indexOf(day) < 10)
-            c += mapOf("period" to "month", "basis" to "business_day", "n" to bd.indexOf(day) + 1)
-        if (d + 7 > last) c += mapOf("period" to "month", "basis" to "weekday", "n" to -1, "weekday" to wd)
-        else if ((d - 1) / 7 + 1 <= 4) c += mapOf("period" to "month", "basis" to "weekday", "n" to (d - 1) / 7 + 1, "weekday" to wd)
-        c += mapOf("period" to "week", "weekdays" to listOf(wd), "interval" to 1, "anchor" to day.toString())
-        if (m in setOf(3, 6, 9, 12) && d == last)
-            c += mapOf("period" to "month", "basis" to "day", "n" to -1, "months" to listOf(3, 6, 9, 12))
-        c += mapOf("period" to "month", "basis" to "day", "n" to d, "months" to listOf(m))
+            out += mapOf("basis" to "business_day", "n" to bd.indexOf(day) + 1)
+        if (d + 7 > last) out += mapOf("basis" to "weekday", "n" to -1, "weekday" to wd)
+        else if ((d - 1) / 7 + 1 <= 4) out += mapOf("basis" to "weekday", "n" to (d - 1) / 7 + 1, "weekday" to wd)
+        if (last - d in 1..5) out += mapOf("basis" to "before_end", "k" to last - d)
+        if (biz && (bd.size - 1 - bd.indexOf(day)) in 1..5)
+            out += mapOf("basis" to "before_end_bd", "k" to bd.size - 1 - bd.indexOf(day))
+        return out
+    }
 
-        val shift = if (biz) "prev" else "none"
+    /**
+     * One example date and a unit (plus how many units apart) -> the rules that run on that
+     * date, most common first. The phone and the PC must agree here: tests/vectors/suggest.json
+     * holds both to the same list, in the same order (recur.suggest).
+     *
+     * Everything returned is validate-clean and fires on [day] - so whichever line the person
+     * picks, the day they pointed at is never dropped. The one exception is the "day" unit,
+     * where an example date means nothing.
+     */
+    fun suggest(day: LocalDate, unit: String = "month", every: Int = 1): List<Pair<String, Map<String, Any?>>> {
+        require(unit in UNITS) { "unit" }
+        val shift = if (isBusinessDay(day)) "prev" else "none"
+        val cands: List<Map<String, Any?>> = when (unit) {
+            "day" -> listOf(mapOf("period" to "day", "business_only" to false),
+                mapOf("period" to "day", "business_only" to true))
+            "week" -> listOf(mapOf("period" to "week", "weekdays" to listOf(weekday(day)),
+                "interval" to every.coerceIn(1, 52), "anchor" to day.toString()))
+            else -> {
+                val months = if (unit == "year") listOf(day.monthValue) else monthsEvery(day, every)
+                monthPatterns(day).map { p -> p + mapOf("period" to "month") + (months?.let { mapOf("months" to it) } ?: emptyMap()) }
+            }
+        }
         val out = ArrayList<Pair<String, Map<String, Any?>>>()
         val seen = HashSet<String>()
-        for (x in c) {
-            val rule = RuleCheck.validate(x + ("holiday_shift" to shift)).first ?: continue
+        for (c in cands) {
+            val rule = RuleCheck.validate(c + ("holiday_shift" to shift)).first ?: continue
             val text = describe(rule)
-            if (text in seen || day !in occurrences(rule, day, day)) continue
+            // 날마다 · 영업일만 have nothing to do with the example date; the rest must run on it
+            if (text in seen || (unit != "day" && day !in occurrences(rule, day, day))) continue
             seen += text
             out += text to rule
         }

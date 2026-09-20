@@ -62,7 +62,7 @@ class RecurVectorsTest {
     fun describeMatchesThePcWording() {
         assertEquals("매월 2번째 영업일", Recur.describe(mapOf("period" to "month", "basis" to "business_day", "n" to 2)))
         assertEquals("격주 월·수요일", Recur.describe(mapOf("period" to "week", "weekdays" to listOf(0, 2), "interval" to 2)))
-        assertEquals("매 분기 말 3영업일 전", Recur.describe(mapOf("period" to "quarter", "basis" to "before_end_bd", "k" to 3)))
+        assertEquals("매 분기 말일 3영업일 전", Recur.describe(mapOf("period" to "quarter", "basis" to "before_end_bd", "k" to 3)))
     }
 
     @Test

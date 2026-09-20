@@ -30,10 +30,13 @@ class SuggestVectorsTest {
         Recur.setHolidays(null)
         for (c in cases) {
             val day = LocalDate.parse(c["date"] as String)
-            val got = Recur.suggest(day)
-            assertEquals(c["date"] as String, c["expect"], got.map { it.first })
-            assertEquals(c["date"] as String, canon(c["rules"]), canon(got.map { it.second }))
-            for ((text, rule) in got) assertTrue("$day $text", day in Recur.occurrences(rule, day, day))
+            val unit = c["unit"] as String
+            val every = (c["every"] as Number).toInt()
+            val got = Recur.suggest(day, unit, every)
+            assertEquals("$day $unit/$every", c["expect"], got.map { it.first })
+            assertEquals("$day $unit/$every", canon(c["rules"]), canon(got.map { it.second }))
+            // 매일만 예외: 날마다 도는 일에 예시 날짜는 뜻이 없다
+            if (unit != "day") for ((text, rule) in got) assertTrue("$day $text", day in Recur.occurrences(rule, day, day))
         }
     }
 }

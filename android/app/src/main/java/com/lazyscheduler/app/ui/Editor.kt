@@ -6,9 +6,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -18,8 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -27,9 +29,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,24 +40,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lazyscheduler.app.core.Recur
 import com.lazyscheduler.app.core.RuleCheck
-import com.lazyscheduler.app.core.RuleForm
+import com.lazyscheduler.app.core.RulePick
 import com.lazyscheduler.app.core.Task
 import com.lazyscheduler.app.core.previewDates
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneOffset
 
 /** The three kinds, called the same everywhere: 할 일 · 루틴 · 메모. */
 internal val KIND_NAME = mapOf("deadline" to "할 일", "routine" to "루틴", "floating" to "메모")
 
+/** Minutes before: the four common ones. A saved value outside them is shown as a fifth. */
+private val LEADS = listOf(10, 30, 60, 180)
+private fun leadLabel(m: Int) = when {
+    m == 0 -> "정각"
+    m % 60 == 0 -> "${m / 60}시간 전"
+    else -> "${m}분 전"
+}
+
 /**
  * Add or edit one item, with the same choices as the PC form. The rule is checked by
  * RuleCheck before anything is written.
+ *
+ * The sheet has one frame for every kind: name and note at the top, the kind's own part
+ * in the middle (it scrolls), time · alarm and the buttons at the bottom. Switching
+ * between 할 일 · 루틴 · 메모 changes only the middle; nothing else moves.
  *
  * onSave gets the editable fields in stored form (title, note, kind, due_date, due_time,
  * notify_min, muted, rule). Delete · skip · later close the sheet at once; the list shows
@@ -65,6 +79,7 @@ internal val KIND_NAME = mapOf("deadline" to "할 일", "routine" to "루틴", "
 @Composable
 fun ItemEditor(
     existing: Task?,
+    others: List<Task>,
     today: LocalDate,
     businessOnly: Boolean,
     defaultLead: Int,
@@ -79,21 +94,23 @@ fun ItemEditor(
     var title by remember { mutableStateOf(existing?.title ?: "") }
     var note by remember { mutableStateOf(existing?.note ?: "") }
     var kind by remember { mutableStateOf(existing?.kind ?: "deadline") }
-    var rule by remember { mutableStateOf(if (existing?.rule != null) RuleForm.from(existing.rule) else RuleForm.fresh(today)) }
+    // The rule itself, as stored. Untouched until the person picks another line.
+    var rule by remember { mutableStateOf(existing?.rule) }
     var date by remember {
         mutableStateOf(existing?.dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: if (businessOnly) Recur.nextBusinessDay(today.plusDays(1)) else today.plusDays(1))
     }
     var time by remember { mutableStateOf(existing?.dueTime ?: "") }
-    var lead by remember { mutableStateOf(existing?.notifyMin) }
+    var lead by remember { mutableStateOf(existing?.notifyMin) }      // null = the default in settings
     var alarm by remember { mutableStateOf(!(existing?.muted ?: false)) }
     var error by remember { mutableStateOf<String?>(null) }
-    var pickDate by remember { mutableStateOf(false) }
     var pickTime by remember { mutableStateOf(false) }
 
-    val builtRule = rule.toRule()
-    val (checkedRule, ruleError) = if (kind == "routine") (rule.problem()?.let { null to it } ?: RuleCheck.validate(builtRule))
-        else (null to null)
+    val (checkedRule, ruleError) = when {
+        kind != "routine" -> null to null
+        rule == null -> null to "규칙을 하나 고르세요"
+        else -> RuleCheck.validate(rule)
+    }
 
     fun save() {
         val t = title.trim()
@@ -112,84 +129,72 @@ fun ItemEditor(
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Ink.card,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState()),
-        ) {
-            Text(if (editing) (KIND_NAME[kind] ?: "항목") + " 고치기" else "새 " + KIND_NAME[kind],
-                style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(14.dp))
-            if (!editing) {
-                Seg(listOf("deadline" to "할 일", "routine" to "루틴", "floating" to "메모"), kind) { kind = it; error = null }
-                Spacer(Modifier.height(14.dp))
+        Column(Modifier.fillMaxHeight().padding(horizontal = 20.dp).padding(bottom = 20.dp).imePadding()) {
+            // ---- top: always here ----
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (editing) (KIND_NAME[kind] ?: "항목") + " 고치기" else "새 " + KIND_NAME[kind],
+                    Modifier.width(92.dp), style = MaterialTheme.typography.titleMedium)
+                if (!editing) Seg(listOf("deadline" to "할 일", "routine" to "루틴", "floating" to "메모"), kind) { kind = it; error = null }
             }
+            Spacer(Modifier.height(14.dp))
             InField(title, "이름") { if (it.length <= 200) title = it }
             Spacer(Modifier.height(10.dp))
-            InField(note, "메모 (선택)") { if (it.length <= 2000) note = it }
-
-            when (kind) {
-                "routine" -> {
-                    Step("날짜 하나로 시작", "그 일을 하는 날을 누르세요")
-                    // A weekly suggestion carries its anchor (the picked date) inside the rule
-                    StartFromDate(today) { picked -> rule = RuleForm.from(picked) }
-                    Step("문장으로 확인 · 고치기", null)
-                    Sentence(rule, businessOnly, today) { rule = it }
-                    Preview(ruleError, builtRule, today)
-                }
-                "deadline" -> {
-                    Step("언제까지", dateLabel(date, today))
-                    val quick = listOf(0L, 1L, 2L, 7L, 30L).map { today.plusDays(it) }
-                        .map { d -> (if (businessOnly) Recur.nextBusinessDay(d) else d) }.distinct()
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (d in quick) Chip(dateLabel(d, today), d == date) { date = d }
-                        Chip("직접 고르기…", date !in quick) { pickDate = true }
-                    }
-                    if (businessOnly && !Recur.isBusinessDay(date)) {
-                        val alt = Recur.nextBusinessDay(date, forward = false)
-                        Spacer(Modifier.height(10.dp))
-                        Chip("이 날은 영업일이 아닙니다 · ${dateLabel(alt, today)}로 ›", false) { date = alt }
-                    }
-                }
+            // 메모는 달력도 문장도 없으니 그 자리를 통째로 쓴다 - 이름 칸과 단추는 제자리다
+            val memoOnly = kind == "floating"
+            InField(note, "메모 (선택)", if (memoOnly) Modifier.weight(1f) else Modifier, singleLine = !memoOnly) {
+                if (it.length <= 2000) note = it
             }
 
-            if (kind != "floating") {
-                Step("언제 · 알림", null)
-                Line("시각") {
-                    Box(Modifier.inset(12.dp).clip(RoundedCornerShape(12.dp)).tap { pickTime = true }
-                        .padding(horizontal = 16.dp, vertical = 12.dp)) {
+            // ---- middle: the kind's own part; only this changes, and it scrolls ----
+            Column(
+                (if (memoOnly) Modifier else Modifier.weight(1f))
+                    .fillMaxWidth().verticalScroll(rememberScrollState()),
+            ) {
+                when (kind) {
+                    "routine" -> RoutinePick(today, rule, existing?.ruleText.orEmpty()) { rule = it }
+                    "deadline" -> DueDate(date, today, businessOnly, others.filter { it.id != existing?.id }) { date = it }
+                    else -> Unit
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // ---- bottom: time · alarm (a memo keeps the space, empty) ----
+            val on = kind != "floating"
+            Column(Modifier.alpha(if (on) 1f else 0f)) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule2))
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.inset(12.dp).clip(RoundedCornerShape(12.dp)).then(if (on) Modifier.tap { pickTime = true } else Modifier)
+                        .padding(horizontal = 16.dp, vertical = 11.dp)) {
                         Text(if (time.isEmpty()) "시각 없음" else timeLabel(time), style = MaterialTheme.typography.bodyLarge,
                             color = if (time.isEmpty()) Ink.faint else Ink.ink2)
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text("알림", style = MaterialTheme.typography.labelLarge, color = Ink.muted)
+                    Spacer(Modifier.width(8.dp))
+                    Switch(checked = alarm, onCheckedChange = { if (on) alarm = it }, enabled = on,
+                        colors = SwitchDefaults.colors(checkedTrackColor = Ink.mid, checkedThumbColor = Ink.light,
+                            uncheckedTrackColor = Ink.pale, uncheckedBorderColor = Ink.dark, uncheckedThumbColor = Ink.light))
                 }
-                Line("알림") {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = alarm, onCheckedChange = { alarm = it },
-                            colors = SwitchDefaults.colors(checkedTrackColor = Ink.mid, checkedThumbColor = Ink.light,
-                                uncheckedTrackColor = Ink.pale, uncheckedBorderColor = Ink.dark, uncheckedThumbColor = Ink.light))
-                        Spacer(Modifier.width(10.dp))
-                        Text("알림 받기", style = MaterialTheme.typography.labelLarge, color = Ink.muted)
-                    }
-                }
-                val leads = mutableListOf<Pair<Int?, String>>(null to "기본 (${defaultLead}분)", 0 to "정각", 10 to "10분",
-                    30 to "30분", 60 to "1시간", 1440 to "하루")
-                lead?.let { l -> if (leads.none { it.first == l }) leads += l to "${l}분" }
                 Spacer(Modifier.height(8.dp))
-                Seg(leads, lead, enabled = alarm) { lead = it }
+                val cur = lead ?: defaultLead
+                val opts = (LEADS + if (cur in LEADS) emptyList() else listOf(cur)).sorted().map { it to leadLabel(it) }
+                Seg(opts, cur, enabled = on && alarm) { lead = it }
             }
 
             error?.let {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = Ink.danger)
             }
-            Spacer(Modifier.height(22.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically) {
-                if (editing) {
+            Spacer(Modifier.height(14.dp))
+            if (editing) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Ghost("삭제", Ink.danger) { onDelete() }
                     if (kind == "routine" && skipDate != null) Ghost("${dateLabel(skipDate, today)} 건너뛰기") { onSkip() }
                     if (kind == "deadline" && onLater != null) Ghost("↷ 내일로", Ink.midInk) { onLater() }
                 }
+                Spacer(Modifier.height(10.dp))
             }
-            Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text("취소", color = Ink.faint) }
@@ -199,213 +204,211 @@ fun ItemEditor(
         }
     }
 
-    if (pickDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { pickDate = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
-                    pickDate = false
-                }) { Text("확인", color = Ink.midInk) }
-            },
-            dismissButton = { TextButton(onClick = { pickDate = false }) { Text("취소", color = Ink.faint) } },
-        ) { DatePicker(state = state) }
-    }
-
     if (pickTime) TimeDialog(time, onDismiss = { pickTime = false }) { time = it; pickTime = false }
 }
 
-// ---------------- "날짜 하나로 시작" ----------------
+// ---------------- the small month (할 일's date, 루틴's example date) ----------------
 
-/** A small month; a tapped date lists every rule that includes it (Recur.suggest, same as the PC). */
+/** Always six rows, so the parts below never move when the month changes. Dots = days that already have something. */
 @Composable
-private fun StartFromDate(today: LocalDate, onPick: (Map<String, Any?>) -> Unit) {
-    var month by remember { mutableStateOf(YearMonth.from(today)) }
-    var picked by remember { mutableStateOf<LocalDate?>(null) }
-    var chosen by remember { mutableStateOf<String?>(null) }
+private fun MiniCal(today: LocalDate, start: LocalDate, picked: LocalDate?, marks: Set<String> = emptySet(), onPick: (LocalDate) -> Unit) {
+    var month by remember { mutableStateOf(YearMonth.from(start)) }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("‹", Modifier.clip(RoundedCornerShape(10.dp)).tap { month = month.minusMonths(1) }.padding(horizontal = 14.dp, vertical = 6.dp),
+        Text("‹", Modifier.clip(RoundedCornerShape(10.dp)).tap { month = month.minusMonths(1) }.padding(horizontal = 14.dp, vertical = 3.dp),
             style = MaterialTheme.typography.titleMedium, color = Ink.muted)
         Text("${month.year}년 ${month.monthValue}월", Modifier.weight(1f), textAlign = TextAlign.Center,
             style = MaterialTheme.typography.labelLarge, color = Ink.ink2)
-        Text("›", Modifier.clip(RoundedCornerShape(10.dp)).tap { month = month.plusMonths(1) }.padding(horizontal = 14.dp, vertical = 6.dp),
+        Text("›", Modifier.clip(RoundedCornerShape(10.dp)).tap { month = month.plusMonths(1) }.padding(horizontal = 14.dp, vertical = 3.dp),
             style = MaterialTheme.typography.titleMedium, color = Ink.muted)
     }
-    Row(Modifier.padding(top = 4.dp)) {
-        for (w in WDS) Text(w, Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
+    Row(Modifier.padding(top = 2.dp)) {
+        WDS_SUN.forEachIndexed { k, w ->
+            Text(w, Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall,
+                color = if (k == 0) Ink.hol else if (k == 6) Ink.midInk else Ink.faint)
+        }
     }
     val first = month.atDay(1)
-    var cur = first.minusDays((first.dayOfWeek.value - 1).toLong())
-    for (week in 0 until 6) {
-        if (week == 5 && cur.month != first.month) break
+    // 그 달의 첫 주 일요일부터 (DayOfWeek 는 월=1 … 일=7 이라 7 로 나눈 나머지가 일요일 기준 자리다)
+    var cur = first.minusDays((first.dayOfWeek.value % 7).toLong())
+    repeat(6) {
         Row {
-            for (k in 0..6) {
+            repeat(7) {
                 val d = cur
                 val out = d.month != first.month
                 val on = d == picked
-                val we = k > 4 || Recur.isHoliday(d)
+                val dw = d.dayOfWeek.value % 7                 // 0 일요일 … 6 토요일
+                val hol = Recur.isHoliday(d)
                 Box(
-                    Modifier.weight(1f).padding(2.dp).height(38.dp).clip(RoundedCornerShape(10.dp))
-                        .background(if (on) Ink.mid else androidx.compose.ui.graphics.Color.Transparent)
+                    Modifier.weight(1f).padding(1.5.dp).height(32.dp).clip(RoundedCornerShape(9.dp))
+                        .background(if (on) Ink.mid else Color.Transparent)
                         .then(if (d == today && !on) Modifier.border(1.5.dp, Ink.mint, RoundedCornerShape(10.dp)) else Modifier)
-                        .tap { picked = d; chosen = null; if (out) month = YearMonth.from(d) },
+                        .tap { if (out) month = YearMonth.from(d); onPick(d) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("${d.dayOfMonth}", style = MaterialTheme.typography.labelLarge,
-                        color = when { on -> Ink.onMid; out -> Ink.dim; we -> Ink.faint; else -> Ink.body })
+                        color = when {
+                            on -> Ink.onMid
+                            out -> Ink.dim
+                            hol || dw == 0 -> Ink.hol         // 진짜 달력처럼: 공휴일과 일요일은 빨강
+                            dw == 6 -> Ink.midInk             // 토요일은 팔레트의 청록
+                            else -> Ink.body
+                        })
+                    if (d.toString() in marks) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp)
+                        .clip(RoundedCornerShape(2.dp)).background(if (on) Ink.onMid else Ink.mid))
                 }
                 cur = cur.plusDays(1)
             }
         }
     }
-    val p = picked
-    Spacer(Modifier.height(8.dp))
-    if (p == null) {
-        Text("날짜를 누르면 그 날에 맞는 규칙이 나옵니다. “매월 말일쯤 하는 그 일” 이라면 이번 달 말일을 누르세요.",
-            style = MaterialTheme.typography.bodySmall)
+}
+
+/** 할 일: the date only by the calendar, then what else is due that day. */
+@Composable
+private fun ColumnScope.DueDate(date: LocalDate, today: LocalDate, businessOnly: Boolean, others: List<Task>, set: (LocalDate) -> Unit) {
+    Step("마감 날짜", null)
+    val open = others.filter { it.kind == "deadline" && !it.done && it.dueDate != null }
+    MiniCal(today, date, date, open.mapNotNull { it.dueDate }.toSet()) { set(it) }
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text("${date.monthValue}월 ${date.dayOfMonth}일 ${WDS[date.dayOfWeek.value - 1]}요일", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.width(10.dp))
+        Text(dateLabel(date, today), style = MaterialTheme.typography.labelMedium, color = Ink.midInk)
+    }
+    if (businessOnly && !Recur.isBusinessDay(date)) {
+        val alt = Recur.nextBusinessDay(date, forward = false)
+        Spacer(Modifier.height(10.dp))
+        Chip("이 날은 영업일이 아닙니다 · ${dateLabel(alt, today)}로 ›", false) { set(alt) }
+    }
+    val same = open.filter { it.dueDate == date.toString() }.sortedBy { it.dueTime.ifEmpty { "99:99" } }
+    Step("같은 날 마감", if (same.isEmpty()) null else "${same.size}건")
+    if (same.isEmpty()) Text("없음", style = MaterialTheme.typography.bodySmall)
+    for (t in same.take(6)) Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(t.dueTime.ifEmpty { "—" }, Modifier.width(48.dp), style = MaterialTheme.typography.bodySmall)
+        Text(t.title, style = MaterialTheme.typography.labelLarge, color = Ink.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+// ---------------- "날짜 하나로 시작" ----------------
+
+/**
+ * The routine picker: an example date, a unit (and how many units apart), then one of the
+ * ways that day can be read. The engine makes that last list (Recur.suggest), so every line
+ * on screen is a rule that really runs on the day the person pointed at - and the words
+ * basis · n · k never show up.
+ *
+ * The interval decides the months too: September + every three months is 3·6·9·12, October
+ * is 1·4·7·10. Nothing else to choose.
+ */
+@Composable
+private fun ColumnScope.RoutinePick(today: LocalDate, rule: Map<String, Any?>?, savedText: String, set: (Map<String, Any?>?) -> Unit) {
+    val seat = remember { RulePick.unitOf(rule) }
+    var date by remember { mutableStateOf(today) }
+    var unit by remember { mutableStateOf(seat.first) }
+    var every by remember { mutableStateOf(seat.second) }
+    // 저장된 주 규칙은 요일이 여럿일 수 있다. 달력을 건드리기 전까지만 그대로 둔다
+    val savedWds = remember { (rule?.get("weekdays") as? List<*>)?.map { (it as Number).toInt() }?.toSet() }
+    var moved by remember { mutableStateOf(false) }
+    var wds by remember { mutableStateOf(savedWds ?: setOf(today.dayOfWeek.value - 1)) }
+    var text by remember { mutableStateOf(savedText) }
+
+    val items = remember(date, unit, every) { if (unit == "week") emptyList() else Recur.suggest(date, unit, every) }
+    val daily = unit == "day"
+
+    // 달력은 접어 둔다. 휴대폰에서는 이것 하나가 화면 셋 중 하나를 차지했고,
+    // 대개는 오늘 그대로 두고 아래 제안만 고른다.
+    var calOpen by remember { mutableStateOf(false) }
+    Step("기준 날짜", null)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp))
+            .then(if (daily) Modifier else Modifier.tap { calOpen = !calOpen })
+            .padding(vertical = 5.dp).alpha(if (daily) .32f else 1f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("${date.monthValue}월 ${date.dayOfMonth}일 (${WDS[date.dayOfWeek.value - 1]})",
+            style = MaterialTheme.typography.bodyLarge, color = Ink.ink2)
+        Spacer(Modifier.width(8.dp))
+        Text(if (calOpen) "▴ 접기" else "▾ 달력", style = MaterialTheme.typography.labelSmall, color = Ink.midInk)
+    }
+    if (calOpen && !daily) Column {
+        MiniCal(today, date, date) { date = it; moved = true; wds = setOf(it.dayOfWeek.value - 1); text = "" }
+    }
+    Line("단위") {
+        Seg(RulePick.UNITS, unit) { u ->
+            // 달력에서 목요일을 짚고 단위를 "주" 로 바꾸면 목요일이 켜져 있어야 한다
+            if (u == "week" && unit != "week") wds = (if (!moved) savedWds else null) ?: setOf(date.dayOfWeek.value - 1)
+            unit = u; every = 1; text = ""
+        }
+    }
+    RulePick.everyOpts(unit, every).takeIf { it.isNotEmpty() }?.let { opts ->
+        Line("간격") { Seg(opts, every) { e -> every = e; text = "" } }
+    }
+
+    if (unit == "week") {
+        Line("요일", wide = true) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                WDS.forEachIndexed { i, w ->
+                    Chip(w, i in wds) { wds = if (i in wds) wds - i else wds + i }
+                }
+            }
+        }
+        val built = RulePick.weekRule(wds, every, date, rule?.get("holiday_shift") as? String)
+        LaunchedEffect(built) { set(built) }
+        Spacer(Modifier.height(12.dp))
+        if (built == null) Text("요일을 하나 이상 고르세요", style = MaterialTheme.typography.bodySmall, color = Ink.danger)
+        else {
+            Text(Recur.describe(built), style = MaterialTheme.typography.labelLarge, color = Ink.ink2)
+            Text(previewDates(built, today, 3).joinToString("  ·  "), style = MaterialTheme.typography.bodySmall, color = Ink.midInk)
+        }
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for ((text, r) in remember(p) { Recur.suggest(p) }) {
-                Chip(text, text == chosen, Modifier.fillMaxWidth()) { chosen = text; onPick(r) }
-            }
-        }
-    }
-}
-
-// ---------------- the sentence ----------------
-
-@Composable
-private fun Sentence(f: RuleForm, businessOnly: Boolean, today: LocalDate, set: (RuleForm) -> Unit) {
-    val freqs = RuleForm.FREQS + if (f.quarter) listOf("quarter" to "매 분기") else emptyList()
-    Line("얼마나 자주") {
-        Seg(freqs, f.freq) { v ->
-            set(when (v) {
-                "week" -> f.copy(freq = v, weekdays = f.weekdays.ifEmpty { setOf(today.dayOfWeek.value - 1) },
-                    anchor = f.anchor ?: today.toString())
-                "year" -> f.copy(freq = v, ymonth = today.monthValue)
-                else -> f.copy(freq = v)
-            })
-        }
-    }
-    when (f.freq) {
-        "day" -> Line("세는 방법") {
-            Seg(listOf(false to "달력 날 (날마다)", true to "영업일만"), f.biz) { set(f.copy(biz = it)) }
-        }
-        "week" -> {
-            Line("요일") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    WDS.forEachIndexed { i, w ->
-                        // Weekends are hidden when working on business days only, unless already chosen.
-                        if (businessOnly && i > 4 && i !in f.weekdays) return@forEachIndexed
-                        Chip(w, i in f.weekdays) { set(f.copy(weekdays = if (i in f.weekdays) f.weekdays - i else f.weekdays + i)) }
-                    }
-                }
-            }
-            Line("간격") { Seg(listOf(1 to "매주", 2 to "격주", 3 to "3주마다", 4 to "4주마다"), f.interval) { set(f.copy(interval = it)) } }
-            Line("주말 · 공휴일에 걸리면") { Seg(RuleForm.SHIFTS, f.shift) { set(f.copy(shift = it)) } }
-        }
-        else -> {
-            if (f.freq == "year") Line("달") {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (m in 1..12) Chip("${m}월", m == f.ymonth) { set(f.copy(ymonth = m)) }
-                }
-            }
-            Line("틀") { Seg(RuleForm.FRAMES, f.frame) { set(f.copy(frame = it)) } }
-            Line("언제") {
-                when (f.frame) {
-                    "weekday" -> Column {
-                        Seg(listOf(1 to "첫째", 2 to "둘째", 3 to "셋째", 4 to "넷째", -1 to "마지막"), f.wn) { set(f.copy(wn = it)) }
-                        Spacer(Modifier.height(8.dp))
-                        Seg(WDS.mapIndexed { i, w -> i to w }, f.weekday) { set(f.copy(weekday = it)) }
-                    }
-                    "end" -> Stepper(f.k, 0, if (f.quarter) 60 else 27,
-                        { k -> if (k == 0) (if (f.quarter) "분기 마지막 날" else "말일 당일") else (if (f.quarter) "분기말 " else "말일 ") + k + (if (f.biz) "영업일 전" else "일 전") }) {
-                        set(f.copy(k = it))
-                    }
-                    else -> NumberGrid(f.nTop, f.n, lastLabel = if (f.biz) "마지막" else (if (f.quarter) "끝날" else "말일"),
-                        suffix = if (f.biz) "번째 영업일" else (if (f.quarter) "일째" else "일")) { set(f.copy(n = it)) }
-                }
-            }
-            if (f.frame != "weekday") Line("세는 방법") {
-                Seg(listOf(false to "달력 날", true to "영업일"), f.biz) { b -> set(f.copy(biz = b, n = if (f.n > (if (b) 23 else 31)) -1 else f.n)) }
-            }
-            Line("주말 · 공휴일에 걸리면", if (f.shiftMatters) null else "영업일로 세면 걸리지 않음") {
-                Seg(RuleForm.SHIFTS, f.shift, enabled = f.shiftMatters) { set(f.copy(shift = it)) }
-            }
-            if (f.freq == "month") Line("실행하는 달") {
-                Column {
-                    Seg(RuleForm.MONTH_SETS.map { it.first to it.second }, f.mset) { v ->
-                        set(f.copy(mset = v, months = if (v == "custom" && f.months.isEmpty()) listOf(today.monthValue) else f.months))
-                    }
-                    if (f.mset == "custom") {
-                        Spacer(Modifier.height(8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            for (m in 1..12) Chip("${m}월", m in f.months) {
-                                set(f.copy(months = if (m in f.months) f.months - m else (f.months + m).sorted()))
-                            }
-                        }
+        // The saved rule stays on the list even when nothing offered matches it (old quarter rules)
+        val rows = items.map { it.first to it.second } +
+            if (text.isNotEmpty() && items.none { it.first == text }) listOf(text to null) else emptyList()
+        Line("규칙 제안", wide = true) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                for ((label, r) in rows) {
+                    val on = label == text || (text.isEmpty() && r != null && r == rule)
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp))
+                            .background(if (on) Ink.mid else Color.Transparent)
+                            .tap { if (r != null) { set(r); text = label } }
+                            .padding(horizontal = 12.dp, vertical = if (on) 8.dp else 6.dp),
+                    ) {
+                        Text(label, style = MaterialTheme.typography.labelLarge, color = if (on) Ink.onMid else Ink.body)
+                        // 날짜는 고른 줄에만. 모든 줄에 적으면 목록이 두 배로 길어진다
+                        if (on && !daily && r != null) Text(previewDates(r, date, 3).joinToString("  ·  "),
+                            style = MaterialTheme.typography.bodySmall, color = Ink.onMid.copy(alpha = .82f))
                     }
                 }
             }
         }
-    }
-}
-
-/** 1..top in a compact grid plus "last": every day is one tap (no scrolling list). */
-@Composable
-private fun NumberGrid(top: Int, value: Int, lastLabel: String, suffix: String, set: (Int) -> Unit) {
-    Column {
-        Text(if (value == -1) lastLabel else "$value$suffix", style = MaterialTheme.typography.labelLarge, color = Ink.ink2)
-        Spacer(Modifier.height(6.dp))
-        val cells = (1..minOf(top, 31)).toList() + listOf(-1)
-        for (row in cells.chunked(7)) Row {
-            for (v in row) {
-                val on = v == value
-                Box(
-                    Modifier.weight(1f).padding(2.dp).height(34.dp).clip(RoundedCornerShape(9.dp))
-                        .background(if (on) Ink.mid else Ink.pale.copy(alpha = .55f)).tap { set(v) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(if (v == -1) lastLabel else "$v", style = MaterialTheme.typography.labelMedium,
-                        color = if (on) Ink.onMid else Ink.body)
-                }
+        // Pick the most common reading as soon as a new date or unit is in play
+        LaunchedEffect(items) {
+            if (items.isNotEmpty() && items.none { it.first == text } && (text.isEmpty() || rule == null)) {
+                set(items[0].second)
+                text = items[0].first
             }
-            repeat(7 - row.size) { Spacer(Modifier.weight(1f)) }
         }
-        if (top > 31) Text("그보다 뒤는 PC 에서 고르세요", style = MaterialTheme.typography.bodySmall)
+    }
+
+    if (!daily && !RulePick.countsBusinessDays(rule)) Quiet(rule?.get("holiday_shift") as? String ?: "prev") { v ->
+        rule?.let { set(it + ("holiday_shift" to v)) }
     }
 }
 
+/** "주말 · 공휴일에 걸리면 앞 영업일로 ▾": one small line, a menu on tap. Rarely touched. */
 @Composable
-private fun Stepper(value: Int, lo: Int, hi: Int, label: (Int) -> String, set: (Int) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        StepButton("−", value > lo) { set(value - 1) }
-        Text(label(value), Modifier.padding(horizontal = 14.dp), style = MaterialTheme.typography.labelLarge, color = Ink.ink2)
-        StepButton("+", value < hi) { set(value + 1) }
-    }
-}
-
-@Composable
-private fun StepButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.size(40.dp).raised(20.dp, 2.dp).clip(RoundedCornerShape(20.dp)).tap { if (enabled) onClick() }.alpha(if (enabled) 1f else .4f),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = MaterialTheme.typography.titleMedium, color = Ink.ink2) }
-}
-
-@Composable
-private fun Preview(error: String?, rule: Map<String, Any?>, today: LocalDate) {
+private fun Quiet(shift: String, set: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
     Spacer(Modifier.height(14.dp))
-    Column(Modifier.fillMaxWidth().inset(12.dp).padding(14.dp)) {
-        if (error != null) {
-            Text("다음 실행 날짜", style = MaterialTheme.typography.labelMedium, color = Ink.muted)
-            Text(error, style = MaterialTheme.typography.bodyMedium, color = Ink.danger)
-        } else {
-            Text(Recur.describe(rule), style = MaterialTheme.typography.labelLarge, color = Ink.ink2)
-            Spacer(Modifier.height(4.dp))
-            Text(previewDates(rule, today).ifEmpty { listOf("해당 날짜 없음") }.joinToString("  ·  "),
-                style = MaterialTheme.typography.bodyMedium, color = Ink.midInk)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("주말 · 공휴일에 걸리면 ", style = MaterialTheme.typography.bodySmall)
+        Box {
+            Text((RulePick.SHIFTS.firstOrNull { it.first == shift }?.second ?: shift) + " ▾",
+                Modifier.clip(RoundedCornerShape(8.dp)).tap { open = true }.padding(horizontal = 6.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelMedium, color = Ink.midInk)
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Ink.card) {
+                for ((v, label) in RulePick.SHIFTS) DropdownMenuItem(text = { Text(label) }, onClick = { open = false; set(v) })
+            }
         }
     }
 }
@@ -413,24 +416,31 @@ private fun Preview(error: String?, rule: Map<String, Any?>, today: LocalDate) {
 /** A section of the form: a thin rule, then the name. */
 @Composable
 private fun Step(text: String, note: String?) {
-    Spacer(Modifier.height(18.dp))
+    Spacer(Modifier.height(14.dp))
     Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule2))
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.Bottom) {
         Text(text, style = MaterialTheme.typography.labelMedium, color = Ink.muted)
         if (note != null) Text("  $note", style = MaterialTheme.typography.bodySmall)
     }
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(6.dp))
 }
 
-/** One piece of the sentence: a small label over its choices. */
+/**
+ * One line of the form. Short choices (단위 · 간격) sit beside their name, which saves a
+ * whole row each; a wide one (요일 · 규칙 제안) goes underneath.
+ */
 @Composable
-private fun Line(label: String, note: String? = null, content: @Composable () -> Unit) {
-    Spacer(Modifier.height(10.dp))
-    Row(verticalAlignment = Alignment.Bottom) {
+private fun Line(label: String, wide: Boolean = false, content: @Composable () -> Unit) {
+    Spacer(Modifier.height(if (wide) 10.dp else 6.dp))
+    if (wide) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = Ink.muted)
-        if (note != null) Text("  $note", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(6.dp))
+        content()
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.width(46.dp), style = MaterialTheme.typography.labelSmall, color = Ink.muted)
+            content()
+        }
     }
-    Spacer(Modifier.height(6.dp))
-    content()
 }

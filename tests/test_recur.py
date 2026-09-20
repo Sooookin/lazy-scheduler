@@ -118,35 +118,76 @@ def test_validate_rule_accepts_legacy_format():
 def test_describe():
     assert recur.describe({"period": "month", "basis": "business_day", "n": 2}) == "매월 2번째 영업일"
     assert recur.describe({"period": "week", "weekdays": [0, 2], "interval": 2}) == "격주 월·수요일"
-    assert recur.describe({"period": "quarter", "basis": "before_end_bd", "k": 3}) == "매 분기 말 3영업일 전"
+    assert recur.describe({"period": "quarter", "basis": "before_end_bd", "k": 3}) == "매 분기 말일 3영업일 전"
 
 
-# ---------- 날짜 하나로 규칙 고르기 ----------
+# ---------- 예시 날짜 + 단위로 규칙 고르기 ----------
 
 with open(os.path.join(HERE, "vectors", "suggest.json"), encoding="utf-8") as f:
     SUGGEST = json.load(f)["cases"]
 
+SUGGEST_IDS = ["%s-%s%d" % (c["date"], c["unit"], c["every"]) for c in SUGGEST]
 
-@pytest.mark.parametrize("case", SUGGEST, ids=[c["date"] for c in SUGGEST])
+
+@pytest.mark.parametrize("case", SUGGEST, ids=SUGGEST_IDS)
 def test_suggestions_match_the_shared_vectors(case):
-    got = recur.suggest(date.fromisoformat(case["date"]))
+    got = recur.suggest(date.fromisoformat(case["date"]), case["unit"], case["every"])
     assert [s["text"] for s in got] == case["expect"]
     assert [s["rule"] for s in got] == case["rules"]
 
 
-@pytest.mark.parametrize("case", SUGGEST, ids=[c["date"] for c in SUGGEST])
-def test_every_suggestion_contains_the_example_date(case):
+@pytest.mark.parametrize("case", SUGGEST, ids=SUGGEST_IDS)
+def test_every_suggestion_is_clean_and_runs_on_that_day(case):
+    """화면에 뜬 것 중 무엇을 골라도 "그 날 하는 일" 이어야 한다.
+
+    매일만 예외다 - 날마다 도는 일에 예시 날짜는 뜻이 없다.
+    """
     day = date.fromisoformat(case["date"])
-    for s in recur.suggest(day):
+    for s in recur.suggest(day, case["unit"], case["every"]):
         assert recur.validate_rule(s["rule"]) == s["rule"]
+        if case["unit"] == "day":
+            continue
         assert day in recur.occurrences(s["rule"], day - timedelta(days=40), day + timedelta(days=40)), s["text"]
+
+
+@pytest.mark.parametrize("case", SUGGEST, ids=SUGGEST_IDS)
+def test_suggestions_do_not_repeat_themselves(case):
+    texts = [s["text"] for s in recur.suggest(date.fromisoformat(case["date"]), case["unit"], case["every"])]
+    assert len(texts) == len(set(texts))
+    assert len(texts) <= recur.SUGGEST_MAX
+
+
+def test_the_example_month_decides_which_months_run():
+    """간격이 달을 정한다. 9월을 짚고 3달 간격이면 3·6·9·12월이다 (분기 초/말을 고를 일이 없다)."""
+    sep, oct_ = date(2026, 9, 30), date(2026, 10, 30)
+    assert recur.months_every(sep, 3) == [3, 6, 9, 12]
+    assert recur.months_every(oct_, 3) == [1, 4, 7, 10]
+    assert recur.months_every(sep, 6) == [3, 9]
+    assert recur.months_every(sep, 1) is None
+    for rule in [s["rule"] for s in recur.suggest(sep, "month", 3)]:
+        assert rule["months"] == [3, 6, 9, 12]
+
+
+def test_every_unit_offers_something():
+    day = date(2026, 9, 30)
+    for unit, every in (("day", 1), ("week", 1), ("week", 2), ("month", 1), ("month", 3), ("year", 1)):
+        assert recur.suggest(day, unit, every), (unit, every)
+    with pytest.raises(recur.RuleError):
+        recur.suggest(day, "century", 1)
 
 
 def test_weekend_example_keeps_its_own_day():
     """토요일을 짚었으면 토요일이 빠지면 안 된다 (휴일 보정 없이)."""
     sat = date(2026, 9, 26)
-    assert all(s["rule"]["holiday_shift"] == "none" for s in recur.suggest(sat))
-    assert not any("영업일" in s["text"] for s in recur.suggest(sat))
+    got = recur.suggest(sat, "month", 1)
+    assert all(s["rule"]["holiday_shift"] == "none" for s in got)
+    assert not any("영업일" in s["text"] for s in got)
+
+
+def test_wording_reads_like_korean():
+    assert recur.describe({"period": "month", "basis": "weekday", "n": 1, "weekday": 4}) == "매월 첫째 금요일"
+    assert recur.describe({"period": "month", "basis": "before_end", "k": 3}) == "매월 말일 3일 전"
+    assert recur.describe({"period": "month", "basis": "before_end_bd", "k": 2}) == "매월 말일 2영업일 전"
 
 
 def test_daily_wording_puts_calendar_days_first():

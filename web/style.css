@@ -27,11 +27,12 @@
   --hover:rgba(56,46,32,.085); --hover-hi:rgba(56,46,32,.15);
   --ink2:#2b2620; --body:#3a332b; --muted:#453d33; --faint:#5c5346; --dim:#8b8175;
   --mint:#85bdb3; --mid:#4d7572; --mid-hi:#5a827e; --mid-ink:#466a68;
+  --hol:#9d4038;
   --deep:#08202b; --deep-hi:#123140; --onmid:#eef3f1;
   --midshadow:rgba(77,117,114,.30);
   /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않아 큰 글자에만 남긴다. */
   --w-thin:300; --w-sec:400; --w-pri:500;
-  --rowpad:12px; --tb:34px;
+  --rowpad:12px; --tb:34px; --track:.1px;
   --ease:cubic-bezier(.2,.8,.2,1); --t-fast:140ms; --t-med:220ms; --t-slow:320ms;
   /* <<< tokens.py */
   /* 모조지 결 C (디자인 2차): 비스듬한 빛의 고운 요철 · 잔 티끌. 큰 얼룩 층은 뺐다 - 넓은 빈 면을
@@ -51,7 +52,7 @@ body{
   background-blend-mode:multiply, multiply, normal;
   background-attachment:fixed;
   font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:var(--w-pri);
-  font-size:13.5px; letter-spacing:-.2px; -webkit-font-smoothing:antialiased;
+  font-size:13.5px; letter-spacing:var(--track); -webkit-font-smoothing:antialiased;
   font-feature-settings:"tnum" 1;
 }
 input,textarea{user-select:text}
@@ -83,9 +84,9 @@ svg{display:block}
 .lh{display:flex; align-items:center; gap:40px; min-width:0}
 /* 날짜는 아래 종이 안 글줄과 같은 왼쪽 선에서 시작한다 */
 .date{padding-left:22px; white-space:nowrap}
-.d-day{font-size:25px; font-weight:var(--w-pri); letter-spacing:-.7px; line-height:1.15; color:var(--ink2)}
+.d-day{font-size:25px; font-weight:var(--w-pri); letter-spacing:calc(var(--track) - .5px); line-height:1.15; color:var(--ink2)}
 /* 큰 글자일수록 가는 획 */
-.clock{font-size:42px; font-weight:var(--w-thin); letter-spacing:-2px; line-height:1; color:var(--deep);
+.clock{font-size:42px; font-weight:var(--w-thin); letter-spacing:calc(var(--track) - 1.7px); line-height:1; color:var(--deep);
   font-variant-numeric:tabular-nums}
 .ring-slot{position:relative; flex:0 0 auto}
 .ring-wrap{position:relative; width:56px; height:56px; display:grid; place-items:center;
@@ -111,7 +112,7 @@ svg{display:block}
 .acts{display:flex; gap:12px; justify-self:end}
 /* 새 항목: 화면에서 유일하게 색이 찬 버튼 */
 .pill-btn{height:38px; padding:0 17px; border:0; border-radius:12px; cursor:pointer;
-  font-family:inherit; font-size:12.5px; font-weight:var(--w-pri); letter-spacing:-.1px; white-space:nowrap;
+  font-family:inherit; font-size:12.5px; font-weight:var(--w-pri); letter-spacing:var(--track); white-space:nowrap;
   color:var(--onmid); background-color:var(--mid); display:flex; align-items:center; gap:7px;
   box-shadow:3px 3px 9px var(--midshadow);
   transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease)}
@@ -137,18 +138,31 @@ svg{display:block}
   background-color:var(--card); background-image:var(--paper); background-size:var(--paper-size);
   background-blend-mode:multiply, multiply; background-attachment:fixed;
   box-shadow:3px 4px 10px var(--dark), -3px -3px 9px var(--light)}
-.dtabs{position:absolute; left:0; top:-40px; display:flex; gap:4px; z-index:3}
-.dtab{position:relative; height:40px; padding:0 22px; display:flex; align-items:center; gap:8px;
-  border:0; border-radius:14px 14px 0 0; cursor:pointer; font-family:inherit; font-size:13.5px;
-  font-weight:var(--w-pri); color:var(--faint); background-color:var(--sheet2);
-  box-shadow:inset 0 -6px 8px -6px rgba(43,38,32,.18); transform:translateY(4px);
-  transition:color var(--t-fast) var(--ease), transform var(--t-med) var(--ease)}
-.dtab:hover{color:var(--ink2); transform:translateY(2px)}
-.dtab.on{z-index:1; background-color:var(--card); color:var(--ink2); transform:none; cursor:default;
-  box-shadow:-3px -3px 8px var(--light), 3px -2px 6px rgba(43,38,32,.10)}
-.dtab.on::before{content:""; width:3px; height:15px; border-radius:2px; background-color:var(--mid)}
+/* 서류철의 인덱스 탭. 크기도 자리도 두 상태가 똑같고, 다른 것은 종이의 앞뒤뿐이다.
+   고른 탭은 종이와 같은 색 · 같은 결이고, 고르지 않은 탭은 뒷장(sheet2) 색으로 뒤에 꽂힌다.
+   그래서 .dtabs 에는 z-index 를 주지 않는다(쌓임 맥락을 만들면 자식이 종이 위로만 놓인다):
+   꺼진 탭 1 < 종이 2 < 켜진 탭 3.
+
+   올라오는 움직임(translateY)과 바깥으로 번지는 흰 그림자는 뺐다 - 누를 때마다
+   탭이 커 보이고 자리가 흔들렸다. 이제 바깥으로 퍼지는 그림자가 없어 크기가 변하지 않는다. */
+.dtabs{position:absolute; left:0; top:-38px; display:flex; gap:3px}
+.dtab{position:relative; z-index:1; height:38px; padding:0 18px; display:flex; align-items:center; gap:8px;
+  border:0; border-radius:11px 11px 0 0; cursor:pointer; font-family:inherit; font-size:13.5px;
+  font-weight:var(--w-pri); letter-spacing:var(--track);
+  color:var(--faint); background-color:var(--sheet2);
+  transition:color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease)}
+/* 표시는 늘 자리를 차지하고 켜질 때만 보인다 - 그래야 글자가 좌우로 뛰지 않는다 */
+.dtab::before{content:""; width:3px; height:14px; border-radius:2px; background-color:var(--mid);
+  opacity:0; transition:opacity var(--t-fast) var(--ease)}
+.dtab:hover{color:var(--ink2)}
+/* 종이와 같은 결. background-attachment:fixed 라 탭과 종이의 무늬가 이어진다 */
+.dtab.on{z-index:3; color:var(--ink2); cursor:default;
+  background-color:var(--card); background-image:var(--paper); background-size:var(--paper-size);
+  background-blend-mode:multiply, multiply; background-attachment:fixed;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75)}
+.dtab.on::before{opacity:1}
 /* 탭과 종이 사이의 이음새를 덮는다 - 탭이 종이에서 자라난 것처럼 */
-.dtab.on::after{content:""; position:absolute; left:0; right:0; bottom:-8px; height:10px; background-color:var(--card)}
+.dtab.on::after{content:""; position:absolute; left:0; right:0; bottom:-6px; height:8px; background-color:var(--card)}
 
 /* 홈: 오늘 | 세로 줄 | 다가오는 마감 · 메모 · 루틴. 칼럼마다 따로 스크롤한다.
    예전의 칸 높이 맞추기(fitCards)는 없앴다 - 칸이 내용만큼 자라고 칼럼이 스크롤한다. */
@@ -254,7 +268,7 @@ svg{display:block}
 .cal{flex:1; min-height:0; display:flex; flex-direction:column; padding:20px 22px 16px; gap:12px}
 .cal-top{display:flex; align-items:center; gap:8px; flex:0 0 auto}
 .cal-ym{font-size:17px; font-weight:var(--w-thin); color:var(--ink2); min-width:112px; text-align:center;
-  letter-spacing:-.4px; font-variant-numeric:tabular-nums}
+  letter-spacing:calc(var(--track) - .2px); font-variant-numeric:tabular-nums}
 .cbtn{width:30px; height:30px; border:0; border-radius:9px; cursor:pointer; padding:0;
   background-color:var(--card); color:var(--muted); display:grid; place-items:center;
   font-family:inherit; font-size:11px; font-weight:var(--w-pri);
@@ -281,7 +295,8 @@ svg{display:block}
 .cal-head{display:grid; grid-template-columns:repeat(var(--cols,5), minmax(0,1fr)); gap:9px; flex:0 0 auto;
   padding-bottom:7px; border-bottom:1px solid var(--rule2)}
 .cal-head span{text-align:center; font-size:10.5px; font-weight:var(--w-pri); color:var(--faint); letter-spacing:1.4px}
-.cal-head .we{color:var(--dim)}
+.cal-head .sat{color:var(--mid-ink)}
+.cal-head .sun{color:var(--hol)}
 .cal-grid{flex:1; min-height:0; display:grid; grid-template-columns:repeat(var(--cols,5), minmax(0,1fr));
   grid-auto-rows:1fr; gap:9px}
 
@@ -298,6 +313,11 @@ svg{display:block}
 .day.out .n{color:var(--dim)}
 .day.hol,.day.we{background-image:linear-gradient(160deg, rgba(221,226,225,.8), rgba(221,226,225,.3))}
 .day.hol .n,.day.we .n{color:var(--faint)}
+/* 진짜 달력처럼: 토요일은 청록, 일요일과 공휴일은 빨강. 공휴일이 요일을 이긴다 */
+.day.sat .n{color:var(--mid-ink)}
+.day.sun .n, .day.hol .n{color:var(--hol)}
+.day.hol .hn{color:var(--hol); opacity:.85}
+.day.out .n, .day.out.sat .n, .day.out.sun .n, .day.out.hol .n{color:var(--dim)}
 /* 오늘 - 유일하게 올라온 칸 */
 .day.now{box-shadow:3px 3px 9px var(--dark), -3px -3px 9px var(--light)}
 .day.now .n b{background-color:var(--deep); color:var(--onmid); border-radius:6px; padding:1px 6px}
@@ -352,7 +372,7 @@ svg{display:block}
 .modal.wide{width:520px}
 .modal.narrow{width:380px}
 .modal.tall{height:76vh; display:flex; flex-direction:column}
-.modal h3{margin:0 0 14px; font-size:18px; font-weight:var(--w-thin); letter-spacing:-.4px; color:var(--ink2);
+.modal h3{margin:0 0 14px; font-size:18px; font-weight:var(--w-thin); letter-spacing:calc(var(--track) - .2px); color:var(--ink2);
   display:flex; align-items:baseline; gap:10px}
 .opt{font-style:normal; font-size:11px; font-weight:var(--w-sec); color:var(--faint); letter-spacing:0}
 
@@ -361,6 +381,7 @@ svg{display:block}
   margin:12px 2px 5px}
 .modal input, .modal select, .modal textarea{
   width:100%; height:38px; border:0; outline:0; font-family:inherit; font-size:13px; font-weight:var(--w-pri);
+  letter-spacing:var(--track);
   color:var(--body); background-color:var(--card); border-radius:11px; padding:0 12px;
   box-shadow:inset 2px 2px 5px var(--dark), inset -2px -2px 5px var(--light);
   transition:box-shadow var(--t-fast) var(--ease)}
@@ -375,8 +396,6 @@ svg{display:block}
 .row>.g14{flex:1.4}
 .row>.g15{flex:1.5}
 .row>.g11{flex:1.1}
-.row2{display:flex; gap:8px}
-.row2 select{flex:1}
 /* 주기 · 종류를 바꿔도 창 크기와 공통 항목 위치가 흔들리지 않게 */
 [data-f="detail"]{min-height:84px}
 /* 반복만 자리를 잡아 둔다. 주기(매주 · 매월 · 분기)를 바꿔도 창이 흔들리지
@@ -514,7 +533,7 @@ body.offline .list, body.offline .day .chips{opacity:.5; filter:saturate(.6); tr
 /* 아이콘은 한 번 그려진다. 동작 줄이기에서는 곧바로 완성된 모양 */
 .empty-rich .ill path{stroke-dasharray:1; stroke-dashoffset:1; animation:draw 560ms 160ms var(--ease) forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
-.empty-rich .eh{font-size:15px; font-weight:var(--w-pri); letter-spacing:-.3px; color:var(--ink2)}
+.empty-rich .eh{font-size:15px; font-weight:var(--w-pri); letter-spacing:0; color:var(--ink2)}
 .empty-rich .ep{font-size:11.5px; font-weight:var(--w-sec); color:var(--muted); line-height:1.8; max-width:330px}
 .empty-rich .ep b{color:var(--ink2)}
 .empty-rich .ec{display:flex; gap:8px; margin-top:4px; flex-wrap:wrap; justify-content:center}
@@ -557,15 +576,15 @@ button:focus-visible, .wd span:focus-visible, .dot:focus-visible{outline:2px sol
   .top{flex:0 0 56px; gap:14px}
   .lh{gap:18px}
   .date{padding-left:6px}
-  .d-day{font-size:15px; letter-spacing:-.4px}
-  .clock{font-size:30px; letter-spacing:-1.4px}
+  .d-day{font-size:15px; letter-spacing:calc(var(--track) - .2px)}
+  .clock{font-size:30px; letter-spacing:calc(var(--track) - 1.2px)}
   .ring-wrap{width:42px; height:42px}
   .ring-wrap::before{inset:-4px; box-shadow:2px 2px 6px var(--dark), -2px -2px 6px var(--light)}
   .ring-bg, .ring-fg{stroke-width:7}
   .ring-txt b{font-size:14px}
   .ring-txt span{display:none}
-  .dtab{height:36px; padding:0 16px; font-size:12.5px}
-  .dtabs{top:-36px}
+  .dtab{height:34px; padding:0 14px; font-size:12.5px}
+  .dtabs{top:-34px}
   .desk{margin-top:36px}
   .acts{gap:7px}
   .ico{width:34px; height:34px; border-radius:11px}
@@ -576,6 +595,18 @@ button:focus-visible, .wd span:focus-visible, .dot:focus-visible{outline:2px sol
   .col{overflow:visible; padding:0 14px 0 18px}
   #col-right{margin-top:24px}
   .cal-legend{display:none}
+}
+
+/* 낮은 창: 새 항목의 여백부터 덜어 낸다. 고르는 것은 하나도 줄이지 않는다 */
+@media (max-height:760px){
+  .modal.form{padding:16px 20px 14px}
+  .modal.form > .row input, .modal.form > .row textarea{height:44px; padding:11px 12px}
+  .modal.form[data-kind="floating"] > .row textarea{min-height:150px}
+  .modal.form .f-grid{gap:20px}
+  .modal.form .btns{margin-top:8px}
+  .modal label{margin:8px 2px 4px}
+  .mc span{height:25px}
+  .f-when .step{margin-top:6px}
 }
 
 /* ---------- 고대비 모드 ----------
@@ -626,7 +657,7 @@ button:focus-visible, .wd span:focus-visible, .dot:focus-visible{outline:2px sol
   background-color:var(--wash-hi); box-shadow:inset 1px 1px 0 rgba(253,250,245,.8)}
 .pop-h{display:flex; align-items:baseline; gap:9px; padding-bottom:9px;
   border-bottom:1px solid var(--rule2)}
-.pop-h b{font-size:15px; font-weight:var(--w-pri); letter-spacing:-.2px; color:var(--ink2)}
+.pop-h b{font-size:15px; font-weight:var(--w-pri); letter-spacing:var(--track); color:var(--ink2)}
 .pop-h span{margin-left:auto; font-size:11px; font-weight:var(--w-sec); color:var(--faint);
   letter-spacing:.2px}
 .pop-r{display:flex; align-items:center; gap:10px; padding:8px 1px}
@@ -706,19 +737,62 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
 .sl{display:grid; grid-template-columns:92px minmax(0,1fr); align-items:center; gap:10px; margin-top:10px}
 .sl > .lb{font-size:11px; font-weight:var(--w-pri); color:var(--muted); letter-spacing:.2px}
 .sl > .lb i{display:block; font-style:normal; font-size:10px; font-weight:var(--w-sec); color:var(--faint)}
-.sl .row2{align-items:center; flex-wrap:wrap}
-.sl .row2 select{flex:0 1 auto; width:auto; min-width:92px}
-.sl .row2 input{width:72px}
-.sl .row2 .u{font-size:12px; font-weight:var(--w-sec); color:var(--muted); white-space:nowrap}
-.mpick{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px}
-.mpick span{width:38px; height:30px; display:grid; place-items:center; border-radius:9px; cursor:pointer;
-  font-size:12px; font-weight:var(--w-pri); color:var(--muted); background-color:var(--card);
-  box-shadow:1.5px 1.5px 4px var(--dark), -1.5px -1.5px 4px var(--light)}
-.mpick span.on{color:var(--onmid); background-color:var(--mid); box-shadow:0 2px 6px var(--midshadow)}
 
-/* 루틴은 두 칸: 왼쪽 "날짜 하나로 시작" (작은 달력 → 맞는 규칙) · 오른쪽 문장 */
-.modal.rt{width:820px}
-.rt-grid{display:grid; grid-template-columns:268px minmax(0,1fr); gap:26px}
+/* ---------- 추가 · 수정 창: 종류와 상관없이 같은 뼈대 ----------
+   크기를 못 박고, 이름 · 달력 · 시각/알림 · 단추가 늘 같은 자리에 있게 한다.
+   종류마다 다른 것은 오른쪽 칸 안에서만 바뀌고, 넘치면 그 칸만 스크롤한다. */
+/* 창을 가장 작게(min_size 760×620) 줄여도 넘치지 않아야 한다 - 예전의 고정
+   780×680 은 그 창보다 넓고 높아서, 폼이 밖으로 삐져 나오고 세로로 스크롤했다. */
+.modal.form{width:min(780px, calc(100vw - 36px)); height:min(680px, calc(100vh - 40px));
+  display:flex; flex-direction:column; overflow:hidden}
+.f-head{display:flex; align-items:center; gap:18px; flex:0 0 auto; margin-bottom:4px}
+.f-head h3{margin:0; min-width:92px}
+.f-head .tabs{margin:0}
+/* 달력과 아래 띠 사이에 남는 자리를, 늘 쓰는 두 칸(이름 · 메모)에 돌려준다.
+   위쪽 모서리를 맞춰 두었으므로 메모가 길어져도 이름 칸은 제자리다. */
+.modal.form > .row{flex:0 0 auto; align-items:flex-start}
+.modal.form > .row input, .modal.form > .row textarea{height:52px; padding:14px 12px; line-height:1.45}
+.modal.form > .row textarea{resize:none; overflow-y:auto}
+/* 메모는 기한이 없는 대신 글이 길다. 달력도 문장도 없으니 그 자리를 통째로
+   메모 칸에 준다 - 이름 칸과 단추는 여느 종류와 같은 자리에 그대로 있다. */
+.modal.form[data-kind="floating"] > .row{flex:1 1 auto; min-height:0; align-items:stretch}
+.modal.form[data-kind="floating"] > .row > div{display:flex; flex-direction:column; min-height:0}
+.modal.form[data-kind="floating"] > .row input{flex:0 0 52px}
+.modal.form[data-kind="floating"] > .row textarea{flex:1 1 auto; height:auto; min-height:206px}
+.modal.form[data-kind="floating"] .f-body{flex:0 0 auto}
+.f-body{flex:1; min-height:0; display:flex; flex-direction:column}
+.f-grid{flex:1; min-height:0; display:grid; grid-template-columns:268px minmax(0,1fr); gap:28px}
+.f-left, .f-right{min-height:0; overflow-y:auto; overflow-x:hidden; padding:0 4px 6px 2px; margin:0 -4px 0 -2px}
+.f-left::-webkit-scrollbar, .f-right::-webkit-scrollbar{width:6px}
+.f-left::-webkit-scrollbar-thumb, .f-right::-webkit-scrollbar-thumb{background-color:var(--dark); border-radius:3px}
+.f-grid.memo{display:flex; align-items:center; justify-content:center; text-align:center}
+.f-grid.memo .hint{margin:0}
+.f-when{flex:0 0 auto}
+.f-when.off{visibility:hidden}
+.f-when .step{margin-top:10px}
+.when-row{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.when-row input.tf{width:128px; flex:0 0 auto}
+.modal.form .btns{flex:0 0 auto; margin-top:12px}
+/* 할 일: 고른 날을 크게 */
+.due{display:flex; flex-direction:column; gap:4px; padding:4px 2px}
+.due-d{font-size:20px; font-weight:var(--w-thin); letter-spacing:calc(var(--track) - .2px); color:var(--ink2)}
+.due-r{font-size:12.5px; font-weight:var(--w-sec); color:var(--mid-ink)}
+.due .warn-line{margin:10px 0 0}
+.due .step{margin-top:18px}
+.due-o{display:flex; align-items:baseline; gap:12px; padding:8px 2px; font-size:13px}
+.due-o + .due-o{box-shadow:inset 0 1px 0 var(--rule)}
+.due-o span{flex:0 0 42px; font-size:12px; font-weight:var(--w-sec); color:var(--faint); font-variant-numeric:tabular-nums}
+.due-o b{flex:1; min-width:0; font-weight:var(--w-pri); color:var(--body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.due-m{font-size:11.5px; color:var(--faint); padding:6px 2px}
+.due .hint{margin:2px 2px 0}
+/* 작은 달력: 이미 마감이 있는 날에 점 하나 */
+.mc span.has::after{content:""; position:absolute; bottom:3px; left:50%; width:4px; height:4px; margin-left:-2px;
+  border-radius:50%; background-color:var(--mid)}
+.mc span.on.has::after{background-color:var(--onmid)}
+/* 휴일 처리: 거의 바꾸지 않으므로 맨 아래 작은 한 줄 */
+.quiet{display:flex; align-items:center; gap:8px; margin:14px 2px 0; font-size:11.5px; font-weight:var(--w-sec); color:var(--faint)}
+.quiet select{width:auto !important; height:28px !important; padding:0 26px 0 10px !important; font-size:11.5px !important;
+  border-radius:9px !important; background-position:right 9px center !important}
 .mc-top{display:flex; align-items:center; gap:6px; margin-bottom:6px}
 .mc-top b{flex:1; text-align:center; font-size:13px; font-weight:var(--w-pri); color:var(--ink2)}
 .mc-top button{width:26px; height:26px; border:0; border-radius:8px; cursor:pointer; background-color:transparent;
@@ -726,23 +800,38 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
 .mc-top button:hover{background-color:var(--hover-hi)}
 .mc{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:3px; text-align:center}
 .mc i{font-style:normal; font-size:10px; font-weight:var(--w-sec); color:var(--faint); padding:2px 0 4px}
-.mc span{height:30px; display:grid; place-items:center; border-radius:9px; cursor:pointer; font-size:12.5px;
+.mc span{position:relative; height:28px; display:grid; place-items:center; border-radius:9px; cursor:pointer; font-size:12.5px;
   font-weight:var(--w-pri); color:var(--body); font-variant-numeric:tabular-nums;
   transition:background-color var(--t-fast) var(--ease)}
 .mc span:hover{background-color:var(--hover-hi)}
 .mc span.out{color:var(--dim)}
+.mc i.sat{color:var(--mid-ink)}
+.mc i.sun{color:var(--hol)}
 .mc span.we{color:var(--faint)}
+.mc span.sat{color:var(--mid-ink)}
+.mc span.sun, .mc span.hol{color:var(--hol)}
+.mc span.out, .mc span.out.sat, .mc span.out.sun, .mc span.out.hol{color:var(--dim)}
+.mc span.on, .mc span.on.sat, .mc span.on.sun, .mc span.on.hol{color:var(--onmid)}
 .mc span.now{box-shadow:inset 0 0 0 1.5px var(--mint)}
 .mc span.on{background-color:var(--mid); color:var(--onmid)}
-.sugg{display:flex; flex-direction:column; gap:5px; margin-top:12px}
-.sugg .hint{margin:4px 2px 0}
-.sugg button{text-align:left; min-height:32px; padding:6px 12px; border:0; border-radius:10px; cursor:pointer;
-  font-family:inherit; font-size:12.5px; font-weight:var(--w-pri); color:var(--body); background-color:var(--card);
-  box-shadow:1.5px 1.5px 4px var(--dark), -1.5px -1.5px 4px var(--light);
-  transition:background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease)}
-.sugg button:hover{color:var(--ink2); background-color:rgba(133,189,179,.22)}
-.sugg button.on{color:var(--onmid); background-color:var(--mid); box-shadow:0 2px 6px var(--midshadow)}
-.rt-sent .preview{white-space:normal}
+/* 고르는 줄: 규칙 이름과 그 규칙이 도는 날짜를 한 줄에 (날짜는 여기 한 곳에만 나온다) */
+.pk-list{display:flex; flex-direction:column; gap:3px}
+.pk-row{display:flex; flex-direction:column; gap:2px; text-align:left; padding:7px 12px; border:0; border-radius:11px;
+  cursor:pointer; background-color:transparent; font-family:inherit;
+  transition:background-color var(--t-fast) var(--ease)}
+.pk-row b{font-size:13.5px; font-weight:var(--w-pri); color:var(--body)}
+.pk-row span{font-size:11.5px; font-weight:var(--w-sec); color:var(--faint); font-variant-numeric:tabular-nums}
+.pk-row:hover{background-color:rgba(133,189,179,.20)}
+.pk-row.on{background-color:var(--mid)}
+.pk-row.on b{color:var(--onmid)}
+.pk-row.on span{color:rgba(238,243,241,.82)}
+.dates{margin:14px 2px 0; display:flex; flex-direction:column; gap:3px}
+.dates b{font-size:13.5px; font-weight:var(--w-pri); color:var(--ink2)}
+.dates span{font-size:11.5px; font-weight:var(--w-sec); color:var(--mid-ink); font-variant-numeric:tabular-nums; min-height:16px}
+/* 매일 단위: 달력은 쓰이지 않으므로 쉬게 둔다 */
+.f-left.idle [data-f="mc"]{opacity:.32; pointer-events:none; filter:saturate(.4)}
+/* 달력 아래 한 줄: 왜 이 목록이 나왔는지 */
+.f-right .preview{white-space:normal}
 
 /* 알림: 켜고 끄는 스위치 + 얼마 전에 */
 .sw{display:inline-flex !important; align-items:center; gap:9px; cursor:pointer; font-size:12.5px !important;
@@ -757,4 +846,3 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
 .sw input:checked::after{transform:translateX(16px); background-color:#fff}
 .sw input:focus-visible{outline:2px solid rgba(77,117,114,.55); outline-offset:2px}
 .alarm{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-.sl .row2 input.tf{width:128px}

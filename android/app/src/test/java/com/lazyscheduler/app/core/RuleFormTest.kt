@@ -3,6 +3,7 @@ package com.lazyscheduler.app.core
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -46,53 +47,65 @@ class RuleFormTest {
             "interval" to 2, "anchor" to "2026-09-07"), ok)
     }
 
+    /** Whatever the engine offers must save cleanly and read back to the same seat. */
     @Test
-    fun everyFormChoiceMakesAValidRuleThatReadsBackTheSame() {
-        val forms = mutableListOf(
-            RuleForm(freq = "day", biz = false),
-            RuleForm(freq = "day", biz = true),
-            RuleForm(freq = "week", weekdays = setOf(0, 3), interval = 2, anchor = "2026-09-14", shift = "next"),
-        )
-        for (freq in listOf("month", "year", "quarter")) for (frame in listOf("date", "weekday", "end"))
-            for (biz in listOf(false, true)) for (n in listOf(2, -1)) {
-                forms += RuleForm(freq = freq, frame = frame, biz = biz, n = n, wn = n, k = 3, weekday = 3,
-                    ymonth = 9, shift = "none")
+    fun everySuggestionSavesCleanlyAndReadsBack() {
+        val day = LocalDate.of(2026, 9, 30)
+        for ((unit, every) in listOf("day" to 1, "week" to 1, "week" to 2, "month" to 1, "month" to 3,
+                "month" to 6, "year" to 1)) {
+            val items = Recur.suggest(day, unit, every)
+            assertTrue("$unit/$every", items.isNotEmpty())
+            for ((text, rule) in items) {
+                val (ok, err) = RuleCheck.validate(rule)
+                assertNull("$text -> $err", err)
+                assertEquals(text, rule, ok)
+                assertEquals(text, unit to every, RulePick.unitOf(rule).let { (u, e) ->
+                    if (unit == "day" || unit == "year") u to 1 else u to e
+                })
             }
-        for (mset in listOf("q1", "q2", "half")) forms += RuleForm(mset = mset, n = 15)
-        forms += RuleForm(mset = "custom", months = listOf(2, 5, 8, 11), n = 10)
-        for (f in forms) {
-            val rule = f.toRule()
-            val (ok, err) = RuleCheck.validate(rule)
-            assertNull("$f -> $err", err)
-            assertEquals(f.toString(), rule, RuleForm.from(ok).toRule())
         }
     }
 
     @Test
-    fun businessDaysAreTheCountingNotThePeriod() {
-        // Same sentence, only the counting changes: "매월 3일" <-> "매월 3번째 영업일"
-        assertEquals("매월 3일", Recur.describe(RuleForm(n = 3).toRule()))
-        assertEquals("매월 3번째 영업일", Recur.describe(RuleForm(n = 3, biz = true).toRule()))
-        assertEquals("매일", Recur.describe(RuleForm(freq = "day").toRule()))
-        assertEquals("매일 · 영업일만", Recur.describe(RuleForm(freq = "day", biz = true).toRule()))
-        assertEquals("매년 9월 말일", Recur.describe(RuleForm(freq = "year", ymonth = 9, n = -1).toRule()))
-        assertEquals("3·6·9·12월 말 2일 전", Recur.describe(RuleForm(frame = "end", k = 2, mset = "q1").toRule()))
+    fun theExampleMonthDecidesWhichMonthsRun() {
+        val sep = LocalDate.of(2026, 9, 30)
+        val oct = LocalDate.of(2026, 10, 30)
+        assertEquals(listOf(3, 6, 9, 12), Recur.monthsEvery(sep, 3))
+        assertEquals(listOf(1, 4, 7, 10), Recur.monthsEvery(oct, 3))
+        assertEquals(listOf(3, 9), Recur.monthsEvery(sep, 6))
+        assertNull(Recur.monthsEvery(sep, 1))
+    }
+
+    @Test
+    fun weeklyRuleKeepsAWeekendOnPurpose() {
+        val sat = LocalDate.of(2026, 9, 26)
+        val weekend = RulePick.weekRule(setOf(5), 1, sat)!!
+        assertEquals("none", weekend["holiday_shift"])
+        val workdays = RulePick.weekRule(setOf(0, 2), 2, sat)!!
+        assertEquals("prev", workdays["holiday_shift"])
+        assertEquals(2, workdays["interval"])
+        assertNull(RulePick.weekRule(emptySet(), 1, sat))
+        assertEquals("격주 월·수요일", Recur.describe(workdays))
     }
 
     @Test
     fun readsRulesSavedByThePcWithLongNumbers() {
         val pc = mapOf<String, Any?>("period" to "month", "basis" to "weekday", "n" to -1L, "weekday" to 3L,
             "holiday_shift" to "prev")
-        val f = RuleForm.from(pc)
-        assertEquals("weekday", f.frame)
-        assertEquals(-1, f.wn)
-        assertEquals(3, f.weekday)
-        assertEquals("매월 마지막 목요일", Recur.describe(f.toRule()))
+        assertEquals("월" to 1, RulePick.unitOf(pc).let { (u, e) -> (if (u == "month") "월" else u) to e })
+        assertEquals("매월 마지막 목요일", Recur.describe(pc))
+    }
+
+    @Test
+    fun wordingReadsLikeKorean() {
+        assertEquals("매월 첫째 금요일", Recur.describe(mapOf("period" to "month", "basis" to "weekday", "n" to 1, "weekday" to 4)))
+        assertEquals("매월 말일 3일 전", Recur.describe(mapOf("period" to "month", "basis" to "before_end", "k" to 3)))
+        assertEquals("매월 말일 2영업일 전", Recur.describe(mapOf("period" to "month", "basis" to "before_end_bd", "k" to 2)))
     }
 
     @Test
     fun previewShowsTheNextDates() {
-        val rule = RuleForm(biz = true, n = 2).toRule()
+        val rule = mapOf<String, Any?>("period" to "month", "basis" to "business_day", "n" to 2)
         assertEquals(listOf("10/2(금)", "11/3(화)"), previewDates(rule, LocalDate.of(2026, 9, 18), 2))
     }
 }

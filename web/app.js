@@ -20,6 +20,9 @@ const api = (u, b) => fetch(u, {
     return d;
   }));
 const WD = ['월','화','수','목','금','토','일'];
+/* 달력은 일요일이 맨 왼쪽이다 (Date.getDay() 와 같은 차례).
+   규칙(rule.weekdays)은 예전대로 월요일이 0 이므로 둘을 섞지 않는다. */
+const WD_SUN = ['일','월','화','수','목','금','토'];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins = t => +t.slice(0,2)*60 + +t.slice(3);
@@ -87,7 +90,7 @@ function tpDraw(){
           const cls = [h === curH ? 'on' : '', h === nowH ? 'now' : '', from === 0 ? 'dim' : ''].join(' ').trim();
           return '<button type="button" data-h="' + h + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + h12(h) + '</button>';
         }).join('')).join('') + '</div>' +
-      '<div class="tp-f">민트 테두리 = 지금 시각 · 숫자로 쳐도 됩니다 (930 · 21 · 930p)</div>';
+      '<div class="tp-f">예: 930 · 21 · 930p</div>';
   }else{
     const h = TP.hour;
     box.innerHTML = '<div class="tp-h"><b>' + ampm(h) + '</b><span>› 분</span><span class="sp"></span>' +
@@ -168,7 +171,7 @@ document.addEventListener('change', e => {
 addEventListener('resize', () => { if(tpShown()) tpPlace(); });
 document.addEventListener('scroll', () => { if(tpShown()) tpPlace(); }, true);   /* 창 안에서 스크롤해도 칸에 붙어 있게 */
 const tfHtml = (f, v, title) => '<input class="tf" data-tf data-f="' + f + '" autocomplete="off" placeholder="시각 없음" value="' +
-  esc(v || '') + '" title="' + (title || '누르면 시 → 분. 숫자로 쳐도 됩니다 (930 · 21 · 930p)') + '">';
+  esc(v || '') + '" title="' + (title || '예: 930 · 21 · 930p') + '">';
 let STATE = null, HOL = new Set();
 
 const say = m => { $('#status').textContent = m; clearTimeout(say._t); say._t = setTimeout(()=>$('#status').textContent='', 2800); };
@@ -260,7 +263,6 @@ function rollBiz(s, dir){
   return iso(d);
 }
 function shift(days){ const d = dObj(STATE.today); d.setDate(d.getDate()+days); return rollBiz(iso(d), 1); }
-function nextWd(w){ const d = dObj(STATE.today); let k = (w+1 - d.getDay() + 7) % 7; d.setDate(d.getDate() + (k||7)); return rollBiz(iso(d), 1); }
 function fmtDay(s){
   if(!s) return '';
   const diff = Math.round((dObj(s) - dObj(STATE.today))/864e5);
@@ -375,8 +377,7 @@ function emptyToday(o){
   if(none)
     return '<div class="empty-rich"><div class="ill">' + ICON.plusBig + '</div>'
       + '<div class="eh">아직 등록한 일정이 없습니다</div>'
-      + '<div class="ep">매일 · 매주 하는 루틴을 먼저 넣어 두면,<br>'
-      + '아침마다 오늘 할 일이 저절로 채워집니다.</div>'
+      + '<div class="ep">루틴을 먼저 넣어 두면 오늘 칸이 저절로 채워집니다</div>'
       + '<div class="ec"><button data-new="routine">' + ICON.plus + '루틴 추가</button>'
       + '<button class="ghost" data-new="deadline">마감 하나 넣어보기</button></div></div>';
   const n = (o.upcoming || [])[0];
@@ -385,8 +386,8 @@ function emptyToday(o){
   return '<div class="empty-rich"><div class="ill">' + ICON.check + '</div>'
     + '<div class="eh">오늘 할 일이 없습니다</div>'
     + '<div class="ep">' + (n
-        ? '다음 마감은 <b>' + esc(when) + ' · ' + esc(n.title) + '</b> 입니다.'
-        : '다가오는 7일에도 마감이 없습니다.') + '</div>'
+        ? '다음 마감 <b>' + esc(when) + ' · ' + esc(n.title) + '</b>'
+        : '다가오는 7일에도 마감 없음') + '</div>'
     + '<div class="ec"><button data-new="deadline">' + ICON.plus + '새 항목</button></div></div>';
 }
 
@@ -667,348 +668,378 @@ document.onkeydown = e => {
     shiftMonth(e.key === 'ArrowLeft' ? -1 : 1);
     return;
   }
-  if(e.key === 'Enter' && e.target.tagName !== 'BUTTON' && !e.defaultPrevented){
+  /* 메모는 여러 줄이 될 수 있다 - 그 칸에서 Enter 는 줄바꿈이고, 저장은 Ctrl+Enter */
+  const multi = e.target.tagName === 'TEXTAREA' && !e.ctrlKey && !e.metaKey;
+  if(e.key === 'Enter' && e.target.tagName !== 'BUTTON' && !multi && !e.defaultPrevented){
     if($('#m-add').classList.contains('on')) $('#a-save').click();
     else if($('#m-edit').classList.contains('on')) $('#e-save').click();
   }
 };
 
-/* ══════════ 루틴 규칙: 문장으로 ══════════
-   "매월 · 날짜로 · 말일 · 달력 날 · 앞 영업일로 · 매월" 처럼 문장 조각을 고른다.
-   달력 날이 기본이고, 영업일은 주기가 아니라 "세는 방법" 이다 - 같은 문장에서
-   달력 날 / 영업일만 바꾸면 "매월 3일" 이 "매월 3번째 영업일" 이 된다.
-   저장 형식(period · basis · n · k · months · holiday_shift)은 예전 그대로라
-   PC · 휴대폰 · 이미 저장된 루틴이 모두 그대로 동작한다. 매년은 "한 달만 도는 매월" 이다. */
-const MONTHSETS = [
-  ['all',    '매월',                 null],
-  ['q1',     '분기 말',  [3,6,9,12]],
-  ['q2',     '분기 초',  [1,4,7,10]],
-  ['half',   '반기',     [6,12]],
-  ['custom', '직접',     null],
-];
-const SHIFTS = [['prev','앞 영업일로'], ['next','뒤로'], ['none','그대로']];
+/* ══════════ 루틴: 예시 날짜 × 단위 ══════════
+   규칙 하나를 정할 때 사람이 고르는 것은 셋뿐이다.
+
+     ① 이 일을 하는 날 하나        달력
+     ② 단위와 간격                 일 · 주 · 월 · 년, 그리고 몇 단위마다 (격주 · 분기 · 반기)
+     ③ 그 날을 어떻게 읽을지        말일 · 마지막 영업일 · 마지막 수요일 · 말일 3일 전 …
+
+   ③ 은 엔진(recur.suggest)이 만든다. 화면에 뜨는 것은 모두 "고른 그 날에 도는" 규칙이라,
+   무엇을 골라도 그 날이 빠지지 않는다. basis · N번째 같은 말은 화면에 나오지 않는다.
+
+   간격이 "실행하는 달" 까지 정한다: 9월을 짚고 3달마다면 3·6·9·12월, 10월이면 1·4·7·10월.
+   그래서 "분기 말 / 분기 초" 를 따로 고를 일이 없다.
+
+   저장 형식(period · basis · n · k · months · holiday_shift)은 그대로다. */
+const UNITS = [['day','일'], ['week','주'], ['month','월'], ['year','년']];
+const EVERY = {
+  week:  [[1,'매주'], [2,'격주']],
+  month: [[1,'매달'], [3,'분기'], [6,'반기']],
+};
+/* 예전에 저장한 간격(2달마다 등)이 목록에 없으면 그 줄만 하나 더 붙여 둔다 -
+   고치려고 연 규칙이 소리 없이 다른 주기로 바뀌면 안 된다 */
+function everyOpts(unit, cur){
+  const o = (EVERY[unit] || []).slice();
+  if(o.length && !o.some(x => x[0] === cur)) o.push([cur, cur + (unit === 'week' ? '주' : '달') + '마다']);
+  return o.sort((x, y) => x[0] - y[0]);
+}
+const SHIFTS = [['prev','앞 영업일로'], ['next','다음 영업일로'], ['none','그대로']];
 const sel = (f, opts, cur) => '<select data-f="'+f+'">'+opts.map(([v,l]) =>
   '<option value="'+v+'"'+(String(cur)===String(v)?' selected':'')+'>'+l+'</option>').join('')+'</select>';
 const seg = (key, opts, cur, off) => '<div class="seg'+(off ? ' off' : '')+'">'+opts.map(([v,l]) =>
   '<button type="button" data-s="'+key+'" data-v="'+v+'"'+(String(cur)===String(v)?' class="on"':'')+'>'+l+'</button>').join('')+'</div>';
 const line = (label, body, note) => '<div class="sl"><span class="lb">'+label+(note ? '<i>'+note+'</i>' : '')+'</span><div>'+body+'</div></div>';
 
-/* 저장된 규칙 → 고르는 상태 */
-function ruleToS(r){
-  r = r || {};
-  const S = {freq:'month', frame:'date', biz:false, n:1, k:0, wn:1, weekday:0, weekdays:[], interval:1,
-             anchor:r.anchor || null, shift:r.holiday_shift || 'prev', mset:'all', months:[], ymonth:1};
-  const p = r.period;
-  if(p === 'day'){ S.freq = 'day'; S.biz = r.business_only !== false; return S; }
-  if(p === 'week'){ S.freq = 'week'; S.weekdays = (r.weekdays || []).slice(); S.interval = r.interval || 1; return S; }
-  if(p !== 'month' && p !== 'quarter') return S;
-  S.freq = p;
-  const b = r.basis || 'day';
-  if(b === 'weekday'){ S.frame = 'weekday'; S.wn = r.n || 1; S.weekday = r.weekday || 0; }
-  else if(b === 'before_end' || b === 'before_end_bd'){ S.frame = 'end'; S.biz = b === 'before_end_bd'; S.k = r.k || 0; }
-  else { S.frame = 'date'; S.biz = b === 'business_day'; S.n = r.n || 1; }
-  const m = r.months;
-  if(p === 'month' && m && m.length === 1){ S.freq = 'year'; S.ymonth = m[0]; }
-  else if(p === 'month' && m && m.length && m.length < 12){
-    const hit = MONTHSETS.find(x => x[2] && x[2].length === m.length && x[2].every(v => m.includes(v)));
-    S.mset = hit ? hit[0] : 'custom';
-    S.months = m.slice();
-  }
-  return S;
+/* 저장된 규칙 → 단위와 간격 (고치기로 열었을 때 어디서 시작할지) */
+function unitOf(rule){
+  if(!rule) return {unit:'month', every:1};
+  if(rule.period === 'day') return {unit:'day', every:1};
+  if(rule.period === 'week') return {unit:'week', every: rule.interval || 1};
+  if(rule.period === 'quarter') return {unit:'month', every:3};     /* 예전 분기 규칙: 가장 가까운 자리 */
+  const m = rule.months;
+  if(!m || m.length >= 12) return {unit:'month', every:1};
+  if(m.length === 1) return {unit:'year', every:1};
+  return {unit:'month', every: 12 % m.length === 0 ? 12 / m.length : 1};
 }
-/* 고르는 상태 → 저장할 규칙 */
-function sToRule(S){
-  const r = {period: S.freq === 'year' ? 'month' : S.freq, holiday_shift: S.shift};
-  if(S.freq === 'day'){ r.business_only = S.biz; return r; }
-  if(S.freq === 'week'){
-    r.weekdays = S.weekdays.slice().sort((a, b) => a - b);
-    r.interval = S.interval;
-    if(S.anchor) r.anchor = S.anchor;
-    return r;
-  }
-  if(S.frame === 'weekday'){ r.basis = 'weekday'; r.n = S.wn; r.weekday = S.weekday; }
-  else if(S.frame === 'end'){ r.basis = S.biz ? 'before_end_bd' : 'before_end'; r.k = S.k; }
-  else { r.basis = S.biz ? 'business_day' : 'day'; r.n = S.n; }
-  if(S.freq === 'year') r.months = [S.ymonth];
-  else if(S.freq === 'month' && S.mset !== 'all'){
-    const set = S.mset === 'custom' ? S.months.slice().sort((a, b) => a - b)
-                                    : MONTHSETS.find(x => x[0] === S.mset)[2];
-    if(set.length && set.length < 12) r.months = set;
-  }
-  return r;
-}
-/* "몇 번째" 의 끝 (분기는 예전 규칙을 고칠 때만 나온다) */
-const nTop = S => S.freq === 'quarter' ? (S.biz ? 66 : 92) : (S.biz ? 23 : 31);
+/* 영업일로 세는 규칙은 주말 · 공휴일에 걸릴 일이 없다 */
+const countsBizDays = r => !!r && (r.basis === 'business_day' || r.basis === 'before_end_bd' ||
+  (r.period === 'day' && r.business_only));
 
-/* ══════════ 폼 (추가 / 수정 공용) ══════════ */
+/* ══════════ 폼 (추가 / 수정 공용) ══════════
+   창의 크기와 뼈대는 종류(할 일 · 루틴 · 메모)와 상관없이 같다. 탭을 바꿔도
+   겹치는 것은 제자리에 있다:
+
+     이름 · 메모              맨 위
+     작은 달력                왼쪽 칸 (할 일: 마감 날짜 / 루틴: 예시 날짜)
+     종류마다 다른 것         오른쪽 칸 (할 일: 고른 날 / 루틴: 문장)
+     시각 · 알림              아래 띠 (메모는 비워 두되 자리는 남긴다)
+     단추                     맨 아래
+
+   예전에는 종류마다 창 높이 · 너비가 달라서, 탭을 누를 때마다 이름 칸과
+   단추가 위아래로 뛰었다. */
+
+/* 알림은 몇 분 전에: 자주 쓰는 넷. 저장된 값이 이와 다르면 그 값도 하나 더 보여 준다 */
+const LEADS = [[10,'10분 전'], [30,'30분 전'], [60,'1시간 전'], [180,'3시간 전']];
+const leadLabel = m => !m ? '정각' : m % 60 === 0 ? (m / 60) + '시간 전' : m + '분 전';
+
 function Form(box){
   const F = f => box.querySelector('[data-f="'+f+'"]');
-  const self = {kind:'deadline', box:box, lead:null};
+  const self = {kind:'deadline', box:box, lead:null, date:null, R:null};
 
-  /* 알림: 켜고 끄는 스위치 + 얼마 전에. "끄기" 체크보다 "받기" 스위치가 읽기 쉽다 */
-  const timeBlock = (t, lead, muted) => {
-    const def = STATE.settings.notify_min != null ? STATE.settings.notify_min : 30;
-    const opts = [[null, '기본 (' + (def ? def + '분' : '정각') + ')'], [0, '정각'], [10, '10분'],
-                  [30, '30분'], [60, '1시간'], [1440, '하루']];
-    if(lead != null && !opts.some(o => o[0] === lead)) opts.push([lead, lead + '분']);
-    self.lead = lead != null ? lead : null;
-    return '<span class="step">언제 · 알림</span>'+
-      line('시각', '<div class="row2">' + tfHtml('time', t) + '</div>', '비워도 됨')+
-      line('알림', '<div class="alarm"><label class="sw"><input type="checkbox" data-f="alarm"'+(muted ? '' : ' checked')+
-        '> 알림 받기</label><div data-f="leads">'+
-        seg('lead', opts.map(([v, l]) => [v == null ? '' : v, l]), lead == null ? '' : lead, muted)+'</div></div>',
-        '얼마나 먼저');
-  };
-  const bindTime = () => {
-    F('alarm').onchange = () => F('leads').firstChild.classList.toggle('off', !F('alarm').checked);
-    F('leads').onclick = e => {
-      const b = e.target.closest('[data-s="lead"]');
-      if(!b) return;
-      self.lead = b.dataset.v === '' ? null : +b.dataset.v;
-      F('leads').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-    };
-  };
-
-  /* ---------- 할 일 ---------- */
-  function renderDeadline(i){
-    box.innerHTML =
-      '<span class="step">언제까지</span>'+
-      '<label>마감 날짜</label><input type="date" data-f="date" value="'+(i.date||rollBiz(STATE.today,1))+'">'+
-      '<div class="quick">'+[['오늘',0],['내일',1],['모레',2],['+7일',7],['+30일',30]]
-          .map(([l,n])=>'<button type="button" data-add="'+n+'">'+l+'</button>').join('')+
-        '<button type="button" data-wd="0">다음 월요일</button><button type="button" data-wd="4">다음 금요일</button></div>'+
-      '<div data-f="warn"></div>'+ timeBlock(i.time, i.notify_min, i.muted);
-    const chk = () => {
-      const v = F('date').value, w = F('warn');
-      if(!v || !bizOn() || isBiz(v)){ w.innerHTML = ''; return; }
-      const alt = rollBiz(v, -1);
-      w.innerHTML = '<div class="warn-line">이 날은 영업일이 아닙니다 ('+fmtDay(v)+')'+
-        '<button type="button" data-f="fix">'+fmtDay(alt)+'로</button></div>';
-      w.querySelector('[data-f="fix"]').onclick = () => { F('date').value = alt; chk(); };
-    };
-    box.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { F('date').value = shift(+b.dataset.add); chk(); });
-    box.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => { F('date').value = nextWd(+b.dataset.wd); chk(); });
-    F('date').onchange = chk;
-    chk();
-    bindTime();
-  }
-
-  /* ---------- 루틴 ---------- */
-  function renderRoutine(i){
-    const today = dObj(STATE.today);
-    const S = self.S = i.rule_n ? ruleToS(i.rule_n)
-      : Object.assign(ruleToS(null), {n: Math.min(today.getDate(), 31)});   /* 새 루틴: "매월 (오늘 날짜)일" */
-    const legacyQ = S.freq === 'quarter';
-    const start = dObj(i.next_date || i.date || STATE.today);
-    const MC = {y: start.getFullYear(), m: start.getMonth(), pick: null, rule: null};
-    box.innerHTML =
-      '<div class="rt-grid">'+
-        '<div class="rt-pick"><span class="step">날짜 하나로 시작 <i class="opt">그 일을 하는 날</i></span>'+
-          '<div data-f="mc"></div><div class="sugg" data-f="sugg"></div></div>'+
-        '<div class="rt-sent"><span class="step">문장으로 확인 · 고치기</span><div data-f="sent"></div>'+
-          '<p class="preview" data-f="prev"><b>다음 실행 날짜</b>—</p>'+
-          timeBlock(i.time, i.notify_min, i.muted)+'</div>'+
-      '</div>';
-
-    /* 작은 달력: 날짜를 누르면 그 날을 포함하는 규칙을 서버(recur.suggest)에 묻는다 */
-    const drawMc = () => {
+  /* 작은 달력. 할 일은 마감 날짜를, 루틴은 "날짜 하나로 시작" 의 예시 날짜를 고른다 */
+  function miniCal(el, MC, onPick, marks){
+    const draw = () => {
       const first = new Date(MC.y, MC.m, 1);
       const cur = new Date(first);
-      cur.setDate(1 - ((first.getDay() + 6) % 7));
+      cur.setDate(1 - first.getDay());
       let h = '<div class="mc-top"><button type="button" data-mc="-1" aria-label="이전 달">'+
         '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>'+
         '<b>'+MC.y+'년 '+(MC.m+1)+'월</b>'+
         '<button type="button" data-mc="1" aria-label="다음 달">'+
         '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></div>'+
-        '<div class="mc">' + WD.map(w => '<i>'+w+'</i>').join('');
+        '<div class="mc">' + WD_SUN.map((w, x) =>
+          '<i'+(x === 0 ? ' class="sun"' : x === 6 ? ' class="sat"' : '')+'>'+w+'</i>').join('');
+      /* 늘 여섯 줄: 달마다 달력 높이가 달라지면 아래 것이 또 움직인다 */
       for(let k = 0; k < 42; k++){
         const key = iso(cur);
         const w = cur.getDay();
-        const cls = [cur.getMonth() !== MC.m ? 'out' : '', (w === 0 || w === 6 || HOL.has(key)) ? 'we' : '',
-                     key === STATE.today ? 'now' : '', key === MC.pick ? 'on' : ''].join(' ').trim();
+        const cls = [cur.getMonth() !== MC.m ? 'out' : '',
+                     (w === 0 || w === 6 || HOL.has(key)) ? 'we' : '',
+                     HOL.has(key) ? 'hol' : w === 0 ? 'sun' : w === 6 ? 'sat' : '',
+                     key === STATE.today ? 'now' : '', key === MC.pick ? 'on' : '',
+                     marks && marks.has(key) ? 'has' : ''].filter(Boolean).join(' ');
         h += '<span data-d="'+key+'"'+(cls ? ' class="'+cls+'"' : '')+'>'+cur.getDate()+'</span>';
         cur.setDate(cur.getDate() + 1);
-        if(k === 34 && cur.getMonth() !== MC.m) break;           /* 다섯 줄이면 충분한 달 */
       }
-      F('mc').innerHTML = h + '</div>';
+      el.innerHTML = h + '</div>';
     };
-    const drawSugg = items => {
-      const box2 = F('sugg');
-      if(!MC.pick){
-        box2.innerHTML = '<p class="hint">날짜를 누르면 그 날에 맞는 규칙이 나옵니다.<br>“매월 말일쯤 하는 그 일” 이라면 이번 달 말일을 누르세요.</p>';
-        return;
-      }
-      if(!items){ box2.innerHTML = '<p class="hint">찾는 중…</p>'; return; }
-      box2.innerHTML = items.map((it, k) => '<button type="button" data-k="'+k+'"'+
-        (MC.rule === it.text ? ' class="on"' : '')+'>'+esc(it.text)+'</button>').join('');
-      box2.onclick = e => {
-        const b = e.target.closest('[data-k]');
-        if(!b) return;
-        const it = items[+b.dataset.k];
-        Object.assign(S, ruleToS(it.rule));
-        MC.rule = it.text;
-        box2.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-        drawSent();
-      };
-    };
-    let suggSeq = 0;
-    F('mc').onclick = e => {
+    el.onclick = e => {
       const nav = e.target.closest('[data-mc]');
       if(nav){
         const t = new Date(MC.y, MC.m + +nav.dataset.mc, 1);
         MC.y = t.getFullYear(); MC.m = t.getMonth();
-        return drawMc();
+        return draw();
       }
       const d = e.target.closest('[data-d]');
       if(!d) return;
-      MC.pick = d.dataset.d; MC.rule = null;
+      MC.pick = d.dataset.d;
       const dd = dObj(MC.pick);
-      if(dd.getMonth() !== MC.m){ MC.y = dd.getFullYear(); MC.m = dd.getMonth(); }
-      drawMc();
-      drawSugg(null);
-      const seq = ++suggSeq;
-      api('/api/suggest?date=' + MC.pick)
-        .then(r => { if(seq === suggSeq) drawSugg(r.items || []); })
-        .catch(err => { if(seq === suggSeq) F('sugg').innerHTML = '<p class="hint">'+esc(err.message)+'</p>'; });
+      MC.y = dd.getFullYear(); MC.m = dd.getMonth();
+      draw();
+      onPick(MC.pick);
     };
+    draw();
+    return draw;
+  }
+  const calAt = s => { const d = dObj(s); return {y: d.getFullYear(), m: d.getMonth(), pick: null}; };
 
-    /* 문장 */
-    const drawSent = () => {
-      const freqs = [['day','매일'],['week','매주'],['month','매월'],['year','매년']];
-      if(legacyQ) freqs.push(['quarter','매 분기']);
-      let h = line('얼마나 자주', seg('freq', freqs, S.freq));
-      if(S.freq === 'day'){
-        h += line('세는 방법', seg('biz', [[0,'달력 날 (날마다)'],[1,'영업일만']], S.biz ? 1 : 0),
-                  S.biz ? '주말 · 공휴일 빼고' : '');
-      }else if(S.freq === 'week'){
-        h += line('요일', '<div class="wd">'+WD.map((w, x) =>
-               (bizOn() && x > 4 && !S.weekdays.includes(x)) ? '' :
-               '<span data-w="'+x+'"'+(S.weekdays.includes(x) ? ' class="on"' : '')+'>'+w+'</span>').join('')+'</div>');
-        h += line('간격', '<div class="row2">'+sel('interval', [[1,'매주'],[2,'격주'],[3,'3주마다'],[4,'4주마다']], S.interval)+'</div>');
-        h += line('주말 · 공휴일에<br>걸리면', seg('shift', SHIFTS, S.shift));
-      }else{
-        if(S.freq === 'year')
-          h += line('달', '<div class="row2">'+sel('ymonth', [...Array(12)].map((_, k) => [k+1, (k+1)+'월']), S.ymonth)+'</div>');
-        h += line('틀', seg('frame', [['date','날짜로'],['weekday','요일로'],['end','말일부터']], S.frame));
-        let when = '';
-        const q = S.freq === 'quarter';
-        if(S.frame === 'date'){
-          const top = nTop(S);
-          const opts = [...Array(top)].map((_, k) => [k+1, (k+1) + (S.biz ? '번째 영업일' : (q ? '일째' : '일'))]);
-          opts.push([-1, S.biz ? '마지막 영업일' : (q ? '분기 마지막 날' : '말일')]);
-          when = sel('n', opts, S.n);
-        }else if(S.frame === 'weekday'){
-          when = sel('wn', [[1,'첫째'],[2,'둘째'],[3,'셋째'],[4,'넷째'],[-1,'마지막']], S.wn)+
-                 sel('weekday', WD.map((w, x) => [x, w+'요일']), S.weekday);
-        }else{
-          when = '<span class="u">'+(q ? '분기말' : '말일')+'</span><input type="number" data-f="k" min="0" max="'+(q ? 60 : 27)+
-                 '" value="'+S.k+'"><span class="u">'+(S.biz ? '영업일 전' : '일 전')+'</span>';
-        }
-        h += line('언제', '<div class="row2">'+when+'</div>', S.frame === 'end' ? '0 이면 말일 당일' : '');
-        if(S.frame !== 'weekday')
-          h += line('세는 방법', seg('biz', [[0,'달력 날'],[1,'영업일']], S.biz ? 1 : 0));
-        const bizCount = S.frame !== 'weekday' && S.biz;
-        h += line('주말 · 공휴일에<br>걸리면', seg('shift', SHIFTS, S.shift, bizCount), bizCount ? '영업일로 세면 걸리지 않음' : '');
-        if(S.freq === 'month'){
-          const ms = (MONTHSETS.find(x => x[0] === S.mset) || [])[2];
-          h += line('실행하는 달', seg('mset', MONTHSETS.map(([v, l]) => [v, l]), S.mset)+
-            (S.mset === 'custom' ? '<div class="mpick">'+[...Array(12)].map((_, k) =>
-              '<span data-m="'+(k+1)+'"'+(S.months.includes(k+1) ? ' class="on"' : '')+'>'+(k+1)+'월</span>').join('')+'</div>' : ''),
-            ms ? ms.join('·') + '월' : '');
-        }
+  /* 아래 띠: 시각 · 알림. 메모에서는 숨기지만 자리는 그대로 둔다 */
+  const whenStrip = (t, lead, muted, hidden) => {
+    const def = STATE.settings.notify_min != null ? STATE.settings.notify_min : 30;
+    const cur = lead != null ? lead : def;
+    const opts = LEADS.slice();
+    if(!opts.some(o => o[0] === cur)) opts.push([cur, leadLabel(cur)]);
+    opts.sort((a, b) => a[0] - b[0]);
+    self.lead = lead;                    /* 손대지 않으면 저장된 값(비어 있으면 "기본")을 그대로 */
+    return '<div class="f-when'+(hidden ? ' off' : '')+'"><span class="step">시각 · 알림</span><div class="when-row">'+
+      tfHtml('time', t)+
+      '<label class="sw"><input type="checkbox" data-f="alarm"'+(muted ? '' : ' checked')+'> 알림</label>'+
+      '<div data-f="leads">'+seg('lead', opts, cur, muted)+'</div></div></div>';
+  };
+  const bindWhen = () => {
+    F('alarm').onchange = () => F('leads').firstChild.classList.toggle('off', !F('alarm').checked);
+    F('leads').onclick = e => {
+      const b = e.target.closest('[data-s="lead"]');
+      if(!b) return;
+      self.lead = +b.dataset.v;
+      F('leads').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    };
+  };
+
+  /* ---------- 할 일: 날짜는 달력으로만 ---------- */
+  function renderDeadline(i){
+    self.date = i.date || shift(1);          /* 기본은 다음 날 (영업일만 쓰면 다음 영업일) */
+    const MC = calAt(self.date);
+    MC.pick = self.date;
+    box.innerHTML =
+      '<div class="f-grid"><div class="f-left"><span class="step">마감 날짜</span><div data-f="mc"></div></div>'+
+      '<div class="f-right"><div class="due" data-f="due"></div></div></div>'+
+      whenStrip(i.time, i.notify_min, i.muted);
+    let redraw;
+    const drawDue = () => {
+      const v = self.date, d = dObj(v);
+      const days = Math.round((d - dObj(STATE.today)) / 864e5);
+      const rel = days === 0 ? '오늘' : days === 1 ? '내일' : days === 2 ? '모레' : days > 0 ? days + '일 뒤' : (-days) + '일 지남';
+      let h = '<b class="due-d">'+(d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일</b>'+
+              '<span class="due-r">'+rel+'</span>';
+      if(bizOn() && !isBiz(v)){
+        const alt = rollBiz(v, -1);
+        h += '<div class="warn-line">이 날은 영업일이 아닙니다'+
+             '<button type="button" data-f="fix">'+fmtDay(alt)+'로</button></div>';
       }
-      F('sent').innerHTML = h;
-      preview();
+      /* 그날 이미 있는 일: 날짜를 고를 때 얼마나 붐비는 날인지 보인다 */
+      const others = deadlines().filter(t => t.due_date === v && !t.done && t.id !== i.id)
+        .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'));
+      h += '<span class="step">같은 날 마감 <i class="opt">'+(others.length ? others.length + '건' : '')+'</i></span>'+
+        (others.length ? others.slice(0, 6).map(t => '<div class="due-o"><span>'+esc(t.due_time || '—')+'</span>'+
+            '<b>'+esc(t.title)+'</b></div>').join('') + (others.length > 6 ? '<div class="due-m">외 '+(others.length - 6)+'건</div>' : '')
+          : '<p class="hint">없음</p>');
+      F('due').innerHTML = h;
+      const fix = F('fix');
+      if(fix) fix.onclick = () => {
+        self.date = rollBiz(v, -1);
+        Object.assign(MC, calAt(self.date), {pick: self.date});
+        redraw(); drawDue();
+      };
+    };
+    const marks = new Set(deadlines().filter(t => !t.done && t.id !== i.id).map(t => t.due_date));
+    redraw = miniCal(F('mc'), MC, key => { self.date = key; drawDue(); }, marks);
+    drawDue();
+    bindWhen();
+  }
+
+  /* ---------- 루틴 ---------- */
+  function renderRoutine(i){
+    const saved = i.rule_n || null;
+    const u = unitOf(saved);
+    const U = {date: i.next_date || i.date || STATE.today, unit:u.unit, every:u.every,
+               items:null, text: saved ? (i.rule_text || '') : '', wds:[]};
+    /* 저장된 주 규칙은 여러 요일일 수 있다. 달력을 건드리기 전까지만 그대로 둔다 */
+    const savedWds = saved && saved.period === 'week' && (saved.weekdays || []).length
+      ? saved.weekdays.slice() : null;
+    const wdOf = key => (dObj(key).getDay() + 6) % 7;      /* 규칙은 월요일이 0 */
+    U.wds = savedWds || [wdOf(U.date)];
+    self.R = saved;                      /* 손대기 전에는 저장된 규칙 그대로 둔다 */
+    const MC = calAt(U.date);
+    MC.pick = U.date;
+
+    box.innerHTML =
+      '<div class="f-grid">'+
+        '<div class="f-left"><span class="step">기준 날짜</span><div data-f="mc"></div></div>'+
+        '<div class="f-right"><div data-f="pick"></div></div>'+
+      '</div>'+ whenStrip(i.time, i.notify_min, i.muted);
+
+    const shift = () => (self.R && self.R.holiday_shift) || (isBiz(U.date) ? 'prev' : 'none');
+
+    /* 고른 규칙의 날짜를 다시 물어 그 줄에 적는다 (휴일 처리를 바꿨을 때) */
+    const refreshDates = () => {
+      const el = box.querySelector('[data-f="dates"]') || box.querySelector('.pk-row.on span');
+      if(!el || !self.R) return;
+      api('/api/preview', {rule: self.R})
+        .then(d => { el.textContent = d.error ? d.error : d.dates.slice(0, 3).join(' · '); })
+        .catch(e => { el.textContent = e.message; });
     };
 
-    /* 조각을 고를 때마다 상태를 고치고 다시 그린다 */
-    F('sent').onclick = e => {
+    const drawPick = () => {
+      let h = line('단위', seg('unit', UNITS, U.unit));
+      if(EVERY[U.unit]) h += line('간격', seg('every', everyOpts(U.unit, U.every), U.every));
+      if(U.unit === 'week'){
+        h += line('요일', '<div class="wd">'+WD.map((w, x) =>
+          '<span data-w="'+x+'"'+(U.wds.includes(x) ? ' class="on"' : '')+'>'+w+'</span>').join('')+'</div>');
+        h += '<p class="dates"><b data-f="rule-t">'+esc(self.R ? describeWeek() : '')+'</b>'+
+             '<span data-f="dates">—</span></p>';
+      }else{
+        h += line('규칙 제안', '<div class="pk-list" data-f="rows"></div>');
+      }
+      /* 매일 도는 일은 걸릴 날이 없다. 영업일로 세는 규칙도 마찬가지 */
+      if(U.unit !== 'day' && !countsBizDays(self.R))
+        h += '<div class="quiet">주말 · 공휴일에 걸리면 '+sel('shift', SHIFTS, shift())+'</div>';
+      F('pick').innerHTML = h;
+      /* 매일 하는 일에는 기준 날짜가 뜻이 없다 - 달력을 쉬게 둔다 */
+      box.querySelector('.f-left').classList.toggle('idle', U.unit === 'day');
+      if(U.unit === 'week') weekRule(false);
+      else drawRows();
+    };
+
+    /* 주: 요일은 여럿일 수 있어 화면에서 바로 만든다 (제안은 한 줄뿐이라 줄 필요가 없다) */
+    function describeWeek(){
+      const head = U.every === 2 ? '격주' : '매주';
+      return U.wds.length ? head+' '+U.wds.slice().sort((a,b)=>a-b).map(x => WD[x]).join('·')+'요일' : '요일을 고르세요';
+    }
+    function weekRule(reset){
+      if(!U.wds.length){ self.R = null; }
+      else self.R = {period:'week', weekdays:U.wds.slice().sort((a,b)=>a-b), interval:U.every,
+                     anchor:U.date, holiday_shift: reset ? (U.wds.every(x => x < 5) ? 'prev' : 'none') : shift()};
+      const t = box.querySelector('[data-f="rule-t"]');
+      if(t) t.textContent = describeWeek();
+      const d = box.querySelector('[data-f="dates"]');
+      if(d) d.textContent = U.wds.length ? '' : '';
+      if(self.R) refreshDates();
+      else if(d) d.textContent = '요일을 하나 이상 고르세요';
+    }
+
+    const drawRows = () => {
+      const el = F('rows');
+      if(!el) return;
+      if(!U.items){ el.innerHTML = '<p class="hint">찾는 중…</p>'; return; }
+      const list = U.items.slice();
+      /* 저장된 규칙이 제안에 없으면(예전 분기 규칙 등) 맨 위에 그대로 남긴다 */
+      if(U.text && !list.some(it => it.text === U.text))
+        list.unshift({text:U.text, dates:[], keep:true});
+      el.innerHTML = list.map((it, k) => '<button type="button" class="pk-row'+(it.text === U.text ? ' on' : '')+
+        '" data-k="'+k+'"><b>'+esc(it.text)+'</b>'+
+        (U.unit === 'day' ? '' : '<span>'+esc((it.dates || []).join(' · '))+'</span>')+'</button>').join('');
+      el.onclick = e => {
+        const b = e.target.closest('[data-k]');
+        if(!b) return;
+        const it = list[+b.dataset.k];
+        if(it.keep) return;              /* 예전 규칙 줄: 그대로 두는 것이 선택이다 */
+        self.R = Object.assign({}, it.rule, {holiday_shift: it.rule.holiday_shift});
+        U.text = it.text;
+        drawPick();
+      };
+    };
+
+    /* 단위 · 간격 · 날짜가 바뀔 때마다 그 조합에 맞는 규칙들을 엔진에 묻는다 */
+    let seq = 0;
+    const load = () => {
+      if(U.unit === 'week'){ weekRule(true); return; }
+      U.items = null;
+      drawRows();
+      const my = ++seq;
+      api('/api/suggest?date='+U.date+'&unit='+U.unit+'&every='+U.every)
+        .then(r => {
+          if(my !== seq) return;
+          U.items = r.items || [];
+          /* 고른 것이 없거나 새 조합이면 가장 흔한 것을 미리 골라 둔다 */
+          const hit = U.items.find(it => it.text === U.text);
+          if(!hit && U.items.length && !(U.text && self.R && sameKind(self.R))){
+            U.text = U.items[0].text;
+            self.R = U.items[0].rule;
+          }else if(hit) self.R = hit.rule;
+          drawPick();
+        })
+        .catch(err => { if(my === seq && F('rows')) F('rows').innerHTML = '<p class="hint">'+esc(err.message)+'</p>'; });
+    };
+    /* 저장된 규칙이 지금 단위와 같은 갈래인가 (고치기로 열었을 때 함부로 바꾸지 않으려고) */
+    const sameKind = r => {
+      const k = unitOf(r);
+      return k.unit === U.unit && k.every === U.every;
+    };
+
+    miniCal(F('mc'), MC, key => {
+      U.date = key;
+      U.moved = true;
+      U.wds = [wdOf(key)];            /* 요일 칩은 늘 고른 날짜를 따라간다 */
+      U.text = '';
+      load();
+    });
+
+    F('pick').onclick = e => {
       const b = e.target.closest('[data-s]');
       if(b){
         const k = b.dataset.s, v = b.dataset.v;
-        if(k === 'freq'){
-          S.freq = v;
-          const base = MC.pick ? dObj(MC.pick) : today;
-          if(v === 'week' && !S.weekdays.length) S.weekdays = [(base.getDay() + 6) % 7];
-          if(v === 'year') S.ymonth = base.getMonth() + 1;
-        }else if(k === 'biz'){
-          S.biz = v === '1';
-          if(S.n > nTop(S)) S.n = -1;
-        }else if(k === 'mset'){
-          S.mset = v;
-          if(v === 'custom' && !S.months.length) S.months = [(MC.pick ? dObj(MC.pick) : today).getMonth() + 1];
-        }else S[k] = v;
-        MC.rule = null;
-        F('sugg').querySelectorAll('button.on').forEach(x => x.classList.remove('on'));
-        return drawSent();
+        if(k === 'unit'){
+          /* 달력에서 목요일을 짚고 단위를 "주" 로 바꾸면 목요일이 켜져 있어야 한다 */
+          if(v === 'week' && U.unit !== 'week') U.wds = (!U.moved && savedWds) || [wdOf(U.date)];
+          U.unit = v; U.every = 1; U.text = '';
+        }
+        else if(k === 'every'){ U.every = +v; U.text = ''; }
+        drawPick();
+        load();
+        return;
       }
       const w = e.target.closest('[data-w]');
       if(w){
         const x = +w.dataset.w;
-        S.weekdays = S.weekdays.includes(x) ? S.weekdays.filter(y => y !== x) : S.weekdays.concat(x);
-        return drawSent();
-      }
-      const m = e.target.closest('[data-m]');
-      if(m){
-        const x = +m.dataset.m;
-        S.months = S.months.includes(x) ? S.months.filter(y => y !== x) : S.months.concat(x);
-        return drawSent();
+        U.wds = U.wds.includes(x) ? U.wds.filter(y => y !== x) : U.wds.concat(x);
+        drawPick();
       }
     };
-    F('sent').onchange = e => {
-      const f = e.target.dataset.f;
-      if(!f) return;
-      let v = +e.target.value;
-      if(f === 'k') v = Math.max(0, Math.min(S.freq === 'quarter' ? 60 : 27, Math.round(v) || 0));
-      S[f] = v;
-      drawSent();
+    F('pick').onchange = e => {
+      if(e.target.dataset.f !== 'shift' || !self.R) return;
+      self.R = Object.assign({}, self.R, {holiday_shift: e.target.value});
+      refreshDates();
     };
 
-    /* 미리보기 요청은 늦게 도착할 수 있다. 조각을 빠르게 바꾸면 이전 요청의 답이
-       나중 것을 덮어써서 "매주" 를 골랐는데 "매월" 날짜가 보였다. 마지막 요청만 반영한다. */
-    let prevSeq = 0;
-    const preview = () => {
-      const seq = ++prevSeq;
-      const bad = self.problem();
-      if(bad){ F('prev').innerHTML = '<b>다음 실행 날짜</b>' + esc(bad); return; }
-      const show = html => { if(seq === prevSeq && F('prev')) F('prev').innerHTML = html; };
-      api('/api/preview', {rule: sToRule(S)})
-        .then(d => show(d.error
-          ? '<b>다음 실행 날짜</b>'+esc(d.error)
-          : '<b>'+esc(d.text)+'</b>'+esc(d.dates.join('   ·   '))))
-        .catch(e => show('<b>다음 실행 날짜</b>'+esc(e.message)));
-    };
+    drawPick();
+    load();
+    bindWhen();
+  }
 
-    drawMc();
-    drawSugg();
-    drawSent();
-    bindTime();
+  /* ---------- 메모: 뼈대는 같고 속만 비운다 ---------- */
+  function renderFloating(){
+    box.innerHTML =
+      '<div class="f-grid memo"></div>'+
+      whenStrip('', null, false, true);
   }
 
   /* 규칙에 빠진 것이 있으면 그 문장, 없으면 '' */
   self.problem = function(){
-    const S = self.S;
-    if(!S) return '';
-    if(S.freq === 'week' && !S.weekdays.length) return '요일을 하나 이상 고르세요';
-    if(S.freq === 'month' && S.mset === 'custom' && !S.months.length) return '실행하는 달을 하나 이상 고르세요';
+    if(self.kind !== 'routine') return '';
+    if(!self.R) return '규칙을 하나 고르세요';
     return '';
   };
 
   self.render = function(kind, i){
     self.kind = kind;
-    self.S = null;
+    self.R = null;
     box.dataset.kind = kind;
-    /* 루틴은 두 칸(날짜로 시작 · 문장)이라 창을 넓힌다 */
-    const modal = box.closest('.modal');
-    if(modal) modal.classList.toggle('rt', kind === 'routine');
+    const win = box.closest('.modal');
+    if(win) win.dataset.kind = kind;
     i = i || {};
-    if(kind === 'floating'){
-      box.innerHTML = '<p class="hint">기한 없이 목록에만 남습니다. 나중에 이 창에서 종류를 바꿔 마감을 붙일 수 있습니다.</p>';
-    } else if(kind === 'deadline'){
-      renderDeadline(i);
-    } else {
-      renderRoutine(i);
-    }
+    if(kind === 'floating') renderFloating();
+    else if(kind === 'deadline') renderDeadline(i);
+    else renderRoutine(i);
   };
 
   self.read = function(){
@@ -1018,8 +1049,8 @@ function Form(box){
     p.due_time = parseTime(F('time').value) || '';
     p.notify_min = self.lead;
     p.muted = !F('alarm').checked;
-    if(self.kind === 'deadline'){ p.due_date = F('date').value || STATE.today; p.rule = null; }
-    else { p.rule = sToRule(self.S); p.due_date = null; }
+    if(self.kind === 'deadline'){ p.due_date = self.date || STATE.today; p.rule = null; }
+    else { p.rule = self.R; p.due_date = null; }
     return p;
   };
 
@@ -1296,21 +1327,23 @@ function drawCal(){
   const cnt = mine.length, left = mine.filter(t => !t.done).length;
   $('#cal-note').textContent = cnt ? cnt + '건 · ' + left + '건 남음' : '마감 없음';
 
-  const cols = weekendOn() ? 7 : 5;
+  /* 보여 줄 요일 (Date.getDay() 값). 주말을 끄면 월~금만 남는다 */
+  const days = weekendOn() ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5];
+  const cols = days.length;
   $('#cal-we').classList.toggle('off', !weekendOn());
   $('#cal-rt').classList.toggle('off', !routinesOn());
   const head = $('#cal-head');
   head.style.setProperty('--cols', cols);
-  head.innerHTML = WD.slice(0, cols)
-    .map((w, k) => '<span' + (k >= 5 ? ' class="we"' : '') + '>' + w + '</span>').join('');
+  head.innerHTML = days.map(w => '<span' + (w === 0 ? ' class="sun"' : w === 6 ? ' class="sat"' : '') +
+    '>' + WD_SUN[w] + '</span>').join('');
 
-  /* 그 달의 첫 주 월요일부터, 마지막 날이 포함된 주까지 */
+  /* 그 달의 첫 주 일요일부터, 마지막 날이 포함된 주까지 */
   const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
   const cur = new Date(first);
-  cur.setDate(first.getDate() - ((first.getDay() + 6) % 7));
-  const hasDay = mon => {                     /* 그 주에 이 달에 속한 칸이 있나 */
-    for(let k = 0; k < cols; k++){
-      const d = new Date(mon); d.setDate(mon.getDate() + k);
+  cur.setDate(first.getDate() - first.getDay());
+  const hasDay = sun => {                     /* 그 주에 이 달에 속한 칸이 있나 */
+    for(const w of days){
+      const d = new Date(sun); d.setDate(sun.getDate() + w);
       if(d.getMonth() === m) return true;
     }
     return false;
@@ -1322,15 +1355,17 @@ function drawCal(){
   const HN = STATE.holiday_names || {};
 
   while(cur <= last && hasDay(cur)){
-    for(let k = 0; k < cols; k++){
-      const d = new Date(cur); d.setDate(cur.getDate() + k);
+    for(const w of days){
+      const d = new Date(cur); d.setDate(cur.getDate() + w);
       const key = iso(d);
       const out = d.getMonth() !== m;
       const hol = HOL.has(key);
       const we = isWeekend(key);
       const cell = document.createElement('div');
       cell.className = 'day' + (out ? ' out' : '') +
-                       (!out && hol ? ' hol' : (!out && we ? ' we' : '')) +
+                       (!out && (hol || we) ? ' we' : '') +
+                       (!out && hol ? ' hol' : '') +
+                       (w === 0 ? ' sun' : w === 6 ? ' sat' : '') +
                        (key === STATE.today ? ' now' : '');
       const num = key === STATE.today ? '<b>' + d.getDate() + '</b>' : d.getDate();
       cell.innerHTML = '<div class="n">' + num +

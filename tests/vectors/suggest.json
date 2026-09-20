@@ -1,16 +1,16 @@
 {
- "about": "Rule suggestions for one example date (routine editor, 'start from a date'). Python recur.suggest and the Android app must return exactly these, in this order. Checked by hand against the 2026-2027 Korean holiday table, e.g. 2026-10-14 is the 8th business day of October (Oct 3, 5, 9 are holidays).",
+ "about": "Routine editor: one example date + a unit (and how many units apart) -> the rules that run on that date, most common first. Python recur.suggest and the Android app must return exactly these, in this order. Every rule here is validate_rule-clean and (except for the 'day' unit, where an example date means nothing) fires on the date.",
  "cases": [
   {
    "date": "2026-09-30",
+   "unit": "month",
+   "every": 1,
+   "why": "말일 · 마지막 영업일 · 마지막 수요일이 한 날에 겹친다",
    "expect": [
     "매월 말일",
     "매월 마지막 영업일",
     "매월 30일",
-    "매월 마지막 수요일",
-    "매주 수요일",
-    "3·6·9·12월 말일",
-    "매년 9월 30일"
+    "매월 마지막 수요일"
    ],
    "rules": [
     {
@@ -37,16 +37,21 @@
      "basis": "weekday",
      "n": -1,
      "weekday": 2
-    },
-    {
-     "period": "week",
-     "holiday_shift": "prev",
-     "weekdays": [
-      2
-     ],
-     "interval": 1,
-     "anchor": "2026-09-30"
-    },
+    }
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "unit": "month",
+   "every": 3,
+   "why": "분기: 예시 달에서 3달씩 → 3·6·9·12월",
+   "expect": [
+    "3·6·9·12월 말일",
+    "3·6·9·12월 마지막 영업일",
+    "3·6·9·12월 30일",
+    "3·6·9·12월 마지막 수요일"
+   ],
+   "rules": [
     {
      "period": "month",
      "holiday_shift": "prev",
@@ -62,8 +67,213 @@
     {
      "period": "month",
      "holiday_shift": "prev",
+     "basis": "business_day",
+     "n": -1,
+     "months": [
+      3,
+      6,
+      9,
+      12
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
      "basis": "day",
      "n": 30,
+     "months": [
+      3,
+      6,
+      9,
+      12
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 2,
+     "months": [
+      3,
+      6,
+      9,
+      12
+     ]
+    }
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "unit": "month",
+   "every": 6,
+   "why": "반기: 9월 기준이라 3·9월 (6·12월이 아니다)",
+   "expect": [
+    "3·9월 말일",
+    "3·9월 마지막 영업일",
+    "3·9월 30일",
+    "3·9월 마지막 수요일"
+   ],
+   "rules": [
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "day",
+     "n": -1,
+     "months": [
+      3,
+      9
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "business_day",
+     "n": -1,
+     "months": [
+      3,
+      9
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "day",
+     "n": 30,
+     "months": [
+      3,
+      9
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 2,
+     "months": [
+      3,
+      9
+     ]
+    }
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "unit": "month",
+   "every": 2,
+   "why": "두 달마다",
+   "expect": [
+    "1·3·5·7·9·11월 말일",
+    "1·3·5·7·9·11월 마지막 영업일",
+    "1·3·5·7·9·11월 30일",
+    "1·3·5·7·9·11월 마지막 수요일"
+   ],
+   "rules": [
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "day",
+     "n": -1,
+     "months": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "business_day",
+     "n": -1,
+     "months": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "day",
+     "n": 30,
+     "months": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 2,
+     "months": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11
+     ]
+    }
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "unit": "year",
+   "every": 1,
+   "why": "해마다 그 달 그 날",
+   "expect": [
+    "매년 9월 말일",
+    "매년 9월 마지막 영업일",
+    "매년 9월 30일",
+    "매년 9월 마지막 수요일"
+   ],
+   "rules": [
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "day",
+     "n": -1,
+     "months": [
+      9
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "business_day",
+     "n": -1,
+     "months": [
+      9
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "day",
+     "n": 30,
+     "months": [
+      9
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 2,
      "months": [
       9
      ]
@@ -71,13 +281,76 @@
    ]
   },
   {
+   "date": "2026-09-30",
+   "unit": "week",
+   "every": 1,
+   "why": "그 요일에 매주",
+   "expect": [
+    "매주 수요일"
+   ],
+   "rules": [
+    {
+     "period": "week",
+     "holiday_shift": "prev",
+     "weekdays": [
+      2
+     ],
+     "interval": 1,
+     "anchor": "2026-09-30"
+    }
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "unit": "week",
+   "every": 2,
+   "why": "격주 - 예시 날짜가 있는 주가 기준",
+   "expect": [
+    "격주 수요일"
+   ],
+   "rules": [
+    {
+     "period": "week",
+     "holiday_shift": "prev",
+     "weekdays": [
+      2
+     ],
+     "interval": 2,
+     "anchor": "2026-09-30"
+    }
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "unit": "day",
+   "every": 1,
+   "why": "매일은 예시 날짜와 무관하다",
+   "expect": [
+    "매일",
+    "매일 · 영업일만"
+   ],
+   "rules": [
+    {
+     "period": "day",
+     "holiday_shift": "prev",
+     "business_only": false
+    },
+    {
+     "period": "day",
+     "holiday_shift": "prev",
+     "business_only": true
+    }
+   ]
+  },
+  {
    "date": "2026-10-02",
+   "unit": "month",
+   "every": 1,
+   "why": "10월 2일은 2번째 영업일 (10/1 은 국경일)",
    "expect": [
     "매월 2일",
     "매월 2번째 영업일",
-    "매월 1번째 금요일",
-    "매주 금요일",
-    "매년 10월 2일"
+    "매월 첫째 금요일"
    ],
    "rules": [
     {
@@ -98,77 +371,18 @@
      "basis": "weekday",
      "n": 1,
      "weekday": 4
-    },
-    {
-     "period": "week",
-     "holiday_shift": "prev",
-     "weekdays": [
-      4
-     ],
-     "interval": 1,
-     "anchor": "2026-10-02"
-    },
-    {
-     "period": "month",
-     "holiday_shift": "prev",
-     "basis": "day",
-     "n": 2,
-     "months": [
-      10
-     ]
-    }
-   ]
-  },
-  {
-   "date": "2026-09-26",
-   "expect": [
-    "매월 26일",
-    "매월 마지막 토요일",
-    "매주 토요일",
-    "매년 9월 26일"
-   ],
-   "rules": [
-    {
-     "period": "month",
-     "holiday_shift": "none",
-     "basis": "day",
-     "n": 26
-    },
-    {
-     "period": "month",
-     "holiday_shift": "none",
-     "basis": "weekday",
-     "n": -1,
-     "weekday": 5
-    },
-    {
-     "period": "week",
-     "holiday_shift": "none",
-     "weekdays": [
-      5
-     ],
-     "interval": 1,
-     "anchor": "2026-09-26"
-    },
-    {
-     "period": "month",
-     "holiday_shift": "none",
-     "basis": "day",
-     "n": 26,
-     "months": [
-      9
-     ]
     }
    ]
   },
   {
    "date": "2026-10-14",
+   "unit": "month",
+   "every": 1,
+   "why": "8번째 영업일 (10/3 · 5 · 9 가 공휴일)",
    "expect": [
     "매월 14일",
     "매월 8번째 영업일",
-    "매월 2번째 수요일",
-    "매주 수요일",
-    "매년 10월 14일"
+    "매월 둘째 수요일"
    ],
    "rules": [
     {
@@ -189,37 +403,51 @@
      "basis": "weekday",
      "n": 2,
      "weekday": 2
-    },
+    }
+   ]
+  },
+  {
+   "date": "2026-09-26",
+   "unit": "month",
+   "every": 1,
+   "why": "토요일: 휴일 보정 없이 그대로, 영업일 읽기는 빠진다",
+   "expect": [
+    "매월 26일",
+    "매월 마지막 토요일",
+    "매월 말일 4일 전"
+   ],
+   "rules": [
     {
-     "period": "week",
-     "holiday_shift": "prev",
-     "weekdays": [
-      2
-     ],
-     "interval": 1,
-     "anchor": "2026-10-14"
+     "period": "month",
+     "holiday_shift": "none",
+     "basis": "day",
+     "n": 26
     },
     {
      "period": "month",
-     "holiday_shift": "prev",
-     "basis": "day",
-     "n": 14,
-     "months": [
-      10
-     ]
+     "holiday_shift": "none",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 5
+    },
+    {
+     "period": "month",
+     "holiday_shift": "none",
+     "basis": "before_end",
+     "k": 4
     }
    ]
   },
   {
    "date": "2026-12-31",
+   "unit": "month",
+   "every": 1,
+   "why": "말일이자 마지막 영업일",
    "expect": [
     "매월 말일",
     "매월 마지막 영업일",
     "매월 31일",
-    "매월 마지막 목요일",
-    "매주 목요일",
-    "3·6·9·12월 말일",
-    "매년 12월 31일"
+    "매월 마지막 목요일"
    ],
    "rules": [
     {
@@ -246,16 +474,21 @@
      "basis": "weekday",
      "n": -1,
      "weekday": 3
-    },
-    {
-     "period": "week",
-     "holiday_shift": "prev",
-     "weekdays": [
-      3
-     ],
-     "interval": 1,
-     "anchor": "2026-12-31"
-    },
+    }
+   ]
+  },
+  {
+   "date": "2026-12-31",
+   "unit": "month",
+   "every": 3,
+   "why": "12월 기준 분기 → 3·6·9·12월",
+   "expect": [
+    "3·6·9·12월 말일",
+    "3·6·9·12월 마지막 영업일",
+    "3·6·9·12월 31일",
+    "3·6·9·12월 마지막 목요일"
+   ],
+   "rules": [
     {
      "period": "month",
      "holiday_shift": "prev",
@@ -271,9 +504,37 @@
     {
      "period": "month",
      "holiday_shift": "prev",
+     "basis": "business_day",
+     "n": -1,
+     "months": [
+      3,
+      6,
+      9,
+      12
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
      "basis": "day",
      "n": 31,
      "months": [
+      3,
+      6,
+      9,
+      12
+     ]
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 3,
+     "months": [
+      3,
+      6,
+      9,
       12
      ]
     }
@@ -281,12 +542,13 @@
   },
   {
    "date": "2026-11-02",
+   "unit": "month",
+   "every": 1,
+   "why": "첫 영업일이자 첫째 월요일",
    "expect": [
     "매월 2일",
     "매월 1번째 영업일",
-    "매월 1번째 월요일",
-    "매주 월요일",
-    "매년 11월 2일"
+    "매월 첫째 월요일"
    ],
    "rules": [
     {
@@ -307,35 +569,19 @@
      "basis": "weekday",
      "n": 1,
      "weekday": 0
-    },
-    {
-     "period": "week",
-     "holiday_shift": "prev",
-     "weekdays": [
-      0
-     ],
-     "interval": 1,
-     "anchor": "2026-11-02"
-    },
-    {
-     "period": "month",
-     "holiday_shift": "prev",
-     "basis": "day",
-     "n": 2,
-     "months": [
-      11
-     ]
     }
    ]
   },
   {
    "date": "2027-02-26",
+   "unit": "month",
+   "every": 1,
+   "why": "2월 말: 말일 2일 전 · 마지막 영업일",
    "expect": [
     "매월 마지막 영업일",
     "매월 26일",
     "매월 마지막 금요일",
-    "매주 금요일",
-    "매년 2월 26일"
+    "매월 말일 2일 전"
    ],
    "rules": [
     {
@@ -358,22 +604,49 @@
      "weekday": 4
     },
     {
-     "period": "week",
+     "period": "month",
      "holiday_shift": "prev",
-     "weekdays": [
-      4
-     ],
-     "interval": 1,
-     "anchor": "2027-02-26"
-    },
+     "basis": "before_end",
+     "k": 2
+    }
+   ]
+  },
+  {
+   "date": "2026-10-28",
+   "unit": "month",
+   "every": 1,
+   "why": "말일 3일 전 · 마지막 수요일",
+   "expect": [
+    "매월 28일",
+    "매월 마지막 수요일",
+    "매월 말일 3일 전",
+    "매월 말일 2영업일 전"
+   ],
+   "rules": [
     {
      "period": "month",
      "holiday_shift": "prev",
      "basis": "day",
-     "n": 26,
-     "months": [
-      2
-     ]
+     "n": 28
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "weekday",
+     "n": -1,
+     "weekday": 2
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "before_end",
+     "k": 3
+    },
+    {
+     "period": "month",
+     "holiday_shift": "prev",
+     "basis": "before_end_bd",
+     "k": 2
     }
    ]
   }

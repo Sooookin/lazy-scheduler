@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -44,6 +46,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 internal val WDS = listOf("월", "화", "수", "목", "금", "토", "일")
+/** 달력은 일요일이 맨 왼쪽이다. 규칙(weekdays)은 예전대로 월요일이 0 이므로 둘을 섞지 않는다. */
+internal val WDS_SUN = listOf("일", "월", "화", "수", "목", "금", "토")
 
 @OptIn(ExperimentalFoundationApi::class)
 internal fun Modifier.tap(onClick: () -> Unit): Modifier = this.combinedClickable(onClick = onClick)
@@ -132,25 +136,34 @@ internal fun CheckDot(done: Boolean, onClick: () -> Unit) {
             ),
             contentAlignment = Alignment.Center,
         ) {
-            if (done) Canvas(Modifier.size(12.dp)) {
+            // 줄마다 하나씩 있다 - 길과 붓은 한 번만 만들고 그리기만 되풀이한다
+            if (done) Box(Modifier.size(12.dp).drawWithCache {
                 val p = Path().apply {
                     moveTo(size.width * .12f, size.height * .55f)
                     lineTo(size.width * .40f, size.height * .80f)
                     lineTo(size.width * .90f, size.height * .22f)
                 }
-                drawPath(p, Ink.onMid, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-            }
+                val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                onDrawBehind { drawPath(p, Ink.onMid, style = stroke) }
+            })
         }
     }
 }
 
 /** A pressed-in single-line text field with a placeholder. */
 @Composable
-internal fun InField(value: String, placeholder: String, modifier: Modifier = Modifier, onChange: (String) -> Unit) {
+internal fun InField(
+    value: String,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    onChange: (String) -> Unit,
+) {
     Box(modifier.fillMaxWidth().inset(12.dp).padding(horizontal = 14.dp, vertical = 13.dp)) {
         if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = Ink.dim)
         BasicTextField(
-            value = value, onValueChange = onChange, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            value = value, onValueChange = onChange, singleLine = singleLine,
+            modifier = Modifier.fillMaxWidth().then(if (singleLine) Modifier else Modifier.fillMaxHeight()),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink.ink2), cursorBrush = SolidColor(Ink.mid),
         )
     }
