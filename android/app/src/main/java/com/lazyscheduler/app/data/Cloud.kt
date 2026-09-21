@@ -100,6 +100,39 @@ object Cloud {
         FirebaseAuth.getInstance().signOut()
     }
 
+    /**
+     * Delete this account and everything it has in the cloud. There is no undo.
+     *
+     * The order matters: the documents go first. Deleting the account first kills the
+     * token, and the rules only let the owner delete their own documents - what is left
+     * would stay there for good. Returns null on success, or a sentence to show.
+     */
+    suspend fun deleteAccount(): String? {
+        val user = user() ?: return "로그인되어 있지 않습니다"
+        val uid = user.uid
+        return try {
+            // 하나의 batch 는 500 개까지. 남는 것이 없을 때까지 되풀이한다.
+            for (col in listOf(tasks(uid), db().collection("users").document(uid).collection("meta"))) {
+                while (true) {
+                    val page = col.limit(400).get(Source.SERVER).await()
+                    if (page.isEmpty) break
+                    val batch = db().batch()
+                    for (doc in page.documents) batch.delete(doc.reference)
+                    batch.commit().await()
+                }
+            }
+            user.delete().await()
+            Log.i(TAG, "deleted account and cloud data")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "deleteAccount", e)
+            // 오래 로그인해 둔 뒤에는 구글이 다시 로그인하기를 요구한다
+            if (e is com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException)
+                "보안을 위해 다시 로그인한 뒤에 지울 수 있습니다. 로그아웃하고 다시 로그인해 주세요."
+            else "지우지 못했습니다 (${e.message})"
+        }
+    }
+
     // ---------- data ----------
 
     private fun db() = FirebaseFirestore.getInstance()

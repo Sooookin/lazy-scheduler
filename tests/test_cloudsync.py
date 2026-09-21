@@ -35,8 +35,11 @@ class FakeFirestore:
     # --- commit ---
     def commit(self, writes):
         stamp = self.now()
-        staged = {}
+        staged, gone = {}, []
         for w in writes:
+            if "delete" in w:                   # 계정 삭제가 쓰는 길
+                gone.append(w["delete"])
+                continue
             name = w["update"]["name"]
             fields = cloudsync.decode_fields(w["update"].get("fields"))
             before = staged.get(name, self.docs.get(name, (None, None)))[0]
@@ -57,6 +60,8 @@ class FakeFirestore:
             self._rules(name, before, base)
             staged[name] = (base, stamp)
         self.docs.update(staged)
+        for name in gone:
+            self.docs.pop(name, None)
         self.commits += 1
         return {"commitTime": stamp}
 
@@ -121,6 +126,60 @@ def cloud(monkeypatch):
 
 def local(tid):
     return next(t for t in store.load()["tasks"] if t.get("id") == tid)
+
+
+# ---------- 계정과 올라간 것 지우기 ----------
+
+def test_delete_account_removes_every_document(cloud, monkeypatch):
+    """지우고 나면 클라우드에 이 계정의 문서가 하나도 남지 않는다."""
+    store.add(DAILY)
+    store.add({"title": "보고서", "kind": "deadline", "due_date": "2026-09-30"})
+    store.update_settings({"notify_min": 15})
+    assert cloudsync.sync_once()
+    assert [n for n in cloud.docs if n.startswith(ROOT)]
+
+    killed = []
+    monkeypatch.setattr(cloudauth, "delete_account", lambda: killed.append(True))
+    out = cloudsync.delete_account()
+
+    assert [n for n in cloud.docs if n.startswith(ROOT)] == []
+    assert out["deleted"] == 3 and out["wiped"] == 0
+    assert killed == [True]
+
+
+def test_delete_account_stops_sync_so_nothing_is_uploaded_again(cloud, monkeypatch):
+    """지운 뒤에 맞추기가 돌아도 되살아나지 않는다 - 동기화가 꺼져 있어야 한다."""
+    store.add(DAILY)
+    assert cloudsync.sync_once()
+    monkeypatch.setattr(cloudauth, "delete_account", lambda: None)
+    cloudsync.delete_account()
+
+    assert not store.sync_enabled()
+    assert cloudsync.sync_once() is False          # 아무것도 하지 않는다
+    assert [n for n in cloud.docs if n.startswith(ROOT)] == []
+
+
+def test_delete_account_keeps_this_pc_unless_asked(cloud, monkeypatch):
+    """이 PC 의 일정은 기본으로 남고, 고른 경우에만 지운다."""
+    store.add(DAILY)
+    assert cloudsync.sync_once()
+    monkeypatch.setattr(cloudauth, "delete_account", lambda: None)
+
+    cloudsync.delete_account()
+    assert len(store.tasks()) == 1                 # 남아 있다
+    assert store.settings()["notify_min"] is not None
+
+    store.sync_enable(UID)
+    assert cloudsync.sync_once()
+    out = cloudsync.delete_account(local=True)
+    assert out["wiped"] == 1 and store.tasks() == []
+    assert store.settings()["notify_min"] is not None   # 설정은 남긴다
+
+
+def test_delete_account_refuses_when_signed_out(cloud):
+    store.sync_disable()
+    with pytest.raises(cloudsync.SyncError):
+        cloudsync.delete_account()
 
 
 # ---------- 처음 맞추기 ----------

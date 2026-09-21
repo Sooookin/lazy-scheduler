@@ -231,6 +231,7 @@
   <div class="quick">
     <button type="button" id="sync-now" hidden>지금 동기화</button>
     <button type="button" id="sync-btn" hidden>Google 계정으로 로그인</button>
+    <button type="button" class="danger" id="sync-del" hidden>계정 · 클라우드 데이터 삭제</button>
   </div>
 
   <span class="step">프로그램</span>
@@ -254,6 +255,7 @@
 <div class="modal narrow" id="m-confirm" role="alertdialog" aria-modal="true" aria-labelledby="cf-title">
   <h3 id="cf-title">확인</h3>
   <p class="hint" id="cf-msg"></p>
+  <div id="cf-extra"></div>
   <div class="btns"><button class="ghost" data-close>취소</button><button class="danger-solid" id="cf-ok">삭제</button></div>
 </div>
 

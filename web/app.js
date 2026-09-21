@@ -1130,9 +1130,10 @@ $('#e-del').onclick = () => { closeAll(); removeSoon(EDIT); };
 
 /* 확인 단추의 글자는 하는 일을 그대로 말한다. 예전에는 늘 "삭제" 라서
    "완전히 종료할까요?" 에도 삭제 단추가 떴다. */
-function confirmBox(title, msg, onOk, okLabel){
+function confirmBox(title, msg, onOk, okLabel, extra){
   $('#cf-title').textContent = title;
   $('#cf-msg').textContent = msg;
+  $('#cf-extra').innerHTML = extra || '';       /* 여기 들어가는 것은 우리가 적은 것뿐이다 */
   $('#cf-ok').textContent = okLabel || '삭제';
   $('#cf-ok').onclick = onOk;
   openM('#m-confirm');
@@ -1513,10 +1514,10 @@ $('#btn-settings').onclick = () => {
    있는 동안 1.5초마다 진행을 묻는다. 창을 닫으면 묻지 않는다 (로그인은 계속된다). */
 let syncPoll = null;
 function paintSync(s){
-  const msg = $('#sync-msg'), btn = $('#sync-btn'), now = $('#sync-now');
+  const msg = $('#sync-msg'), btn = $('#sync-btn'), now = $('#sync-now'), del = $('#sync-del');
   btn.disabled = false;
-  now.hidden = !(s.configured && s.signed_in);
-  now.disabled = !!s.syncing;
+  now.hidden = del.hidden = !(s.configured && s.signed_in);
+  now.disabled = del.disabled = !!s.syncing;
   if(!s.configured){
     msg.textContent = '동기화 설정이 없는 빌드입니다.';
     btn.hidden = true;
@@ -1558,6 +1559,28 @@ $('#sync-btn').onclick = () => api('/api/sync').then(s => {
     api('/api/sync/signin', {}).then(() => refreshSync());
   }
 });
+/* 계정 지우기. 되돌릴 수 없으므로 무엇이 지워지고 무엇이 남는지 먼저 적어 준다.
+   이 PC 의 일정은 기본으로 남긴다 - 계정을 정리하려는 것과 이 PC 를 비우려는 것은 다른 일이다. */
+$('#sync-del').onclick = () => confirmBox(
+  '계정과 클라우드 데이터를 지울까요?',
+  '클라우드에 올라간 일정이 모두 지워지고 로그인이 끊깁니다. 되돌릴 수 없습니다.',
+  () => {
+    const local = !!($('#cf-local') && $('#cf-local').checked);
+    $('#cf-ok').disabled = true;
+    $('#cf-ok').textContent = '지우는 중…';
+    api('/api/sync/delete-account', {local: local})
+      .then(after => {
+        closeM('#m-confirm');
+        paintSync(after);
+        say('계정을 지웠습니다' + (after.wiped ? ' · 이 PC 의 일정 ' + after.wiped + '건도' : ''));
+        load();
+      })
+      .catch(e => { closeM('#m-confirm'); say(e.message); })
+      .then(() => { $('#cf-ok').disabled = false; $('#cf-ok').textContent = '삭제'; });
+  }, '삭제',
+  '<label class="chk"><input type="checkbox" id="cf-local"> 이 PC 의 일정도 함께 지우기 ' +
+  '<i class="opt">기본은 남겨 둡니다</i></label>');
+
 /* 지금 맞추기: 뒤에서 2초 뒤에 시작하므로, 조금 기다렸다가 결과를 묻고 목록도 다시 읽는다 */
 $('#sync-now').onclick = () => api('/api/sync/now', {}).then(() => {
   $('#sync-msg').textContent = '맞추는 중…';

@@ -321,6 +321,47 @@ def kick():
     _wake.set()
 
 
+# ---------------- 계정과 올라간 것 지우기 ----------------
+
+def delete_cloud(conf, uid):
+    """이 계정으로 올라간 문서를 모두 지운다. 지운 수를 돌려준다."""
+    gone = 0
+    for collection in ("tasks", "meta"):
+        for _ in range(40):                      # 끝나지 않는 되풀이를 막는다
+            docs, _cursor = pull_all(conf, uid, collection, None)
+            if not docs:
+                break
+            for start in range(0, len(docs), COMMIT_MAX):
+                chunk = docs[start:start + COMMIT_MAX]
+                _commit([{"delete": d["name"]} for d in chunk], conf)
+                gone += len(chunk)
+    return gone
+
+
+def delete_account(local=False):
+    """계정과 클라우드에 올라간 것을 지운다. local 이면 이 기기의 일정도.
+
+    순서가 중요하다.
+      1. 동기화를 먼저 끈다 - 지우는 동안 맞추기가 돌아 다시 올리면 안 된다.
+         (sync_once 는 sync_enabled() 가 아니면 곧바로 돌아간다. 토큰은 그대로 살아 있다.)
+      2. 문서를 지운다 - 아직 로그인한 상태여야 규칙이 지우기를 허락한다.
+      3. 계정을 지운다.
+      4. 골랐으면 이 기기의 일정도 지운다.
+    """
+    conf = cloudauth.config()
+    uid = store.sync_state().get("uid") or (cloudauth.account() or {}).get("uid")
+    if conf is None or not uid:
+        raise SyncError("로그인되어 있지 않습니다")
+    with _run_lock:                              # 맞추기가 도는 중이면 끝날 때까지
+        store.sync_disable()
+        gone = delete_cloud(conf, uid)
+        cloudauth.delete_account()               # 여기서 로그아웃까지 한다
+    wiped = store.wipe_tasks() if local else 0
+    _status.update(last_ok="", error="")
+    paths.log("cloudsync: 계정 삭제 - 문서 %d 개, 이 기기 %d 건" % (gone, wiped))
+    return {"deleted": gone, "wiped": wiped}
+
+
 def run_forever():
     failures, delay = 0, 3.0
     while True:

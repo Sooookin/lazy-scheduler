@@ -353,6 +353,13 @@ svg{display:block}
 .day .more{font-size:10px; font-weight:var(--w-pri); color:var(--mid-ink); text-align:right; padding-right:2px; flex:0 0 auto}
 .day .more:hover{color:var(--ink2)}
 
+/* 되돌릴 수 없는 것 하나. 다른 단추와 같은 크기지만 글자만 먹빛이라 눈에 걸린다 */
+.quick button.danger{color:var(--deep)}
+.quick button.danger:hover{color:var(--onmid); background-color:var(--deep)}
+/* 확인 창의 덧붙임 (지울 범위를 고르는 칸) */
+#cf-extra:empty{display:none}
+#cf-extra{margin:2px 0 4px}
+
 /* ---------- 창 (모달) ----------
    display 로 켜고 끄면 나타나는 움직임을 줄 수 없다. visibility · opacity · transform 으로 연다. */
 .veil{position:fixed; inset:0; z-index:10; background-color:rgba(43,38,32,.24);

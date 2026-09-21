@@ -88,6 +88,8 @@ import com.lazyscheduler.app.data.Cloud
 import com.lazyscheduler.app.reminders.Reminders
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.TextButton
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -184,6 +186,9 @@ private fun Home(user: FirebaseUser) {
     var editor by remember { mutableStateOf<Editing?>(null) }
     var menu by remember { mutableStateOf(false) }
     var overview by remember { mutableStateOf(false) }
+    var askDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     var openRow by remember { mutableStateOf<String?>(null) }
 
     // ---- undo ----
@@ -284,6 +289,9 @@ private fun Home(user: FirebaseUser) {
                                 menu = false
                             })
                         DropdownMenuItem(text = { Text("로그아웃") }, onClick = { menu = false; Cloud.signOut(context) })
+                        DropdownMenuItem(
+                            text = { Text("계정 · 데이터 삭제", color = Ink.danger) },
+                            onClick = { menu = false; askDelete = true })
                     }
                 }
             }
@@ -405,6 +413,21 @@ private fun Home(user: FirebaseUser) {
         }
     }
 
+    if (askDelete) DeleteAccount(
+        busy = deleting,
+        error = deleteError,
+        onDismiss = { if (!deleting) { askDelete = false; deleteError = null } },
+        onConfirm = {
+            deleting = true
+            deleteError = null
+            scope.launch {
+                val err = Cloud.deleteAccount()
+                deleting = false
+                if (err == null) askDelete = false else deleteError = err
+            }
+        },
+    )
+
     editor?.let { e ->
         ItemEditor(
             existing = e.task,
@@ -484,6 +507,40 @@ private fun InstanceRow(
         ItemRow(i, today, now, showDate = tab == Tab.UPCOMING, hide = hide) { toggle(i) }
     }
     Rule()
+}
+
+/**
+ * 계정 지우기. 되돌릴 수 없으니 무엇이 지워지는지 먼저 적는다. 성공하면 로그인이
+ * 풀려서 화면이 저절로 로그인 화면으로 돌아간다 - 따로 닫아 줄 것이 없다.
+ */
+@Composable
+private fun DeleteAccount(busy: Boolean, error: String?, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.clip(RoundedCornerShape(22.dp)).background(Ink.card).padding(22.dp)) {
+            Text("계정과 데이터를 지울까요?", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(10.dp))
+            Text("계정에 올라간 일정이 모두 지워지고 로그인이 끊깁니다. PC 에서도 사라집니다. 되돌릴 수 없습니다.",
+                style = MaterialTheme.typography.bodyMedium)
+            if (error != null) {
+                Spacer(Modifier.height(10.dp))
+                Text(error, style = MaterialTheme.typography.bodyMedium, color = Ink.danger)
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss, enabled = !busy) { Text("취소", color = Ink.faint) }
+                Spacer(Modifier.width(4.dp))
+                Box(
+                    Modifier.clip(RoundedCornerShape(22.dp)).background(if (busy) Ink.pale else Ink.danger)
+                        .then(if (busy) Modifier else Modifier.tap(onConfirm))
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                ) {
+                    Text(if (busy) "지우는 중…" else "삭제", style = MaterialTheme.typography.labelLarge,
+                        color = if (busy) Ink.faint else Color.White)
+                }
+            }
+        }
+    }
 }
 
 @Composable

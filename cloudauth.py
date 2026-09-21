@@ -29,6 +29,7 @@ GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 SIGN_IN_WITH_IDP = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp"
 REFRESH = "https://securetoken.googleapis.com/v1/token"
+DELETE_ACCOUNT = "https://identitytoolkit.googleapis.com/v1/accounts:delete"
 SCOPES = "openid email profile"
 CONFIG_KEYS = ("project_id", "api_key", "client_id", "client_secret")
 WAIT_S = 300                    # 브라우저에서 로그인을 마칠 때까지 기다리는 시간
@@ -248,6 +249,22 @@ def sign_in(open_url=webbrowser.open, wait_s=WAIT_S):
         store.sync_enable(uid)
     paths.log("cloudauth: 로그인 (%s)" % (fb.get("email") or uid))
     return account()
+
+
+def delete_account():
+    """이 앱이 만든 계정 자체를 지운다 (Firebase Auth).
+
+    클라우드에 올라간 문서를 먼저 지운 뒤에 불러야 한다. 계정을 먼저 지우면 토큰이
+    죽어서 남은 문서를 지울 길이 사라진다 - 규칙이 본인만 지울 수 있게 해 두었다.
+
+    지운 뒤에는 로그아웃까지 한다. 같은 구글 계정으로 다시 로그인하면 새 계정이
+    만들어지므로, 그때는 이 기기에 남은 일정이 그 새 계정으로 올라간다.
+    """
+    c = _need_config()
+    token = id_token()                   # 아직 살아 있는 동안에
+    _post(DELETE_ACCOUNT + "?key=" + urllib.parse.quote(c["api_key"]), {"idToken": token})
+    paths.log("cloudauth: 계정을 지웠다")
+    sign_out()
 
 
 def sign_out():

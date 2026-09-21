@@ -389,6 +389,24 @@ def sync_disable():
         _clear_sync_files()
 
 
+def wipe_tasks():
+    """이 기기의 일정을 모두 지운다. 되돌릴 수 없다.
+
+    계정 삭제에서 "이 기기의 일정도" 를 고른 경우에만 부른다. 그때는 이미 동기화가
+    꺼져 있으므로 보낼 목록에 남지 않는다 - 지운 것이 서버로 되돌아가지 않는다.
+    설정과 공휴일은 남긴다 (개인 정보가 아니고, 다시 채우게 하면 성가시기만 하다).
+    지우기 직전의 백업은 여느 쓰기와 같이 backups 폴더에 남는다.
+    """
+    with LOCK:
+        d, _ = _read()
+        n = len(d.get("tasks") or [])
+        d["tasks"] = []
+        _backup_before_write()
+        _write_json(DATA, d)
+    paths.log("store: 이 기기의 일정 %d 건을 지웠다 (계정 삭제)" % n)
+    return n
+
+
 def _clear_sync_files():
     for f in (OUTBOX, SYNC_STATE):
         try:

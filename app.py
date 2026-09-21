@@ -468,6 +468,11 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/sync/now":
             cloudsync.kick()
             return self._send(200, sync_status())
+        if p == "/api/sync/delete-account":
+            # 되돌릴 수 없다. 창에서 한 번 더 묻고 나서 부른다.
+            local = bool(body.get("local")) if isinstance(body, dict) else False
+            done = cloudsync.delete_account(local=local)
+            return self._send(200, dict(sync_status(), **done))
         if p == "/api/hidden":
             _hint_hidden()
             return self._send(200, {"ok": True})
