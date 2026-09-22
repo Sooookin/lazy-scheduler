@@ -1,0 +1,282 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:1460px; height:800px; padding:36px 44px}
+    h1{font-weight:300; font-size:26px; color:var(--ink2); margin:0 0 8px; letter-spacing:-.5px}
+    .lede{font-size:13.5px; line-height:1.75; font-weight:400; margin:0 0 26px; max-width:1180px}
+    .phones{display:flex; gap:38px; align-items:flex-start}
+    .col{width:390px}
+    .cap{margin-top:14px; font-size:12.5px; line-height:1.7; font-weight:400}
+    .cap b{color:var(--ink2); font-weight:500; display:block; margin-bottom:3px}
+    .ph{width:390px; height:440px; border-radius:36px; overflow:hidden; position:relative;
+        background:var(--bg); border:8px solid #14181a; box-shadow:0 18px 44px rgba(20,24,26,.30)}
+    .scr{position:absolute; inset:0; padding:18px 18px 0; display:flex; flex-direction:column}
+
+    /* ── 머리: 날짜 · 영업일 자 ── */
+    .hd{display:flex; align-items:flex-end; gap:12px; padding:6px 4px 0}
+    .dm{font-size:12px; font-weight:400; color:var(--faint)}
+    .dd{font-size:27px; font-weight:300; color:var(--ink2); letter-spacing:-.6px; line-height:1.1}
+    .bdays{margin:14px 4px 6px; display:flex; align-items:center; gap:9px}
+    .tick{display:flex; gap:3px; flex:1}
+    .tick i{flex:1; height:15px; border-radius:2px; background:var(--pale)}
+    .tick i.past{background:var(--dark)}
+    .tick i.now{background:var(--mid)}
+    .tick i.end{background:var(--hol); opacity:.55}
+    .bnum{font-size:11.5px; font-weight:400; color:var(--faint); white-space:nowrap}
+    .bnum b{color:var(--mid-ink); font-weight:500}
+
+    /* ── 줄 ── */
+    .list{margin-top:10px; position:relative; flex:1}
+    .row{position:relative; display:flex; align-items:center; gap:12px; padding:14px 10px;
+         background:var(--bg); border-radius:12px}
+    .row + .row{box-shadow:inset 0 1px 0 var(--rule)}
+    .bar{position:absolute; left:0; top:50%; margin-top:-9px; width:3px; height:18px; border-radius:2px; background:var(--mid)}
+    .chk{width:25px; height:25px; border-radius:50%; flex:0 0 auto; position:relative;
+         box-shadow:inset 1.5px 1.5px 3px var(--dark), inset -1.5px -1.5px 3px var(--light)}
+    .t{flex:1; min-width:0}
+    .t .n{font-size:14.5px; font-weight:500; color:var(--body); line-height:1.35}
+    .t .r{font-size:11.5px; font-weight:400; color:var(--faint); margin-top:3px}
+    .tm{font-size:13px; font-weight:400; color:var(--faint); font-variant-numeric:tabular-nums}
+
+    /* 1 · 잉크가 스미는 체크 */
+    .ink{position:absolute; inset:0; border-radius:50%}
+    .ink path{stroke:var(--mid); stroke-width:2.6; fill:none; stroke-linecap:round; stroke-linejoin:round;
+              stroke-dasharray:22; stroke-dashoffset:22}
+    .bleed{position:absolute; inset:2px; border-radius:50%; background:var(--mint); opacity:0; transform:scale(.2)}
+
+    /* 되돌아가는 자리 */
+    .back{position:absolute; right:10px; top:50%; margin-top:-11px; font-size:11.5px; font-weight:400;
+          color:var(--mid-ink); background:var(--light); border-radius:8px; padding:4px 9px;
+          box-shadow:0 2px 6px rgba(20,24,26,.10); opacity:0; transform:translateY(4px)}
+
+    /* 2 · 주말을 건너뛰는 날짜 */
+    .swipe{margin-top:8px; position:relative; overflow:hidden; border-radius:12px}
+    .under{position:absolute; inset:0; display:flex; align-items:center; justify-content:flex-end;
+           padding-right:16px; gap:10px; background:var(--sheet3); border-radius:12px}
+    .pill{display:flex; align-items:center; gap:7px; background:var(--light); border-radius:9px;
+          padding:6px 11px; box-shadow:0 2px 6px rgba(20,24,26,.10)}
+    .pill .lab{font-size:11px; font-weight:400; color:var(--faint)}
+    .pill .day{font-size:15px; font-weight:500; color:var(--ink2); font-variant-numeric:tabular-nums; min-width:58px; text-align:right}
+    .pill .day.skip{color:var(--hol)}
+    .front{position:relative}
+
+    /* 3 · 하루의 끝 */
+    .done-wrap{position:relative; height:186px; margin-top:10px}
+    .sheet{position:absolute; left:6px; right:6px; top:0; height:166px; border-radius:16px;
+           background:var(--card); box-shadow:2px 2px 8px var(--dark), -2px -2px 8px var(--light)}
+    .sheet.s2{top:8px; left:14px; right:14px; background:var(--sheet2); box-shadow:none}
+    .sheet.s3{top:15px; left:22px; right:22px; background:var(--sheet3); box-shadow:none}
+    .sheet.top{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px}
+    .stamp{font-size:15px; font-weight:500; color:var(--mid-ink)}
+    .blank{font-size:12px; font-weight:400; color:var(--dim)}
+
+    .hint{margin-top:10px; font-size:11.5px; color:var(--dim); font-weight:400; text-align:center}
+  </style>
+</helmet>
+
+<div class="page">
+  <h1>휴대폰 · 세 순간 — 완료는 사라짐이 아니라 돌아감</h1>
+  <p class="lede">
+    예티 로그인이 재밌는 건 귀여워서가 아니라 <b>눈을 가리는 동작이 실제로 벌어지는 일과 같기</b> 때문입니다.
+    같은 기준으로 이 앱에서 쓰지 않고 있던 사실 두 가지를 움직임으로 만들었습니다 —
+    <b>루틴은 끝나도 돌아온다</b>, 그리고 <b>날짜는 주말을 건너뛴다</b>.
+    꾸밈이 아니라 정보입니다.
+  </p>
+
+  <div class="phones">
+
+    <!-- 1 · 완료 -->
+    <div class="col">
+      <div class="ph"><div class="scr">
+        <div class="hd"><div><div class="dm">9월</div><div class="dd">22일 화요일</div></div></div>
+        <div class="bdays">
+          <span class="tick">
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="now"></i>
+            <i></i><i></i><i></i><i class="end"></i><i class="end"></i>
+          </span>
+          <span class="bnum"><b>15</b>/20영업일 · 월말까지 5</span>
+        </div>
+        <div class="list">
+          <div class="row" id="r1">
+            <i class="bar"></i>
+            <div class="chk" id="c1">
+              <div class="bleed" id="b1"></div>
+              <svg class="ink" viewBox="0 0 25 25"><path id="p1" d="M6.5 13.2 L10.6 17 L18.2 8.4"/></svg>
+            </div>
+            <div class="t"><div class="n">아침운용현황 출력</div><div class="r">매 영업일 · 08:30</div></div>
+            <div class="tm">08:30</div>
+            <div class="back" id="k1">다음 · 내일 08:30</div>
+          </div>
+          <div class="row">
+            <i class="bar"></i><div class="chk"></div>
+            <div class="t"><div class="n">교보생명 컴플 체크리스트</div><div class="r">매 영업일 · 08:40</div></div>
+            <div class="tm">08:40</div>
+          </div>
+        </div>
+        <div class="hint">줄을 누르면 완료</div>
+      </div></div>
+      <div class="cap"><b>1 · 잉크가 스미고, 어디로 돌아가는지 알려준다</b>
+        체크는 칠해지는 게 아니라 한 획으로 그어지고 가장자리가 살짝 번집니다(모조지 위의 잉크).
+        그 다음 <b>다음 · 내일 08:30</b> 이 잠깐 떠올랐다 사라집니다. 루틴은 없어지는 게 아니라
+        돌아온다는 사실을 완료하는 그 순간에 알려 줍니다.</div>
+    </div>
+
+    <!-- 2 · 미루기 -->
+    <div class="col">
+      <div class="ph"><div class="scr">
+        <div class="hd"><div><div class="dm">9월</div><div class="dd">25일 금요일</div></div></div>
+        <div class="bdays">
+          <span class="tick">
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="now"></i><i class="end"></i><i class="end"></i>
+          </span>
+          <span class="bnum"><b>18</b>/20영업일 · 월말까지 2</span>
+        </div>
+        <div class="swipe" id="sw">
+          <div class="under">
+            <span class="pill"><span class="lab">미루면</span><span class="day" id="d2">9/28 월</span></span>
+          </div>
+          <div class="front row" id="f2" style="border-radius:12px">
+            <i class="bar"></i><div class="chk"></div>
+            <div class="t"><div class="n">위탁사 질의 회신</div><div class="r">마감 · 오늘 17:30</div></div>
+            <div class="tm">17:30</div>
+          </div>
+        </div>
+        <div class="hint">줄을 왼쪽으로 끌어 보세요</div>
+      </div></div>
+      <div class="cap"><b>2 · 날짜가 주말을 건너뛰는 것이 보인다</b>
+        끌수록 날짜가 하루씩 굴러가는데 <b>토·일에서 멈칫하고 지나칩니다</b>.
+        금요일 것을 하루 미루면 숫자가 3 뜁니다. 이 앱이 존재하는 이유가 영업일인데
+        지금까지 그건 계산 속에만 있었고 한 번도 눈에 보인 적이 없습니다.</div>
+    </div>
+
+    <!-- 3 · 하루의 끝 -->
+    <div class="col">
+      <div class="ph"><div class="scr">
+        <div class="hd"><div><div class="dm">9월</div><div class="dd">22일 화요일</div></div></div>
+        <div class="bdays">
+          <span class="tick">
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i>
+            <i class="past"></i><i class="past"></i><i class="past"></i><i class="past"></i><i class="now"></i>
+            <i></i><i></i><i></i><i class="end"></i><i class="end"></i>
+          </span>
+          <span class="bnum"><b>15</b>/20영업일 · 월말까지 5</span>
+        </div>
+        <div class="done-wrap">
+          <div class="sheet s3"></div>
+          <div class="sheet s2"></div>
+          <div class="sheet top" id="s3">
+            <div class="stamp" id="st">오늘 몫은 끝</div>
+            <div class="blank" id="bl">내일 6건 · 첫 건 08:30</div>
+          </div>
+        </div>
+        <div class="hint">눌러서 다시 보기</div>
+      </div></div>
+      <div class="cap"><b>3 · 마지막 한 건을 끝낸 순간</b>
+        지금은 목록이 그냥 비워집니다. 대신 오늘 장이 들리면서 아래 백지가 드러나고,
+        내일 몫이 적힙니다. <b>대담함은 여기 한 곳에만</b> 씁니다 — 나머지 화면은 조용하게 두고,
+        하루에 한 번 오는 이 순간만 기억에 남게.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  /* 1 · 완료: 잉크 한 획 → 번짐 → 돌아갈 자리 */
+  var r1=document.getElementById('r1'), p1=document.getElementById('p1'),
+      b1=document.getElementById('b1'), k1=document.getElementById('k1'), busy=false;
+  r1.style.cursor='pointer';
+  r1.onclick=function(){
+    if(busy) return; busy=true;
+    p1.animate([{strokeDashoffset:22},{strokeDashoffset:0}],{duration:260,easing:'cubic-bezier(.3,.9,.3,1)',fill:'forwards'});
+    b1.animate([{opacity:0,transform:'scale(.2)'},{opacity:.30,transform:'scale(1)'},{opacity:.16,transform:'scale(1.06)'}],
+               {duration:420,delay:120,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+    setTimeout(function(){
+      k1.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],
+                 {duration:200,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+      r1.animate([{opacity:1,transform:'translateY(0)'},{opacity:1,transform:'translateY(0)',offset:.55},
+                  {opacity:0,transform:'translateY(-14px)'}],
+                 {duration:1100,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});
+      setTimeout(function(){                       /* 다시 처음으로 (보기용) */
+        p1.getAnimations().forEach(function(a){a.cancel()});
+        b1.getAnimations().forEach(function(a){a.cancel()});
+        k1.getAnimations().forEach(function(a){a.cancel()});
+        r1.getAnimations().forEach(function(a){a.cancel()});
+        busy=false;
+      },1900);
+    },380);
+  };
+
+  /* 2 · 미루기: 끌면 날짜가 굴러가고 주말을 건너뛴다 */
+  var sw=document.getElementById('sw'), f2=document.getElementById('f2'), d2=document.getElementById('d2');
+  var W=['일','월','화','수','목','금','토'];
+  function label(n){                                /* 9/25(금) 에서 영업일 n 칸 뒤 */
+    var d=new Date(2026,8,25), moved=0;
+    while(moved<n){ d.setDate(d.getDate()+1); if(d.getDay()!==0&&d.getDay()!==6) moved++; }
+    var skipped=false, probe=new Date(2026,8,25);
+    for(var i=0;i<n;i++){ probe.setDate(probe.getDate()+1); if(probe.getDay()===0||probe.getDay()===6) skipped=true; }
+    return [(d.getMonth()+1)+'/'+d.getDate()+' '+W[d.getDay()], skipped];
+  }
+  var down=false, x0=0, dx=0, shown=-1;
+  function set(n){
+    if(n===shown) return; shown=n;
+    var out=label(Math.max(1,n));
+    d2.textContent=out[0];
+    d2.classList.toggle('skip',out[1]);
+    d2.animate([{transform:'translateY(7px)',opacity:.25},{transform:'translateY(0)',opacity:1}],
+               {duration:190,easing:'cubic-bezier(.2,.8,.2,1)'});
+  }
+  sw.style.cursor='grab';
+  sw.addEventListener('pointerdown',function(e){down=true;x0=e.clientX;sw.setPointerCapture(e.pointerId);sw.style.cursor='grabbing'});
+  sw.addEventListener('pointermove',function(e){
+    if(!down) return;
+    dx=Math.min(0,Math.max(-190,e.clientX-x0));
+    f2.style.transform='translateX('+dx+'px)';
+    set(Math.max(1,Math.round(-dx/55)));
+  });
+  function up(){
+    if(!down) return; down=false; sw.style.cursor='grab';
+    f2.animate([{transform:'translateX('+dx+'px)'},{transform:'translateX(0)'}],
+               {duration:320,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+    setTimeout(function(){f2.style.transform='';f2.getAnimations().forEach(function(a){a.cancel()});dx=0;shown=-1;
+                          d2.textContent='9/28 월';d2.classList.remove('skip')},340);
+  }
+  sw.addEventListener('pointerup',up); sw.addEventListener('pointercancel',up);
+
+  /* 3 · 하루의 끝: 오늘 장이 들리고 백지가 드러난다 */
+  var s3=document.getElementById('s3'), st=document.getElementById('st'), bl=document.getElementById('bl'), busy3=false;
+  s3.style.cursor='pointer';
+  function play(){
+    if(busy3) return; busy3=true;
+    st.style.opacity=0; bl.style.opacity=0;
+    s3.animate([{transform:'translateY(0) rotate(0deg)'},{transform:'translateY(-7px) rotate(-.7deg)'},
+                {transform:'translateY(0) rotate(0deg)'}],
+               {duration:760,easing:'cubic-bezier(.34,1.3,.5,1)'});
+    st.animate([{opacity:0,transform:'scale(.9)'},{opacity:1,transform:'scale(1)'}],
+               {duration:300,delay:220,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+    bl.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],
+               {duration:300,delay:430,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+    setTimeout(function(){busy3=false},900);
+  }
+  s3.onclick=play; setTimeout(play,700);
+})();
+</script>
+</x-dc>
+</body>
+</html>

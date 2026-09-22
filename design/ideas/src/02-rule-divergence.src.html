@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/*__FONTFACE__*/
+/*__TOKENS__*/
+/*__BASE__*/
+    .page{width:1460px; height:880px; padding:36px 44px}
+    h1{font-weight:300; font-size:26px; color:var(--ink2); margin:0 0 8px; letter-spacing:-.5px}
+    .lede{font-size:13.5px; line-height:1.75; font-weight:400; margin:0 0 24px; max-width:1200px}
+    .phones{display:flex; gap:40px; align-items:flex-start}
+    .col{width:400px}
+    .cap{margin-top:14px; font-size:12.5px; line-height:1.7; font-weight:400}
+    .cap b{color:var(--ink2); font-weight:500}
+    .ph{width:400px; height:540px; border-radius:36px; overflow:hidden; position:relative;
+        background:var(--bg); border:8px solid #14181a; box-shadow:0 18px 44px rgba(20,24,26,.30)}
+    .scr{position:absolute; inset:0; padding:20px 18px; display:flex; flex-direction:column}
+    .ask{font-size:12px; font-weight:400; color:var(--faint)}
+    .ask b{color:var(--ink2); font-weight:500; font-size:16px; display:block; margin-top:3px}
+    .cands{margin-top:14px; display:flex; flex-direction:column}
+    .cd{display:flex; align-items:center; gap:10px; padding:10px 11px; border-radius:10px; cursor:pointer;
+        transition:background-color 140ms cubic-bezier(.2,.8,.2,1)}
+    .cd + .cd{box-shadow:inset 0 1px 0 var(--rule)}
+    .cd:hover{background:rgba(56,46,32,.05)}
+    .cd.on{background:var(--light); box-shadow:0 2px 7px rgba(20,24,26,.10)}
+    .cd .dot{width:15px; height:15px; border-radius:50%; flex:0 0 auto;
+             box-shadow:inset 1.2px 1.2px 2.5px var(--dark), inset -1.2px -1.2px 2.5px var(--light)}
+    .cd.on .dot{background:var(--mid); box-shadow:0 1px 3px var(--midshadow)}
+    .cd .nm{flex:1; font-size:13.5px; font-weight:500; color:var(--body)}
+
+    .tl{margin-top:16px; padding:14px 12px 10px; border-radius:14px; background:var(--card);
+        box-shadow:2px 2px 8px var(--dark), -2px -2px 8px var(--light)}
+    .tl h4{margin:0 0 14px; font-size:11px; font-weight:400; color:var(--faint); letter-spacing:.3px}
+    .track{position:relative; height:56px}
+    .axis{position:absolute; left:0; right:0; top:27px; height:1px; background:var(--rule2)}
+    .mk{position:absolute; top:36px; transform:translateX(-50%); font-size:9.5px; font-weight:400;
+        color:var(--dim); white-space:nowrap}
+    .pt{position:absolute; top:20px; width:15px; height:15px; margin-left:-7.5px; border-radius:50%;
+        background:var(--mid); box-shadow:0 1px 3px var(--midshadow);
+        transition:left 560ms cubic-bezier(.34,1.12,.4,1), background-color 300ms ease}
+    .pt.moved{background:var(--hol)}
+    .pt .lb{position:absolute; left:50%; transform:translateX(-50%); top:-17px; font-size:9.5px;
+            font-weight:500; color:var(--ink2); white-space:nowrap}
+    .verdict{margin-top:10px; font-size:12px; font-weight:400; line-height:1.65; color:var(--faint); min-height:40px}
+    .verdict b{color:var(--ink2); font-weight:500}
+    .verdict .hl{color:var(--hol); font-weight:500}
+    .verdict .ok{color:var(--mid-ink); font-weight:500}
+  </style>
+</helmet>
+
+<div class="page">
+  <h1>규칙을 고를 때, 어디서 갈라지는지 보여준다</h1>
+  <p class="lede">
+    <b>9월 30일에 한 일</b>이라고 하면 앱은 그 날에 도는 규칙을 모두 내놓습니다 — 말일 · 마지막 영업일 · 30일 · 마지막 수요일.
+    네 개 다 9월 30일에는 맞습니다. <b>다른 것은 앞날뿐입니다.</b>
+    그런데 지금은 날짜 몇 개를 글자로 늘어놓을 뿐이라 무엇을 골라야 할지 알 수가 없습니다.
+    고르는 동안 앞으로의 회차가 <b>그 자리에서 미끄러집니다</b>. 움직이지 않는 점은 "골라도 같다"는 뜻이고,
+    움직이는 점이 바로 그 선택의 값입니다.
+  </p>
+  <div class="phones">
+
+    <div class="col">
+      <div class="ph"><div class="scr">
+        <div class="ask">이 날에 하셨다고 하면<b>2026년 9월 30일 · 매월</b></div>
+        <div class="cands" id="c_m30"></div>
+        <div class="tl">
+          <h4>앞으로의 회차</h4>
+          <div class="track" id="t_m30"><div class="axis"></div></div>
+          <div class="verdict" id="v_m30"></div>
+        </div>
+      </div></div>
+      <div class="cap"><b>말일</b> 과 <b>마지막 영업일</b> 은 점이 하나도 안 움직입니다 — 골라도 반년 넘게 같다는 뜻입니다. <b>30일</b> 은 12월에서, <b>마지막 수요일</b> 은 첫 회차부터 갈라집니다. 눌러서 바꿔 보세요.</div>
+    </div>
+
+    <div class="col">
+      <div class="ph"><div class="scr">
+        <div class="ask">같은 날, 주기만 바꾸면<b>2026년 9월 30일 · 분기</b></div>
+        <div class="cands" id="c_q"></div>
+        <div class="tl">
+          <h4>앞으로의 회차</h4>
+          <div class="track" id="t_q"><div class="axis"></div></div>
+          <div class="verdict" id="v_q"></div>
+        </div>
+      </div></div>
+      <div class="cap">분기 · 연 단위도 같은 화면을 그대로 씁니다. 달력 격자가 아니라 <b>앞으로의 회차를 늘어놓은 축</b>이라, 주기가 아무리 길어도 갈라지는 자리는 똑같이 보입니다.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var DATA = {"m30": {"from": "2026-09-30", "rows": [{"text": "매월 말일", "days": ["2026-10-30", "2026-11-30", "2026-12-31", "2027-01-29", "2027-02-26", "2027-03-31", "2027-04-30"]}, {"text": "매월 마지막 영업일", "days": ["2026-10-30", "2026-11-30", "2026-12-31", "2027-01-29", "2027-02-26", "2027-03-31", "2027-04-30"]}, {"text": "매월 30일", "days": ["2026-10-30", "2026-11-30", "2026-12-30", "2027-01-29", "2027-03-30", "2027-04-30", "2027-05-28"]}, {"text": "매월 마지막 수요일", "days": ["2026-10-28", "2026-11-25", "2026-12-30", "2027-01-27", "2027-02-24", "2027-03-31", "2027-04-28"]}]}, "q": {"from": "2026-09-30", "rows": [{"text": "3·6·9·12월 말일", "days": ["2026-12-31", "2027-03-31", "2027-06-30", "2027-09-30", "2027-12-31"]}, {"text": "3·6·9·12월 마지막 영업일", "days": ["2026-12-31", "2027-03-31", "2027-06-30", "2027-09-30", "2027-12-31"]}, {"text": "3·6·9·12월 30일", "days": ["2026-12-30", "2027-03-30", "2027-06-30", "2027-09-30", "2027-12-30"]}, {"text": "3·6·9·12월 마지막 수요일", "days": ["2026-12-30", "2027-03-31", "2027-06-30", "2027-09-29", "2027-12-29"]}]}};
+var MON = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+function build(key){
+  var box = DATA[key], rows = box.rows;
+  var cands = document.getElementById('c_' + key);
+  var track = document.getElementById('t_' + key);
+  var verdict = document.getElementById('v_' + key);
+
+  var all = [];
+  rows.forEach(function(r){ r.days.forEach(function(d){ all.push(+new Date(d)) }) });
+  var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all), pad = (hi - lo) * 0.07;
+  lo -= pad; hi += pad;
+  function pos(d){ return ((+new Date(d)) - lo) / (hi - lo) * 100 }
+  function md(s){ var d = new Date(s); return (d.getMonth() + 1) + '/' + d.getDate() }
+
+  var seen = {}, step = Math.max(1, Math.round(rows[0].days.length / 4));
+  rows[0].days.forEach(function(d, i){
+    if(i % step) return;
+    var lab = MON[new Date(d).getMonth()];
+    if(seen[lab]) return; seen[lab] = 1;
+    var m = document.createElement('span');
+    m.className = 'mk'; m.style.left = pos(d) + '%'; m.textContent = lab;
+    track.appendChild(m);
+  });
+
+  var n = Math.min.apply(null, rows.map(function(r){ return r.days.length }));
+  var pts = [];
+  for(var i = 0; i < n; i++){
+    var p = document.createElement('div');
+    p.className = 'pt'; p.innerHTML = '<span class="lb"></span>';
+    track.appendChild(p); pts.push(p);
+  }
+
+  function firstDiff(a, b){
+    for(var i = 0; i < Math.min(a.length, b.length); i++) if(a[i] !== b[i]) return i;
+    return -1;
+  }
+
+  var cur = 0;
+  function show(k, animate){
+    var days = rows[k].days, prev = rows[cur].days;
+    pts.forEach(function(p, i){
+      var moved = animate && prev[i] !== days[i];
+      p.style.left = pos(days[i]) + '%';
+      p.querySelector('.lb').textContent = (i < 3 ? md(days[i]) : '');
+      if(moved){ p.classList.add('moved'); setTimeout(function(){ p.classList.remove('moved') }, 1000) }
+    });
+    var lines = [];
+    rows.forEach(function(r, j){
+      if(j === k) return;
+      var d = firstDiff(days, r.days);
+      if(d < 0) lines.push('<b>' + r.text + '</b> 과는 <span class="ok">' + days.length + '회까지 같습니다</span>');
+      else lines.push('<b>' + r.text + '</b> 과는 <span class="hl">' + md(days[d]) + '</span> 에서 갈립니다');
+    });
+    verdict.innerHTML = lines.slice(0, 2).join('<br>');
+    cur = k;
+    [].forEach.call(cands.children, function(el, j){ el.classList.toggle('on', j === k) });
+  }
+
+  rows.forEach(function(r, k){
+    var el = document.createElement('div');
+    el.className = 'cd' + (k === 0 ? ' on' : '');
+    el.innerHTML = '<span class="dot"></span><span class="nm">' + r.text + '</span>';
+    el.onclick = function(){ show(k, true) };
+    cands.appendChild(el);
+  });
+  show(0, false);
+}
+build('m30'); build('q');
+</script>
+</x-dc>
+</body>
+</html>
