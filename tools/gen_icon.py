@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-import tokens  # noqa: E402
+from core import tokens  # noqa: E402
 
 SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 C = tokens.ICON

@@ -13,7 +13,7 @@ import os
 
 import pytest
 
-import ui
+from desktop import ui
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ def test_missing_folder_does_not_reload(web, monkeypatch):
 def test_focus_request_checks_for_a_new_build():
     """/focus 가 refresh_if_stale 을 거치지 않으면 이 문제가 되돌아온다."""
     src = io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                               "ui.py"), encoding="utf-8").read()
+                               "desktop", "ui.py"), encoding="utf-8").read()
     head = src.split('if path == "/focus":')[1].split("return")[0]
     assert "refresh_if_stale()" in head, "/focus 가 새 화면 파일을 살피지 않는다"
 
@@ -100,7 +100,7 @@ def test_the_window_is_placed_before_it_is_shown():
     StartPosition 을 바꾸므로 WinForms 가 이미 자리를 정해 버렸다). 직접 놓는다.
     순서가 뒤집혀 ShowWindow 뒤에 놓으면 창이 한 번 깜빡이며 옮겨간다."""
     src = io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                               "ui.py"), encoding="utf-8").read()
+                               "desktop", "ui.py"), encoding="utf-8").read()
     body = src.split("def focus():")[1].split("def ")[0]
     assert "place_once()" in body, "focus 가 창 자리를 잡지 않는다"
     assert body.index("place_once()") < body.index("ShowWindow"), \
@@ -109,7 +109,7 @@ def test_the_window_is_placed_before_it_is_shown():
 
 def test_the_window_is_only_placed_once():
     """옮겨 둔 창을 숨겼다 열 때 제자리로 끌어오면 옮긴 뜻을 무시하는 것이다."""
-    import ui as _ui
+    from desktop import ui as _ui
     assert _ui._placed == [False] or isinstance(_ui._placed[0], bool)
     _ui._placed[0] = True
     before = list(_ui._placed)
@@ -121,7 +121,7 @@ def test_the_window_is_only_placed_once():
 def test_placing_uses_the_monitor_under_the_cursor():
     """주 모니터에 고정하면 모니터가 둘일 때 늘 한쪽에서만 열린다."""
     src = io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                               "ui.py"), encoding="utf-8").read()
+                               "desktop", "ui.py"), encoding="utf-8").read()
     body = src.split("def place_once():")[1].split("\ndef ")[0]
     assert "GetCursorPos" in body and "MonitorFromPoint" in body
     assert "rcWork" in body, "작업 영역이 아니라 모니터 전체를 쓰면 작업 표시줄에 가린다"

@@ -37,7 +37,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-import paths
+from desktop import paths
 import version
 
 REPO = "Sooookin/lazy-scheduler"
@@ -313,7 +313,7 @@ def _wait_pid(pid, timeout):
 
 
 def _port_open(timeout):
-    import ipc
+    from desktop import ipc
     end = time.time() + timeout
     while time.time() < end:
         try:

@@ -22,8 +22,8 @@ import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-import paths
-import store
+from desktop import paths
+from core import store
 
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
@@ -102,12 +102,12 @@ _cache = {"token": None, "until": 0.0, "uid": None}
 
 
 def _protect(data):
-    import win32                                    # Windows 에만 있다 (휴대폰은 자기 보관소를 쓴다)
+    from platforms.win import win32  # Windows 에만 있다 (휴대폰은 자기 보관소를 쓴다)
     return win32.protect(data)
 
 
 def _unprotect(blob):
-    import win32
+    from platforms.win import win32
     return win32.unprotect(blob)
 
 

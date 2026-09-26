@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import toast
+from platforms.win import toast
 
 CARD = {"title": "보고서 제출", "sub": "20분 뒤 마감 · 10:20", "on_done": lambda: None,
         "on_snooze": lambda: None, "can_open": True}

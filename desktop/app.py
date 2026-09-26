@@ -5,13 +5,16 @@ from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-import autostart
-import cloudauth
-import cloudsync
-import ipc
-import paths
-import recur, store, toast, tray
-import updater
+from platforms.win import autostart
+from desktop import cloudauth
+from desktop import cloudsync
+from desktop import ipc
+from desktop import paths
+from core import recur
+from core import store
+from platforms.win import toast
+from platforms.win import tray
+from desktop import updater
 import version
 
 BASE = paths.APP_DIR

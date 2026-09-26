@@ -41,7 +41,7 @@ def stub_ssl():
         if not (name.startswith("__") and name.endswith("__")):
             import traceback
             try:
-                import paths
+                from desktop import paths
                 paths.log("ssl 껍데기 접근: %s" % name + chr(10)
                           + "".join(traceback.format_stack()[-4:]))
             except Exception:
@@ -64,7 +64,7 @@ def selftest():
     import platform
     import traceback
 
-    import paths
+    from desktop import paths
     paths.ensure_data_dir()
     out = os.path.join(paths.DATA_DIR, "selftest.txt")
     lines = [
@@ -130,7 +130,7 @@ def selftest():
 
     lines += ["", "[알림 점검] 어제~내일의 각 회차가 언제 알려지는지"]
     try:
-        import app
+        from desktop import app
         plan = app.notify_plan()
         lines.append("  지금 %s · 기본 알림 %d분 전" % (plan["now"], plan["default_lead_min"]))
         for r in plan["rows"]:
@@ -153,20 +153,20 @@ def selftest():
 def run():
     stub_ssl()
 
-    import paths
+    from desktop import paths
     paths.unblock()          # clr 을 부르기 전에 떼야 한다
     for flag in ("--apply-update", "--probe"):
         if flag in sys.argv:
-            import updater
+            from desktop import updater
             rest = sys.argv[sys.argv.index(flag) + 1:]
             sys.exit((updater.apply_main if flag == "--apply-update" else updater.probe_main)(rest))
     if "--selftest" in sys.argv:
         selftest()
     elif "--ui" in sys.argv:
-        import ui
+        from desktop import ui
         ui.main()
     else:
-        import app
+        from desktop import app
         app.main()
 
 

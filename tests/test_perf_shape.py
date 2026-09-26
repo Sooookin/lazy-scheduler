@@ -10,9 +10,9 @@ from datetime import date, datetime
 
 import pytest
 
-import paths
-import recur
-import store
+from desktop import paths
+from core import recur
+from core import store
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

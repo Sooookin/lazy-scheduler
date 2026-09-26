@@ -21,10 +21,10 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-import cloudauth
-import paths
-import store
-import syncdoc
+from desktop import cloudauth
+from desktop import paths
+from core import store
+from core import syncdoc
 
 PAGE = 300                      # 한 번에 받는 문서 수
 COMMIT_MAX = 450                # 한 commit 에 넣는 변경 수 (Firestore 한도 500)

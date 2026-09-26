@@ -16,7 +16,7 @@ SANDBOX = tempfile.mkdtemp(prefix="lazy-scheduler-tests-")
 os.environ["APPDATA"] = SANDBOX
 sys.path.insert(0, ROOT)
 
-import paths  # noqa: E402
+from desktop import paths  # noqa: E402
 
 assert paths.DATA_DIR.startswith(SANDBOX), "테스트가 실제 데이터 폴더를 가리키고 있다"
 
@@ -26,7 +26,7 @@ def server():
     """실제 서비스 핸들러를 빈 포트에 띄운다. 값은 포트 번호."""
     import threading
 
-    import app
+    from desktop import app
     srv = app.Server(("127.0.0.1", 0), app.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield srv.server_address[1]
@@ -37,9 +37,9 @@ def server():
 @pytest.fixture(autouse=True)
 def fresh_data():
     """테스트마다 빈 데이터 폴더와 초기 상태에서 시작한다."""
-    import app
-    import store
-    import toast
+    from desktop import app
+    from core import store
+    from platforms.win import toast
 
     shutil.rmtree(paths.DATA_DIR, ignore_errors=True)
     os.makedirs(paths.DATA_DIR)

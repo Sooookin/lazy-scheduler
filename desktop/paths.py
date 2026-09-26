@@ -17,7 +17,8 @@ if FROZEN:
     RES_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     APP_DIR = os.path.dirname(sys.executable)
 else:
-    RES_DIR = APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 이 파일은 desktop/ 안에 있다 - 앱 폴더는 저장소 뿌리 (main.py · web/ 가 있는 곳)
+    RES_DIR = APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 WEB_DIR = os.path.join(RES_DIR, "web")
 ICON = (os.path.join(RES_DIR, "app.ico") if FROZEN

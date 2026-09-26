@@ -2,7 +2,7 @@
 """작업표시줄 알림영역(트레이) 아이콘. 창을 닫아도 여기서 바로 다시 열 수 있다."""
 import os, threading, traceback
 
-import paths
+from desktop import paths
 
 BASE = paths.RES_DIR
 _icon = None

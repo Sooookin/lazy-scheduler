@@ -6,8 +6,8 @@ from datetime import date
 
 import pytest
 
-import paths
-import store
+from desktop import paths
+from core import store
 
 
 def raw():

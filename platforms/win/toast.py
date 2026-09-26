@@ -19,9 +19,9 @@ import threading
 import time
 import traceback
 
-import paths
-import tokens
-import win32
+from desktop import paths
+from core import tokens
+from platforms.win import win32
 from ctypes import wintypes
 
 # ---------------- 색 ----------------

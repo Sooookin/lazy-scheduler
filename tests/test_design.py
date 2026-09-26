@@ -15,7 +15,7 @@ import re
 
 import pytest
 
-import tokens
+from core import tokens
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSS = os.path.join(ROOT, "web", "style.css")

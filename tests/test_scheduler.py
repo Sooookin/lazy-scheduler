@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 
-import app
-import store
-import toast
+from desktop import app
+from core import store
+from platforms.win import toast
 
 
 def cards():

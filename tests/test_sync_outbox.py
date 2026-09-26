@@ -9,9 +9,9 @@ import os
 
 import pytest
 
-import paths
-import store
-import syncdoc
+from desktop import paths
+from core import store
+from core import syncdoc
 
 DAILY = {"title": "매일 점검", "kind": "routine", "due_time": "09:00",
          "rule": {"period": "day", "business_only": False}}

@@ -7,11 +7,11 @@ import types
 
 import pytest
 
-import app
-import autostart
-import ipc
-import paths
-import store
+from desktop import app
+from platforms.win import autostart
+from desktop import ipc
+from desktop import paths
+from core import store
 
 
 def call(port, method, path, body=None, headers=None, token=True, host=None, ctype="application/json"):
@@ -168,7 +168,7 @@ def test_preview_reports_rule_errors_and_uses_today_as_anchor(server):
 @pytest.fixture
 def ui_server(monkeypatch):
     sys.modules.setdefault("webview", types.ModuleType("webview"))   # 창 없이 핸들러만 시험
-    import ui
+    from desktop import ui
     focused, destroyed = [], []
     monkeypatch.setattr(ui, "focus", lambda: focused.append(1))
     monkeypatch.setattr(ui, "_destroy_all", lambda: destroyed.append(1))

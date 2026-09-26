@@ -4,7 +4,7 @@ import os
 import subprocess
 import winreg
 
-import paths
+from desktop import paths
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 NAME = "LazyScheduler"

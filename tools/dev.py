@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import ipc  # noqa: E402
+from desktop import ipc  # noqa: E402
 
 PORTS = (ipc.SERVICE_PORT, ipc.UI_PORT)
 

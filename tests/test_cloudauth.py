@@ -16,9 +16,9 @@ import urllib.request
 
 import pytest
 
-import cloudauth
-import paths
-import store
+from desktop import cloudauth
+from desktop import paths
+from core import store
 from test_api import call
 
 CONF = {"project_id": "demo", "api_key": "AIzaTEST", "client_id": "cid.apps.googleusercontent.com",

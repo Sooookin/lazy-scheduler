@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-import updater
+from desktop import updater
 import version
 
 
@@ -78,8 +78,8 @@ def test_quiet_only_when_nobody_needs_the_app():
 
 
 def test_alert_near_sees_the_next_reminder():
-    import app
-    import store
+    from desktop import app
+    from core import store
     now = datetime.now().replace(second=0, microsecond=0)
     store.update_settings({"brief_time": ""})
     assert not app.alert_near(now)
@@ -165,7 +165,7 @@ def test_notice_is_shown_once():
 
 def test_overview_carries_version_and_notice(server):
     import http.client
-    import paths
+    from desktop import paths
     updater.save_state({"just_updated": {"from": "2.4.0", "to": version.VERSION, "notes": ""}})
     c = http.client.HTTPConnection("127.0.0.1", server, timeout=5)
     c.request("GET", "/api/overview", headers={"X-TM-Token": paths.ipc_token()})
@@ -178,8 +178,8 @@ def test_overview_carries_version_and_notice(server):
 
 
 def test_auto_update_setting_is_per_device():
-    import store
-    import syncdoc
+    from core import store
+    from core import syncdoc
     assert store.update_settings({"auto_update": False})["auto_update"] is False
     assert "auto_update" not in syncdoc.SHARED_SETTINGS
 
@@ -199,7 +199,7 @@ def test_manual_check_reports_a_newer_release(monkeypatch):
 
 def test_apply_now_needs_a_staged_version(server):
     import http.client
-    import paths
+    from desktop import paths
     updater.save_state({})
     updater._status.update(state="idle")
     c = http.client.HTTPConnection("127.0.0.1", server, timeout=5)
@@ -212,8 +212,8 @@ def test_window_tells_when_it_is_used(server):
     """목록을 다시 읽는 요청이 아니라, 창이 알려 준 입력 · 보임으로 판단한다."""
     import http.client
     import time
-    import app
-    import paths
+    from desktop import app
+    from desktop import paths
 
     def tell(body):
         c = http.client.HTTPConnection("127.0.0.1", server, timeout=5)

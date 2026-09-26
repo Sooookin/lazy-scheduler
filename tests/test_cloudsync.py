@@ -9,10 +9,10 @@
 """
 import pytest
 
-import cloudauth
-import cloudsync
-import store
-import syncdoc
+from desktop import cloudauth
+from desktop import cloudsync
+from core import store
+from core import syncdoc
 
 UID = "uid-1"
 CONF = {"project_id": "demo", "api_key": "k", "client_id": "c", "client_secret": "s"}

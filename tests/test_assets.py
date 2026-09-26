@@ -9,9 +9,9 @@ import os
 
 import pytest
 
-import paths
-import toast
-import tray
+from desktop import paths
+from platforms.win import toast
+from platforms.win import tray
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONTS = os.path.join(ROOT, "assets", "fonts")
@@ -44,7 +44,7 @@ def test_toast_finds_a_real_font_for_every_weight():
 def test_tray_and_toast_look_in_the_same_places():
     """목록을 각자 들고 있으면 글꼴을 옮길 때 한쪽만 고쳐진다."""
     assert toast._font_paths(500) == paths.font_paths("Paperlogy-5Medium.ttf")
-    src = io.open(os.path.join(ROOT, "tray.py"), encoding="utf-8").read()
+    src = io.open(os.path.join(ROOT, "platforms", "win", "tray.py"), encoding="utf-8").read()
     assert "paths.font_paths(" in src, "tray 가 제 목록을 다시 들고 있다"
 
 
@@ -68,7 +68,7 @@ def test_web_icons_are_all_referenced():
     text = ""
     for name in ("index.html", "app.js", "sky.js", "pebble.js", "style.css"):
         text += io.open(os.path.join(web, name), encoding="utf-8").read()
-    for name in ("tray.py", "main.py"):
+    for name in ("platforms/win/tray.py", "main.py"):
         text += io.open(os.path.join(ROOT, name), encoding="utf-8").read()
     unused = [n for n in os.listdir(web)
               if n.endswith(".png") and n not in text]
@@ -112,14 +112,14 @@ def test_migration_brings_the_backups_and_state_too(tmp_path, monkeypatch):
 
 def test_the_window_is_named_and_looked_up_by_the_same_value():
     """ui.py 가 창을 제목으로 찾는다. 짓는 쪽과 찾는 쪽이 어긋나면 창을 못 찾는다."""
-    src = io.open(os.path.join(ROOT, "ui.py"), encoding="utf-8").read()
+    src = io.open(os.path.join(ROOT, "desktop", "ui.py"), encoding="utf-8").read()
     assert src.count("paths.APP_NAME") >= 2
     assert '"To-Do Manager"' not in src
 
 
 def test_autostart_cleans_up_the_entry_made_under_the_old_name():
     """예전 이름의 값이 남으면 로그인할 때 두 번 실행된다."""
-    import autostart
+    from platforms.win import autostart
     assert autostart.NAME not in autostart.OLD_NAMES
-    src = io.open(os.path.join(ROOT, "autostart.py"), encoding="utf-8").read()
+    src = io.open(os.path.join(ROOT, "platforms", "win", "autostart.py"), encoding="utf-8").read()
     assert "_drop_old(k)" in src, "예전 등록을 치우지 않는다"

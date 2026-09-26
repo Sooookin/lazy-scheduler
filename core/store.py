@@ -27,9 +27,9 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 
-import paths
-import recur
-import syncdoc
+from desktop import paths
+from core import recur
+from core import syncdoc
 
 paths.migrate_legacy()
 DATA = paths.DATA_FILE

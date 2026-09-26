@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-import tokens
+from core import tokens
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 THEME = os.path.join(ROOT, "android", "app", "src", "main", "java", "com",

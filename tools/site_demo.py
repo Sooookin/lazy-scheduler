@@ -39,7 +39,7 @@ COPY = ["style.css", "app.js", "sky.js", "pebble.js", "icon-32.png", "fonts"]
 
 def seed():
     """공개 홈페이지에 걸리는 본보기 일정. 누구의 실제 업무도 아닌, 흔한 하루."""
-    import store
+    from core import store
     t = date.today()
     D = lambda k: (t + timedelta(days=k)).isoformat()
     daily = {"period": "day", "business_only": False}
@@ -71,7 +71,7 @@ def seed():
     for m in ["읽을 책 목록 정리", "새 노트북 알아보기", "여름휴가 숙소 후보"]:
         store.add({"title": m, "kind": "floating"})
     # 루틴은 두 달 전부터 쓰던 것으로 - 등록 이전 날짜는 달력에 안 나온다. 지난 회차는 끝낸 것으로.
-    import recur
+    from core import recur
     born = t - timedelta(days=60)
     with store.transaction() as d:
         for x in d["tasks"]:
@@ -86,8 +86,8 @@ def capture():
     """실제 서비스 핸들러에게 묻는다 - 화면이 받는 것과 글자 하나까지 같은 답."""
     import http.client
 
-    import app
-    import paths
+    from desktop import app
+    from desktop import paths
     srv = app.Server(("127.0.0.1", 0), app.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
@@ -117,7 +117,7 @@ def capture():
 
 def card():
     """알림 카드 한 장을 2배로 그린다 (홈페이지에서 반으로 줄여 보여 준다)."""
-    import toast
+    from platforms.win import toast
     toast.set_scale(2.0)
     img, _ = toast._card_rgba({"title": "주간 보고 제출", "when": "17:00", "rel": "30분 뒤",
                                "meta": "할 일", "on_done": toast._noop,

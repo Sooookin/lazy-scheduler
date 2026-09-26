@@ -11,7 +11,7 @@
 import json
 import socket
 
-import paths
+from desktop import paths
 
 HOST = "127.0.0.1"
 SERVICE_PORT = 8777             # 서비스 (API + 화면 파일)

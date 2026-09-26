@@ -5,9 +5,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import webview
 
-import ipc
-import paths
-import win32
+from desktop import ipc
+from desktop import paths
+from platforms.win import win32
 
 BASE = paths.APP_DIR
 HOST, SERVICE_PORT = ipc.HOST, ipc.SERVICE_PORT

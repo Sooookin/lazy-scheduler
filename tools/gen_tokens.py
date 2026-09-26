@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import tokens  # noqa: E402
+from core import tokens  # noqa: E402
 
 CSS = os.path.join(ROOT, "web", "style.css")
 BEGIN = "  /* >>> tokens.py 가 만든다. 여기서 직접 고치지 말 것 (tools/gen_tokens.py) */"

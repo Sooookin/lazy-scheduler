@@ -55,7 +55,7 @@ def seed():
     날마다 도는 루틴에 business_only 를 걸지 않는다. 걸어 두면 갈무리를 돌린 날이
     주말이나 공휴일일 때(실제로 추석에 걸렸다) 오늘 칸이 통째로 비어, 디자인을
     맡길 그림에 아무것도 안 남는다."""
-    import store
+    from core import store
     t = date.today()
     D = lambda k: (t + timedelta(days=k)).isoformat()
     for title, tm, rule in [
@@ -82,7 +82,8 @@ def main(argv):
     box = tempfile.mkdtemp(prefix="ls-shots-")
     os.environ["APPDATA"] = box
     sys.path.insert(0, ROOT)
-    import paths, app                                     # noqa: E402
+    from desktop import paths
+    from desktop import app  # noqa: E402
     assert paths.DATA_DIR.startswith(box), "모래상자 밖이다 - 멈춘다"
     seed()
 

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 
-import recur
+from core import recur
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(HERE, "vectors", "recurrence.json"), encoding="utf-8") as f:
