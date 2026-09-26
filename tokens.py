@@ -114,7 +114,34 @@ LIGHT = {
     "pupil-n":  "#2b3134",
 }
 
-# 섞이지 않는 색. 아래 이름들은 toast.py · tray.py · Theme.kt 가 그대로 읽는다.
+
+
+def _mix(a, b, t):
+    """두 색을 t 만큼 섞는다 (web/sky.js 의 mixc 와 같은 셈)."""
+    A = [int(a[i:i + 2], 16) for i in (1, 3, 5)]
+    B = [int(b[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join("%02x" % int(round(x + (y - x) * t)) for x, y in zip(A, B))
+
+
+# 밤 한 벌. 창 화면이 한밤(노을 0 · 밤 1)에 섞어 내는 색과 같다 (web/sky.js 의 applyLight).
+# 알림 카드(toast.py)가 이 색을 입는다 - 하늘 화면으로 바뀐 뒤에도 카드만 예전 종이색으로
+# 남아 있었다. 밤 화면을 고른 것은, 바탕화면 · 다른 창 위에 떠도 어두운 면이 튀지 않고
+# 글자가 가장 또렷해서다. 새 색을 짓지 않고 LIGHT 의 재료만 섞는다.
+NIGHT = {
+    "surface": _mix(LIGHT["panel"], LIGHT["night"], .80),     # 면 (--surface)
+    "bg":      _mix(LIGHT["base"], LIGHT["night"], .88),      # 바탕 (--bg). 밝은 알약 위의 글자로도 쓴다
+    "text":    LIGHT["pale"],                                 # 글자 (--text)
+    "text2":   LIGHT["pale2"],                                # 보조 글자 (--text2)
+    "teal":    LIGHT["teal-lit"],                             # 강조 (--teal)
+    "late":    LIGHT["late-lit"],                             # 지난 것 (--late)
+}
+# 한 단 더 흐린 글자(라벨 · 상대 시각), 안내 띠, 면의 위아래 결
+NIGHT["faint"] = _mix(NIGHT["text2"], NIGHT["surface"], .38)
+NIGHT["teal-soft"] = _mix(NIGHT["teal"], NIGHT["text2"], .35)
+NIGHT["wash-hi"] = _mix(NIGHT["surface"], LIGHT["pale"], .05)
+NIGHT["wash-lo"] = _mix(NIGHT["surface"], LIGHT["night"], .22)
+
+# 섞이지 않는 색. 아래 이름들은 tray.py · Theme.kt 가 그대로 읽는다.
 COLOR = {
     # 바탕과 면 - LIGHT 의 한낮 값과 같다 (해가 없는 곳에서 쓰는 기본값)
     "bg":      "#e4e9e3",

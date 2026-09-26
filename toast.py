@@ -25,29 +25,36 @@ import win32
 from ctypes import wintypes
 
 # ---------------- 색 ----------------
-# tokens.py 가 유일한 출처다. 창 화면(web/style.css)도 같은 값에서 나온다.
-# 예전에는 여기에 색을 따로 적어 뒀는데, 바탕을 밝히면 알림 카드만 예전
-# 색으로 남아 나란히 떴을 때 종이 두 장의 색이 달랐다.
-_C      = tokens.COLOR
-CARD    = _C["card"]
-WASH_HI = _C["wash-hi"]
-WASH_LO = _C["wash-lo"]
-DARK    = _C["dark"]
-LIGHT   = _C["light"]
-PALE    = _C["pale"]
-INK2    = _C["ink2"]
-BODY    = _C["body"]
-MUTED   = _C["muted"]
-FAINT   = _C["faint"]
-MID     = _C["mid"]
-MID_INK = _C["mid-ink"]
-MINT    = _C["mint"]
-DEEP    = _C["deep"]
-ONMID   = _C["onmid"]
+# tokens.py 가 유일한 출처다. 카드는 창 화면의 밤 색(tokens.NIGHT)을 입는다 - 하늘 화면으로
+# 바뀐 뒤에도 카드만 예전 종이색으로 남아 있었다. 어두운 면이라 바탕화면 · 다른 창 위에
+# 떠도 튀지 않고, 곁눈으로 봐도 글자가 또렷하다.
+_N        = tokens.NIGHT
+SURFACE   = _N["surface"]
+WASH_HI   = _N["wash-hi"]
+WASH_LO   = _N["wash-lo"]
+TEXT      = _N["text"]        # 시각 · 제목 · 본문
+TEXT2     = _N["text2"]       # 보조 단추 · 접힌 줄
+FAINT     = _N["faint"]       # 라벨 · 상대 시각 · 아래 줄
+TEAL      = _N["teal"]        # 강조 · 종류 띠 · 완료 단추
+TEAL_SOFT = _N["teal-soft"]   # 안내 카드의 띠
+LATE      = _N["late"]        # 지난 것 (띠 · 알약 · 완료 단추)
+ON_PILL   = _N["bg"]          # 밝은 알약 위의 글자
 
-# 예전 호출은 그때의 짙은 색(#08202b)을 글자로 적어 보냈다. 팔레트가 바뀌어도
-# 그 호출들은 여전히 "지난 알림" 을 뜻하므로, 옛 값도 같이 받아 준다.
-LEGACY_LATE = {DEEP, "#08202b"}
+
+def _alpha(hex_, a):
+    return tuple(int(hex_[i:i + 2], 16) for i in (1, 3, 5)) + (int(round(a * 255)),)
+
+
+# 선 · 마우스를 올렸을 때 덮는 색 · 테두리. 밤 화면의 --hair · --hair2 처럼 밝은 쪽으로.
+RULE1 = _alpha(TEXT2, .12)
+RULE2 = _alpha(TEXT2, .20)
+HOVER_HI = (TEXT, .12)
+EDGE = (TEXT, .16)            # 면의 윤곽 - 밤 화면의 접힌 종이 날(--sky-edge)처럼 옅은 달빛
+
+# 예전 호출은 그때의 색을 글자로 적어 보냈다: 짙은 색(#08202b) = 지난 알림, 박하빛 = 안내.
+# 팔레트가 바뀌어도 그 뜻은 그대로이므로 옛 값도 받아 준다.
+LEGACY_LATE = {tokens.COLOR["deep"], "#08202b"}
+LEGACY_INFO = {tokens.COLOR["mint"], "#85bdb3"}
 
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(
@@ -99,7 +106,7 @@ def set_scale(scale):
     SCALE = max(1.0, min(4.0, float(scale)))
     for k, v in _BASE.items():
         globals()[k] = s(v)
-    for cached in (_texture_sheet, _shadow_sheet, _shadow, _card_face, _font, _x_mark,
+    for cached in (_shadow_sheet, _shadow, _card_face, _font, _x_mark,
                    _rounded_mask):
         cached.cache_clear()
 
@@ -184,7 +191,7 @@ def notify(title, sub="", accent=None, on_done=None, key=None, extra=None,
         late = True
     item = {"title": title, "sub": sub, "late": late, "on_done": on_done,
             "on_snooze": on_snooze, "can_open": can_open, "key": k,
-            "info": accent is not None and accent.lower() == MINT}
+            "info": accent is not None and accent.lower() in LEGACY_INFO}
     item.update(extra or {})
     _queue.put(item)
     _wake()
@@ -253,37 +260,6 @@ def _rounded_mask(w, h, radius, ss=4):
     return m.resize((w, h), Image.LANCZOS)
 
 
-SHEET_H = 360                   # 결 한 장의 높이 (100% 기준). 어떤 카드보다 크다.
-
-
-@functools.lru_cache(maxsize=2)
-def _texture_sheet(w, h):
-    """모조지 결을 곱하기용 밝기 지도로 만든다 (255 = 그대로, 낮을수록 어둡게).
-
-    고운 요철(비스듬한 빛) + 크게 번지는 얼룩 + 잔 티끌.
-    """
-    from PIL import Image, ImageChops, ImageFilter
-
-    def noise(size, sigma):
-        return Image.effect_noise(size, sigma).point(lambda v: max(0, min(255, v)))
-    tooth = noise((w, h), 48).filter(ImageFilter.GaussianBlur(0.6 * SCALE)).filter(ImageFilter.EMBOSS)
-    # 결 C (디자인 2차): 창 화면과 같이 요철은 절반, 큰 얼룩은 뺀다 - 얼룩이 넓은 면을 얼룩덜룩하게 만들었다
-    tooth = tooth.point(lambda v: 255 - int(abs(v - 128) * 0.10))          # 0~13 만큼 어둡게
-    speck = noise((w, h), 70).point(lambda v: 255 - (5 if v > 235 else 0))
-    return ImageChops.multiply(tooth, speck)
-
-
-def _texture(w, h):
-    """카드 크기만큼의 결. 큰 한 장을 한 번 만들어 두고 잘라 쓴다.
-
-    예전에는 카드 높이마다 새로 만들었다. 제목 줄 수 · 단추 유무로 높이가 여러
-    가지라, 새 높이의 카드가 뜰 때마다 결을 짓느라 메시지 루프가 멈췄고 그 사이
-    다른 카드의 움직임이 끊겼다. 같은 장에서 잘라 오므로 결도 늘 같다.
-    """
-    sheet = _texture_sheet(max(w, CW), max(h, s(SHEET_H)))
-    return sheet.crop((0, 0, w, h))
-
-
 def _shadow_reach():
     """그림자가 카드 위 · 아래 끝의 영향을 받는 높이 (실제 픽셀).
 
@@ -334,26 +310,25 @@ def _shadow(w, h):
 
 @functools.lru_cache(maxsize=16)
 def _card_face(w, h):
-    """점토 면 + 결 + 경계선. 글자 없이.
+    """밤의 면 + 옅은 윤곽. 글자 없이.
 
-    마우스를 올릴 때마다 카드를 새로 그리는데, 그중 대부분(6ms)이 이 바탕이었다.
-    바탕은 크기가 같으면 늘 같으므로 기억해 두고, 받은 쪽이 .copy() 해서 그 위에 그린다.
+    창 화면처럼 무늬 없는 맨 면이다 (예전의 모조지 결은 하늘 화면에서 뺐다). 위가 아주
+    조금 밝고 아래로 가라앉는다 - 떠 있는 종이 한 장으로 읽히게.
+    마우스를 올릴 때마다 카드를 새로 그리므로 바탕은 크기별로 기억해 두고,
+    받은 쪽이 .copy() 해서 그 위에 그린다.
     """
-    from PIL import Image, ImageChops, ImageDraw
-    face = Image.new("RGB", (w, h), _rgb(CARD))
+    from PIL import Image, ImageDraw
     grad = Image.linear_gradient("L").resize((w, h))                       # 위 밝게 → 아래 조금 어둡게
     hi, lo = _rgb(WASH_HI), _rgb(WASH_LO)
     face = Image.merge("RGB", [grad.point(lambda v, a=a, b=b: a + (b - a) * v // 255)
                                for a, b in zip(hi, lo)])
-    tex = _texture(w, h)
-    face = Image.merge("RGB", [ImageChops.multiply(ch, tex) for ch in face.split()])
     card = face.convert("RGBA")
     card.putalpha(_rounded_mask(w, h, R))
     ring = Image.new("L", (w * 4, h * 4), 0)
     ImageDraw.Draw(ring).rounded_rectangle([0, 0, w * 4 - 1, h * 4 - 1], radius=R * 4,
                                            outline=255, width=max(4, int(4 * SCALE)))
-    ring = ring.resize((w, h), Image.LANCZOS).point(lambda v: v * 70 // 255)
-    edge = Image.new("RGBA", (w, h), _rgb(DARK) + (0,))
+    ring = ring.resize((w, h), Image.LANCZOS).point(lambda v: int(v * EDGE[1]))
+    edge = Image.new("RGBA", (w, h), _rgb(EDGE[0]) + (0,))
     edge.putalpha(ring)
     card.alpha_composite(edge)
     return card
@@ -373,15 +348,9 @@ def _x_mark(size, color, thick):
     return layer
 
 
-def _wash(name):
-    """마우스를 올렸을 때 덮는 색. 창 화면(--hover · --hover-hi)과 같은 값이다."""
-    r, g, b, a = tokens.rgba_tuple(name)
-    return "#%02x%02x%02x" % (r, g, b), a
-
-
-# 창 화면의 --rule2 · --rule 과 같은 선. 값은 tokens.py 에서만 온다.
-RULE2 = tokens.rgba_tuple("rule2")
-RULE1 = tokens.rgba_tuple("rule")
+def _wash():
+    """마우스를 올렸을 때 덮는 색 (_blob 에 넘길 색 · 불투명도)."""
+    return HOVER_HI[0], int(round(HOVER_HI[1] * 255))
 
 
 def _hline(card, x, y, w, color=RULE2):
@@ -395,6 +364,37 @@ def _vline(card, x, y, h, color=RULE1):
     from PIL import Image
     if h > 0:
         card.alpha_composite(Image.new("RGBA", (1, int(h)), color), (int(x), int(y)))
+
+
+# 숫자 바로 뒤에 한글이 붙으면 ("10분 뒤") Paperlogy 는 둘 사이가 거의 맞닿는다 - 숫자의 오른쪽
+# 빈 자리와 한글의 왼쪽 빈 자리가 모두 좁아서다. 그 자리에만 틈을 조금 벌린다 (100% 기준 px).
+# 글꼴에 없는 좁은 공백 문자를 끼우면 네모(□)가 찍히므로, 글자를 조각내어 따로 놓는다.
+DIGIT_GAP = 2.6
+
+
+def _pieces(text):
+    """숫자 → 글자로 넘어가는 자리에서 자른다: "10분 뒤" → ["10", "분 뒤"]. 10:20 · 3.5 는 자르지 않는다."""
+    out, cur = [], ""
+    for ch in text:
+        if cur and cur[-1].isdigit() and not (ch.isdigit() or ch.isspace() or ch in ":.,·/-~%"):
+            out.append(cur)
+            cur = ""
+        cur += ch
+    return out + [cur] if cur else out
+
+
+def _tlen(text, font):
+    """_ctext 로 그렸을 때의 폭."""
+    ps = _pieces(text)
+    return sum(font.getlength(p) for p in ps) + DIGIT_GAP * SCALE * (len(ps) - 1)
+
+
+def _ctext(d, cx, y, text, font, v, fill):
+    """cx 에 가운데를 맞춰 쓴다. v 는 세로 기준 ('m' 가운데 · 'a' 윗선)."""
+    x = cx - _tlen(text, font) / 2
+    for p in _pieces(text):
+        d.text((x, y), p, font=font, anchor="l" + v, fill=fill)
+        x += font.getlength(p) + DIGIT_GAP * SCALE
 
 
 def _blob(card, box, radius, color, alpha=255):
@@ -419,8 +419,8 @@ def _close(card, hover):
     size = CLOSE
     x, y = card.width - CLOSE_R - size, CLOSE_T
     if hover == "x":
-        _blob(card, (x, y, size, size), s(9), *_wash("hover-hi"))
-    mark = _x_mark(s(12), INK2 if hover == "x" else FAINT, 1.5 * SCALE)
+        _blob(card, (x, y, size, size), s(9), *_wash())
+    mark = _x_mark(s(12), TEXT if hover == "x" else FAINT, 1.5 * SCALE)
     card.alpha_composite(mark, (x + (size - mark.width) // 2, y + (size - mark.height) // 2))
     return (x, y, size, size)
 
@@ -450,10 +450,9 @@ def _seg_row(card, acts, hover):
         if hover == name:
             _blob(card, (x0 + N_ACT_INSET, top + N_ACT_INSET,
                          x1 - x0 - N_ACT_INSET * 2, N_ACT_H - N_ACT_INSET * 2),
-                  N_ACT_R, *_wash("hover-hi"))
-        fill = MID_INK if kind == "primary" else (DEEP if kind == "late" else MUTED)
-        d.text(((x0 + x1) / 2, top + N_ACT_H / 2 + s(1)), label, font=f, anchor="mm",
-               fill=_rgb(fill) + (255,))
+                  N_ACT_R, *_wash())
+        fill = TEAL if kind == "primary" else (LATE if kind == "late" else FAINT)   # 보조 단추는 한 단 흐리게 - 완료가 먼저 읽힌다
+        _ctext(d, (x0 + x1) / 2, top + N_ACT_H / 2 + s(1), label, f, "m", _rgb(fill) + (255,))
         hits[name] = (x0, top, x1 - x0, N_ACT_H)
     return hits
 
@@ -512,13 +511,13 @@ def _draw_normal(item, hover):
     d = ImageDraw.Draw(card)
 
     # 종류 띠: 글자 덩어리와 같은 높이로 (예전에는 제목 줄에만 걸려 짧았다)
-    bar = DEEP if item.get("late") else (MINT if item.get("info") else MID)
+    bar = LATE if item.get("late") else (TEAL_SOFT if item.get("info") else TEAL)
     _blob(card, (N_MARGIN, N_TOP + s(2), N_BAR_W, max(1, block - s(4))),
           max(1, N_BAR_W // 2), bar)
 
     if when:
         # 시각의 잉크가 wx 에서 시작하게 한다 (띠와의 간격이 시각마다 흔들리지 않게)
-        d.text((wx - lsb_t, N_TOP - s(2)), when, font=f_time, fill=_rgb(DEEP) + (255,))
+        d.text((wx - lsb_t, N_TOP - s(2)), when, font=f_time, fill=_rgb(TEXT) + (255,))
         # 아래 글자는 시각 아래 가운데로. 왼쪽을 맞추려 하면 어느 한쪽은 반드시
         # 어긋난다 - 큰 숫자의 세로 획은 글자 안쪽 깊숙이 있고(26px "1" 은 9px),
         # 작은 글자는 가장자리에 있다(11px "1" 은 3px). 눈은 획을 보므로 왼쪽 끝을
@@ -528,14 +527,13 @@ def _draw_normal(item, hover):
         if rel:
             ry = N_TOP + N_TIME_LH + N_TIME_GAP
             if item.get("late"):
-                # 지난 것은 짙은 알약으로. 창 화면의 "지남" 표시와 같은 모양이라
+                # 지난 것은 호박빛 알약으로. 창 화면의 지난 일과 같은 색이라
                 # 굳이 읽지 않아도 무슨 뜻인지 안다.
-                pw = int(f_rel.getlength(rel)) + s(15)
-                _blob(card, (int(cx - pw / 2), ry - s(2), pw, N_REL_LH + s(5)), s(7), DEEP)
-                d.text((cx, ry + N_REL_LH / 2), rel, font=f_rel, anchor="mm",
-                       fill=_rgb(ONMID) + (255,))
+                pw = int(_tlen(rel, f_rel)) + s(15)
+                _blob(card, (int(cx - pw / 2), ry - s(2), pw, N_REL_LH + s(5)), s(7), LATE)
+                _ctext(d, cx, ry + N_REL_LH / 2, rel, f_rel, "m", _rgb(ON_PILL) + (255,))
             else:
-                d.text((cx, ry), rel, font=f_rel, anchor="ma", fill=_rgb(FAINT) + (255,))
+                _ctext(d, cx, ry, rel, f_rel, "a", _rgb(FAINT) + (255,))
 
     # 시각(26px)과 제목(14px)은 글자 위 빈 자리가 서로 달라서, 같은 y 에서
     # 시작하면 제목이 떠 보인다. 숫자와 한글의 "윗머리" 를 재서 맞춘다.
@@ -543,7 +541,7 @@ def _draw_normal(item, hover):
     if when:
         y += max(0, f_time.getbbox("0")[1] - f_ttl.getbbox("가")[1])
     for ln in lines:
-        d.text((tx, y), ln, font=f_ttl, fill=_rgb(INK2) + (255,))
+        d.text((tx, y), ln, font=f_ttl, fill=_rgb(TEXT) + (255,))
         y += N_TTL_LH
     if subs:
         y += N_TTL_GAP
@@ -572,24 +570,24 @@ def _draw_list(item, hover):
     card = _card_face(CW, h).copy()
     d = ImageDraw.Draw(card)
     d.text((L, s(15)), item.get("label", ""), font=f_lab, fill=_rgb(FAINT) + (255,))
-    d.text((L, s(31)), item["title"], font=f_ttl, fill=_rgb(INK2) + (255,))
+    d.text((L, s(31)), item["title"], font=f_ttl, fill=_rgb(TEXT) + (255,))
     d.text((CW - TR, s(35)), "%d건" % (len(item["rows"]) + more), font=f_n, anchor="ra",
-           fill=_rgb(MID_INK) + (255,))
+           fill=_rgb(TEAL) + (255,))
     y = head
     _hline(card, L, y, CW - L * 2, RULE2)
     for i, (key, name, over) in enumerate(rows):
         if i:
             _hline(card, L, y, CW - L * 2, RULE1)
         cy = y + LIST_ROW // 2
-        d.text((L, cy), key or "—", font=f_key, anchor="lm", fill=_rgb(MID_INK) + (255,))
+        d.text((L, cy), key or "—", font=f_key, anchor="lm", fill=_rgb(TEAL) + (255,))
         pill_w = int(f_pill.getlength("지남")) + s(14) if over else 0
         wide = CW - L - (L + s(48)) - (pill_w + s(8) if over else 0)
         d.text((L + s(48), cy), _wrap(name, f_row, wide, 1)[0], font=f_row, anchor="lm",
-               fill=_rgb(BODY) + (255,))
+               fill=_rgb(TEXT) + (255,))
         if over:
             px = CW - L - pill_w
-            _blob(card, (px, cy - s(8), pill_w, s(16)), s(6), DEEP)
-            d.text((px + pill_w / 2, cy), "지남", font=f_pill, anchor="mm", fill=_rgb(ONMID) + (255,))
+            _blob(card, (px, cy - s(8), pill_w, s(16)), s(6), LATE)
+            d.text((px + pill_w / 2, cy), "지남", font=f_pill, anchor="mm", fill=_rgb(ON_PILL) + (255,))
         y += LIST_ROW
     if more:
         d.text((L + s(48), y + s(6)), "그 외 %d건" % more, font=f_more, fill=_rgb(FAINT) + (255,))
@@ -605,13 +603,13 @@ def _draw_fold(item, hover):
     f, f_c = _font(500, s(11.5)), _font(500, s(10.5))
     cx = s(18)
     chev = [(cx, h // 2 + s(3)), (cx + s(5), h // 2 - s(2)), (cx + s(10), h // 2 + s(3))]
-    d.line(chev, fill=_rgb(INK2 if hover else MUTED) + (255,), width=max(1, int(2 * SCALE)), joint="curve")
+    d.line(chev, fill=_rgb(TEXT if hover else TEXT2) + (255,), width=max(1, int(2 * SCALE)), joint="curve")
     d.text((cx + s(20), h // 2), "밀린 알림 펼치기", font=f, anchor="lm",
-           fill=_rgb(INK2 if hover else MUTED) + (255,))
+           fill=_rgb(TEXT if hover else TEXT2) + (255,))
     label = "+%d" % item.get("count", 0)
     pw = int(f_c.getlength(label)) + s(16)
-    _blob(card, (CW - s(14) - pw, h // 2 - s(9), pw, s(18)), s(7), DEEP)
-    d.text((CW - s(14) - pw / 2, h // 2), label, font=f_c, anchor="mm", fill=_rgb(ONMID) + (255,))
+    _blob(card, (CW - s(14) - pw, h // 2 - s(9), pw, s(18)), s(7), TEAL)
+    d.text((CW - s(14) - pw / 2, h // 2), label, font=f_c, anchor="mm", fill=_rgb(ON_PILL) + (255,))
     return card, {"fold": (0, 0, CW, h)}
 
 
@@ -1244,6 +1242,11 @@ def _flush_held():
         "label": "밀린 알림", "rows": rows,
         "more": max(0, len(items) - LIST_MAX),
     })
+
+
+def busy():
+    """떠 있거나 기다리거나 보류 중인 카드가 있는지 (자동 업데이트가 이때는 바꿔 끼우지 않는다)."""
+    return bool(_cards) or not _queue.empty() or bool(_held)
 
 
 def held_count():

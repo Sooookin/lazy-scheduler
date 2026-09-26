@@ -39,16 +39,24 @@ def test_stylesheet_matches_tokens():
 
 
 def test_toast_colours_come_from_tokens():
-    """알림 카드가 자기 색을 따로 들고 있지 않아야 한다."""
+    """알림 카드가 자기 색을 따로 들고 있지 않아야 한다 - 창 화면의 밤 한 벌(tokens.NIGHT)을 입는다."""
     pairs = [
-        (toast.CARD, "card"), (toast.DARK, "dark"), (toast.LIGHT, "light"),
-        (toast.PALE, "pale"), (toast.INK2, "ink2"), (toast.BODY, "body"),
-        (toast.MUTED, "muted"), (toast.FAINT, "faint"), (toast.MID, "mid"),
-        (toast.MID_INK, "mid-ink"), (toast.MINT, "mint"), (toast.DEEP, "deep"),
-        (toast.ONMID, "onmid"), (toast.WASH_HI, "wash-hi"), (toast.WASH_LO, "wash-lo"),
+        (toast.SURFACE, "surface"), (toast.WASH_HI, "wash-hi"), (toast.WASH_LO, "wash-lo"),
+        (toast.TEXT, "text"), (toast.TEXT2, "text2"), (toast.FAINT, "faint"),
+        (toast.TEAL, "teal"), (toast.TEAL_SOFT, "teal-soft"), (toast.LATE, "late"),
+        (toast.ON_PILL, "bg"),
     ]
     for got, key in pairs:
-        assert got == tokens.COLOR[key], "toast.%s 가 tokens 와 다르다" % key
+        assert got == tokens.NIGHT[key], "toast.%s 가 tokens.NIGHT 와 다르다" % key
+
+
+def test_the_night_set_is_what_the_window_shows_at_midnight():
+    """NIGHT 는 새 색이 아니라 applyLight 가 한밤에 섞는 값이다 (web/sky.js 와 같은 식)."""
+    L = tokens.LIGHT
+    assert tokens.NIGHT["surface"] == tokens._mix(L["panel"], L["night"], .80)
+    assert tokens.NIGHT["text"] == L["pale"] and tokens.NIGHT["teal"] == L["teal-lit"]
+    src = io.open(os.path.join(ROOT, "web", "sky.js"), encoding="utf-8").read()
+    assert "mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, (1-day)*.80" in src, "면을 섞는 식이 바뀌었다 - NIGHT 도 고친다"
 
 
 def test_no_stray_hex_colours_in_python():

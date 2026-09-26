@@ -115,14 +115,6 @@ def test_sliced_shadow_matches_a_real_blur(scale, height):
     assert worst <= 2, "그림자 차이 %d" % worst
 
 
-def test_texture_is_cut_from_one_sheet():
-    toast.set_scale(1.25)
-    small = toast._texture(toast.CW, 150)
-    tall = toast._texture(toast.CW, 190)
-    assert tall.crop((0, 0, toast.CW, 150)).tobytes() == small.tobytes()
-    assert toast._texture_sheet.cache_info().currsize == 1
-
-
 def test_cached_card_face_is_never_drawn_on():
     """바탕을 기억해 두고 나눠 쓴다. 누군가 그 위에 직접 그리면 다음 카드에 글자가 남는다."""
     card = {"title": "보고서 제출", "when": "10:20", "rel": "20분 뒤",
