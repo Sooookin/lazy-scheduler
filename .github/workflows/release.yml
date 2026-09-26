@@ -47,7 +47,7 @@ jobs:
       - name: 패키지
         run: |
           python -m pip install --upgrade pip
-          pip install -r tools/requirements-build.txt pytest
+          pip install -r tools/requirements-build.txt pytest pytest-github-actions-annotate-failures
 
       - name: 테스트
         run: python -m pytest -q
