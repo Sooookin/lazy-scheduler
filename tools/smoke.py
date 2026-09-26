@@ -157,6 +157,7 @@ def main():
     box = tempfile.mkdtemp(prefix="ls-smoke-")
     env = dict(os.environ, APPDATA=box, LS_PORT_BASE=str(PORT))
     exe = arg("--exe")
+    exe = os.path.abspath(exe) if exe else None      # cwd 를 옮겨 켜므로 상대 경로면 못 찾는다
     cmd = [exe] if exe else [sys.executable, os.path.join(ROOT, "main.py")]
     say("켠다:", cmd, "데이터:", box)
     proc = subprocess.Popen(cmd, cwd=os.path.dirname(exe) if exe else ROOT, env=env)

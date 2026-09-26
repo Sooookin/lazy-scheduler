@@ -187,6 +187,7 @@ class LSCardView(AppKit.NSView):
         self.addTrackingArea_(self._area)
         objc.super(LSCardView, self).updateTrackingAreas()
 
+    @objc.python_method                           # 파이썬 쪽 도우미 - Objective-C 메서드로 올리지 않는다
     def _px(self, event):
         p = self.convertPoint_fromView_(event.locationInWindow(), None)
         return int(p.x * _S[0]), int(p.y * _S[0])
