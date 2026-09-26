@@ -1825,7 +1825,7 @@ function paintUpdate(u){
                : u.state === 'downloading' ? u.latest + ' 받는 중'
                : u.state === 'checking' ? '확인 중'
                : u.state === 'available' ? u.latest + ' 있음 (소스로 도는 중이라 받지 않습니다)'
-               : u.state === 'error' ? '확인하지 못했습니다'
+               : u.state === 'error' ? (u.error === 'offline' ? '인터넷에 연결되지 않았습니다' : '확인하지 못했습니다 · 잠시 뒤 다시 눌러 주세요')
                : u.checked && u.latest && u.latest === u.version ? '최신입니다' : '';
     $('#s-ver').textContent = '버전 ' + u.version + (tail ? ' · ' + tail : '');
     const b = $('#s-upd-btn');

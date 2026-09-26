@@ -4,7 +4,8 @@
 #   git tag -a v2.4.1 -m "바뀐 것 한 줄" -m "바뀐 것 한 줄" ...   (태그 설명이 릴리스 설명 · 앱의 새 버전 창이 된다)
 #   git push origin main v2.4.1
 #
-# 설치된 앱(updater.py)은 이 릴리스의 LazyScheduler.zip 과 LazyScheduler.zip.sha256 을 받아 스스로 바꾼다.
+# 설치된 앱(updater.py)은 이 릴리스의 LazyScheduler.zip 과 LazyScheduler.zip.sha256 을 받아 스스로 바꾸고,
+# LazyScheduler-notes.txt(태그 설명)를 새 버전 창에 보인다.
 # 둘 중 하나라도 빠지면 받지 않으므로, 손으로 릴리스를 만들지 않는다.
 #
 # 저장소 Secrets 에 FIREBASE_CONFIG (firebase/config.local.json 의 내용 그대로) 가 있어야 한다.
@@ -74,5 +75,7 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           git tag -l --format="%(contents)" $tag | Out-File -Encoding utf8 notes.txt
-          gh release create $tag release/LazyScheduler.zip release/LazyScheduler.zip.sha256 `
+          # 앱은 GitHub API 를 쓰지 않으므로 바뀐 것 목록도 파일로 붙인다 (새 버전 창에 보인다)
+          Copy-Item notes.txt release/LazyScheduler-notes.txt
+          gh release create $tag release/LazyScheduler.zip release/LazyScheduler.zip.sha256 release/LazyScheduler-notes.txt `
             --title "LazyScheduler $($tag.TrimStart('v'))" --notes-file notes.txt --latest

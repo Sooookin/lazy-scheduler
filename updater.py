@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """자동 업데이트 (PC 만). GitHub Releases 의 최신 릴리스가 더 새 버전이면 알아서 바꿔 끼운다.
 
-    확인      켠 지 2분 뒤, 그 뒤로 6시간마다 releases/latest 를 본다 (로그인 없이 읽힌다)
-    받기      LazyScheduler.zip 과 LazyScheduler.zip.sha256 (GitHub Actions 가 함께 올린다)
+    확인      켠 지 2분 뒤, 그 뒤로 6시간마다 github.com/<저장소>/releases/latest 가 넘겨 주는 태그를 본다.
+              GitHub API 는 쓰지 않는다 - 로그인 없는 API 는 IP 하나에 한 시간 60번이라, 회사처럼
+              여럿이 한 주소를 쓰면 막힌다 (실제로 "rate limit exceeded" 로 확인이 실패했다)
+    받기      LazyScheduler.zip 과 LazyScheduler.zip.sha256, 바뀐 것 목록 LazyScheduler-notes.txt
+              (GitHub Actions 가 함께 올린다)
               크기와 SHA-256 이 맞아야 쓴다. 해시 파일이 없는 릴리스는 받지 않는다
     풀기      %APPDATA%\\LazyScheduler\\update\\<버전>\\LazyScheduler
     켜 보기   풀어 둔 새 exe 를 --probe 로 한 번 켠다. 부품을 다 불러오지 못하면 쓰지 않는다
@@ -29,6 +32,8 @@ import sys
 import threading
 import time
 import traceback
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -36,9 +41,11 @@ import paths
 import version
 
 REPO = "Sooookin/lazy-scheduler"
-LATEST_URL = "https://api.github.com/repos/%s/releases/latest" % REPO
+LATEST_URL = "https://github.com/%s/releases/latest" % REPO
+DOWNLOAD_URL = "https://github.com/%s/releases/download/%%s/%%s" % REPO
 ASSET = "LazyScheduler.zip"
 HASH_ASSET = ASSET + ".sha256"
+NOTES_ASSET = "LazyScheduler-notes.txt"
 EXE = "LazyScheduler.exe"
 
 FIRST_CHECK_S = 120             # 켜자마자 묻지 않는다 - 켜는 동안은 할 일이 많다
@@ -108,20 +115,28 @@ def _edit_state(fn):
 
 # ---------------- 릴리스 고르기 · 받기 ----------------
 
-def pick(release):
-    """releases/latest 응답에서 쓸 것만. 초안 · 시험판이거나 zip · 해시가 없으면 None."""
-    if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
-        return None
-    tag = release.get("tag_name") or ""
+class NoRelease(Exception):
+    """받을 만한 릴리스가 없다 (해시가 없는 릴리스 등). 오류가 아니라 '최신이다' 와 같다."""
+
+
+def tag_from_location(loc):
+    """releases/latest 가 넘겨 주는 주소에서 태그: .../releases/tag/v2.4.1 → 'v2.4.1'."""
+    m = re.search(r"/releases/tag/([^/?#]+)/?$", loc or "")
+    return urllib.parse.unquote(m.group(1)) if m else ""
+
+
+def release_for(tag):
+    """태그 하나로 받을 주소들. 숫자 버전 태그가 아니면 None. (초안 · 시험판은 latest 가 가리키지 않는다)"""
     if not parse(tag):
         return None
-    assets = {a.get("name"): a for a in release.get("assets") or [] if isinstance(a, dict)}
-    z, h = assets.get(ASSET), assets.get(HASH_ASSET)
-    if not z or not h or not z.get("browser_download_url") or not h.get("browser_download_url"):
-        return None
-    return {"tag": tag, "version": tag.lstrip("v"), "zip_url": z["browser_download_url"],
-            "zip_size": int(z.get("size") or 0), "hash_url": h["browser_download_url"],
-            "notes": (release.get("body") or "").strip()}
+    return {"tag": tag, "version": tag.lstrip("v"), "zip_url": DOWNLOAD_URL % (tag, ASSET),
+            "zip_size": 0, "hash_url": DOWNLOAD_URL % (tag, HASH_ASSET),
+            "notes_url": DOWNLOAD_URL % (tag, NOTES_ASSET), "notes": ""}
+
+
+class _Stay(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None                               # 따라가지 않는다 - 넘겨 주는 주소만 읽는다
 
 
 def _open(url, accept=None):
@@ -131,9 +146,17 @@ def _open(url, accept=None):
     return urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S)
 
 
-def fetch_latest():
-    with _open(LATEST_URL, "application/vnd.github+json") as r:
-        return json.loads(r.read().decode("utf-8"))
+def latest_tag():
+    """최신 릴리스의 태그. 릴리스가 하나도 없으면 ''."""
+    req = urllib.request.Request(LATEST_URL, method="HEAD",
+                                 headers={"User-Agent": "LazyScheduler/%s" % version.VERSION})
+    try:
+        urllib.request.build_opener(_Stay).open(req, timeout=HTTP_TIMEOUT_S).close()
+    except urllib.error.HTTPError as e:
+        if e.code in (301, 302, 303, 307, 308):
+            return tag_from_location(e.headers.get("Location", ""))
+        raise
+    return ""
 
 
 def read_hash(text):
@@ -202,10 +225,20 @@ def prepare(rel):
     base = os.path.join(UPDATE_DIR, ver)
     shutil.rmtree(base, ignore_errors=True)
     os.makedirs(base, exist_ok=True)
-    with _open(rel["hash_url"]) as r:
-        want = read_hash(r.read(4096).decode("utf-8", "replace"))
+    try:
+        with _open(rel["hash_url"]) as r:
+            want = read_hash(r.read(4096).decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:                         # 손으로 만든 릴리스 - 받지 않는다
+            raise NoRelease(rel["tag"]) from None
+        raise
     if not want:
         raise ValueError("해시 파일을 읽지 못했다")
+    try:                                          # 바뀐 것 목록은 없어도 된다
+        with _open(rel["notes_url"]) as r:
+            rel["notes"] = r.read(8192).decode("utf-8", "replace").strip()
+    except Exception:
+        pass
     zpath = os.path.join(base, ASSET)
     got = download(rel["zip_url"], zpath, rel["zip_size"])
     if got != want:
@@ -396,7 +429,7 @@ def check_once():
     """한 번 확인하고, 새것이면 받아 둔다."""
     _status.update(state="checking", error="")
     try:
-        rel = pick(fetch_latest())
+        rel = release_for(latest_tag())
         _status["checked"] = time.strftime("%m-%d %H:%M")
         if not rel:
             _status.update(state="idle")
@@ -415,8 +448,13 @@ def check_once():
         _status.update(state="downloading")
         prepare(rel)
         _status.update(state="ready")
+    except NoRelease:
+        _status.update(state="idle")
     except Exception as e:
-        _status.update(state="error", error=str(e)[:200])
+        # 화면에 보일 까닭: 인터넷이 안 되는지(offline), 그 밖의 일인지(later)
+        net = isinstance(e, (urllib.error.URLError, socket.timeout, ConnectionError)) and \
+            not isinstance(e, urllib.error.HTTPError)
+        _status.update(state="error", error="offline" if net else "later")
         log("확인 · 받기 실패: " + traceback.format_exc())
 
 

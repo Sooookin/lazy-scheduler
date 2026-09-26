@@ -13,13 +13,6 @@ import updater
 import version
 
 
-def release(tag="v9.9.9", assets=("LazyScheduler.zip", "LazyScheduler.zip.sha256"), **kw):
-    r = {"tag_name": tag, "draft": False, "prerelease": False, "body": "- 첫째\n- 둘째",
-         "assets": [{"name": n, "size": 10, "browser_download_url": "https://x/" + n} for n in assets]}
-    r.update(kw)
-    return r
-
-
 def test_versions_compare_as_numbers():
     assert updater.parse("v2.10.0") > updater.parse("v2.9.9")
     assert updater.parse("2.4") == (2, 4, 0)
@@ -41,13 +34,15 @@ def test_release_tag_must_match_version_py():
     assert ok.returncode == 0 and bad.returncode == 1
 
 
-def test_only_complete_final_releases_are_used():
-    got = updater.pick(release())
-    assert got["version"] == "9.9.9" and got["zip_url"].endswith(".zip") and got["notes"].startswith("- 첫째")
-    assert updater.pick(release(draft=True)) is None
-    assert updater.pick(release(prerelease=True)) is None
-    assert updater.pick(release(assets=("LazyScheduler.zip",))) is None      # 해시가 없으면 받지 않는다
-    assert updater.pick(release(tag="latest")) is None
+def test_latest_tag_is_read_from_the_redirect():
+    """API 대신 releases/latest 가 넘겨 주는 주소를 읽는다 (API 는 한 시간 60번뿐이다)."""
+    loc = "https://github.com/Sooookin/lazy-scheduler/releases/tag/v2.4.1"
+    assert updater.tag_from_location(loc) == "v2.4.1"
+    assert updater.tag_from_location("https://github.com/x/y/releases") == ""
+    rel = updater.release_for("v2.4.1")
+    assert rel["version"] == "2.4.1" and rel["zip_url"].endswith("/releases/download/v2.4.1/LazyScheduler.zip")
+    assert rel["hash_url"].endswith(".sha256") and rel["notes_url"].endswith("-notes.txt")
+    assert updater.release_for("latest") is None
 
 
 def test_hash_file_is_read_leniently():
@@ -142,14 +137,16 @@ def test_prepare_downloads_checks_and_stages(tmp_path, monkeypatch):
         def __exit__(self, *a):
             return False
 
-    served = {"zip": blob, "sha": (good + "  LazyScheduler.zip\n").encode()}
-    monkeypatch.setattr(updater, "_open", lambda url, accept=None: R(served["sha" if url.endswith(".sha256") else "zip"]))
+    served = {"zip": blob, "sha": (good + "  LazyScheduler.zip\n").encode(), "notes": "첫째\n둘째".encode()}
+    kind = lambda url: "sha" if url.endswith(".sha256") else "notes" if url.endswith(".txt") else "zip"
+    monkeypatch.setattr(updater, "_open", lambda url, accept=None: R(served[kind(url)]))
     monkeypatch.setattr(updater, "probe", lambda exe: (os.path.isfile(exe), "ok"))
     monkeypatch.setattr(updater, "UPDATE_DIR", str(tmp_path / "update"))
-    rel = dict(updater.pick(release()), zip_size=len(blob))
+    rel = dict(updater.release_for("v9.9.9"), zip_size=len(blob))
     updater.prepare(rel)
     p = updater.load_state()["pending"]
     assert p["version"] == "9.9.9" and os.path.isfile(os.path.join(p["dir"], "LazyScheduler.exe"))
+    assert p["notes"] == "첫째\n둘째"
     assert updater.status()["state"] == "ready"
 
     updater.save_state({})
@@ -190,7 +187,7 @@ def test_auto_update_setting_is_per_device():
 def test_manual_check_reports_a_newer_release(monkeypatch):
     """[업데이트 확인]: 소스로 돌 때는 받지 않고 새것이 있다는 것만 알린다."""
     import time
-    monkeypatch.setattr(updater, "fetch_latest", lambda: release(tag="v99.0.0"))
+    monkeypatch.setattr(updater, "latest_tag", lambda: "v99.0.0")
     updater.check_now()
     for _ in range(50):
         if updater.status()["state"] != "checking":
@@ -234,3 +231,27 @@ def test_window_tells_when_it_is_used(server):
     tell({"visible": False})
     assert app.ui_idle_s() < 5                               # 숨긴 때부터 센다
     app._UI.update(visible=False, changed=0.0, input=0.0)
+
+
+def test_a_release_without_a_hash_is_not_an_error(monkeypatch):
+    """손으로 만든 릴리스(해시 없음)는 조용히 넘긴다 - '확인하지 못했습니다' 가 아니다."""
+    import urllib.error
+    monkeypatch.setattr(updater.paths, "FROZEN", True)
+    monkeypatch.setattr(updater, "latest_tag", lambda: "v99.0.0")
+
+    def no_hash(url, accept=None):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+    monkeypatch.setattr(updater, "_open", no_hash)
+    updater.save_state({})
+    updater.check_once()
+    assert updater.status()["state"] == "idle"
+
+
+def test_offline_is_told_apart(monkeypatch):
+    import urllib.error
+
+    def down():
+        raise urllib.error.URLError("getaddrinfo failed")
+    monkeypatch.setattr(updater, "latest_tag", down)
+    updater.check_once()
+    assert updater.status()["state"] == "error" and updater.status()["error"] == "offline"
