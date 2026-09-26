@@ -18,8 +18,7 @@ DETACHED = 0x00000008 | 0x00000200     # DETACHED_PROCESS · CREATE_NEW_PROCESS_
 
 # ---------------- 배포본 모양 (자동 업데이트가 쓴다) ----------------
 ASSET = "LazyScheduler-win.zip"        # 릴리스에서 받을 파일 (홈페이지도 이것을 가리킨다)
-# 2.5.0 까지의 설치본은 "LazyScheduler.zip" 을 찾는다. 릴리스는 같은 파일을 그 이름으로도 올린다
-# (.github/workflows/release.yml). 옛 설치본이 다 바뀐 뒤에 그쪽을 멈춘다.
+# (2.5.0 까지는 LazyScheduler.zip 이었다. 그 설치본은 2.5.1 에서 옛 이름으로 한 번 받아 넘어왔다)
 EXE = "LazyScheduler.exe"
 # 새 버전이 제 부품을 다 불러오는지 --probe 로 볼 모듈
 PROBE_MODULES = ("PIL.Image", "PIL.ImageDraw", "pystray._win32", "clr", "webview",
