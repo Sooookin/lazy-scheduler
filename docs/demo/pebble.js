@@ -31,7 +31,8 @@
    켜면 잠 · 팔짝 · 굴림이 모두 즉시 상태 교체가 된다.
 
    가볍게 - 끝없이 도는 CSS 애니메이션은 쓰지 않는다 (창 전체를 초당 60번 다시 합성해
-   CPU 를 늘 붙잡는다). 숨 쉬기 · z 는 1초에 6번만 옮기고, 나머지는 한 번 돌고 끝난다.
+   CPU 를 늘 붙잡는다). 숨 쉬기는 1초에 3~6번만 옮기고, z 는 입력 뒤 3분 동안만 돌며,
+   나머지는 한 번 돌고 끝난다.
    창이 숨어 있으면 주사위도 숨도 멈춘다.
    ══════════════════════════════════════════════════════════════════ */
 window.PB = (() => {
@@ -63,6 +64,11 @@ window.PB = (() => {
   const clampX = x => Math.max(170, Math.min(740, x));
   const beadX = m => G ? G.onArc(m).x / G.k : 470;
   const asleep = () => S.mode === 'sleep' || S.mode === 'nap';
+  /* 밤이어도 곁에서 일하는 동안은 깨어 있다: 추가 · 수정 창, 시각 고르기, 되돌리기 띠가
+     떠 있는 동안, 그리고 그것이 닫힌 뒤 6초. 고깔은 쓴 채로 평소처럼 움직인다. */
+  const WORK_LINGER = 6000;
+  let lastWork = 0, wasWork = false;
+  const workingNow = () => !!document.querySelector('.modal.on, #undo.on') || (typeof PEEK !== 'undefined' && PEEK != null);
   const busy = () => !!(S.move || S.anim || S.drag);
   let homing = false;                             /* '돌멩이 움직임' 을 끈 순간 가운데로 가는 중 */
 
@@ -238,6 +244,7 @@ window.PB = (() => {
     else if(a === 'pant'){ shape = 'wide'; prop = 'sweat'; }
     else if(S.away != null) shape = 'dot';
     else if(sl){ shape = S.peek ? 'peek' : 'closed'; prop = S.mode === 'nap' ? 'leaf' : 'cap'; }
+    if(!sl && S.night && !prop && !S.drag) prop = 'cap';   /* 밤에 깨어 있으면 고깔은 쓴 채로 */
     else if(S.mode === 'all') shape = 'happy';
     else if(near) shape = 'squint';
     else if(S.lookUp){ shape = 'roundBig'; prop = S.mode === 'ghost' ? 'q' : null; }
@@ -259,8 +266,17 @@ window.PB = (() => {
     bang:  () => '<span class="pb-bang">!</span>',
     q:     () => '<span class="pb-q">?</span>',
   };
-  /* 잠의 z 세 개 - 떠올랐다 사라지기를 되풀이한다. 숨 쉬기와 같은 느린 박자(tick)로 옮긴다 */
-  let Z = null;
+  /* 잠의 z 세 개 - 떠올랐다 사라지기를 되풀이한다.
+     예전에는 숨 쉬기와 같은 느린 박자(1초에 6번)로 옮겼더니 눈에 띄게 뚝뚝 끊겼다. 이제는
+     Web Animations(transform · opacity 만)라 합성기가 화면 주사율대로 매끄럽게 돌린다.
+     다만 끝없이 돌리지는 않는다 - 마지막 입력 뒤 3분 동안만 돌고, 그 뒤로는 z 가 한 바퀴를
+     마저 떠오르고 멈춘다(깊이 잠든 셈). 창이 숨으면 rest() 가 끝내고, 입력이 오면 다시 돈다.
+     바퀴의 자리는 시계에서 읽으므로 다시 켜도 z 가 튀지 않는다. */
+  const Z_P = 2800, Z_FOR = 180000;
+  const Z_KF = [{opacity: 0, transform: 'translate(0,0) scale(.6)'},
+                {opacity: 1, transform: 'translate(3.5px,-6.5px) scale(.73)', offset: .25},
+                {opacity: 0, transform: 'translate(14px,-26px) scale(1.1)'}];
+  let Z = null, zEnd = 0;
   function zzz(on){
     if(on && !Z){
       Z = [0, 1, 2].map(i => {
@@ -271,7 +287,23 @@ window.PB = (() => {
         E.fx.appendChild(z);
         return z;
       });
+      zEnd = 0;
     } else if(!on && Z){ Z.forEach(z => z.remove()); Z = null; }
+    if(Z) zRun();
+  }
+  function zRun(force){
+    if(!Z || calm() || frozen() || !onScreen()) return;
+    const left = Z_FOR - (Date.now() - lastInput);
+    if(left <= 0) return;
+    const on = Z[0]._a && Z[0]._a.playState === 'running';
+    if(on && !force) return;
+    if(on && Date.now() < zEnd - 60000) return;         /* 아직 넉넉하면 그대로 (마우스를 움직일 때마다 다시 걸지 않는다) */
+    const n = Math.ceil(left / Z_P) + 1, t = performance.now();
+    Z.forEach((z, i) => {
+      if(z._a) z._a.cancel();
+      z._a = z.animate(Z_KF, {duration: Z_P, iterations: n, delay: -((t + i * 900) % Z_P), easing: 'linear'});
+    });
+    zEnd = Date.now() + n * Z_P;
   }
   function sparks(){
     if(calm()) return;
@@ -292,9 +324,9 @@ window.PB = (() => {
     E.fx.appendChild(n);
   }
 
-  /* ── 느린 박자: 숨 쉬기(깨어 5초 · 잠 3.2초에 한 번) · z ──
-     숨은 5초에 1.3px 남짓 부푸는 것이라 1초에 3번이면 눈에는 매끄럽다. z 가 떠오르는
-     밤에만 6번으로 올린다 (재 보니 6번으로 늘 돌면 그것만으로 CPU 2~3% 였다).
+  /* ── 느린 박자: 숨 쉬기(깨어 5초 · 잠 3.2초에 한 번) ──
+     숨은 5초에 1.3px 남짓 부푸는 것이라 1초에 3번이면 눈에는 매끄럽다. 잠의 숨은 더
+     깊어서 밤에만 6번으로 올린다 (재 보니 6번으로 늘 돌면 그것만으로 CPU 2~3% 였다).
      한 번짜리 동작(Web Animations)은 이 값 위에 덮여 돌므로 서로 부딪치지 않는다. */
   const TICK = () => 1000 / (Z ? 6 : 3);
   (function tick(){
@@ -303,11 +335,6 @@ window.PB = (() => {
       const P = sl ? 3.2 : 5, A = sl ? [.06, .07] : [.04, .04];
       const u = (1 - Math.cos(2 * Math.PI * t / P)) / 2;
       E.sq.style.transform = 'scale(' + (1 + A[0] * u).toFixed(3) + ',' + (1 - A[1] * u).toFixed(3) + ')';
-      if(Z) Z.forEach((z, i) => {
-        const p = ((t + i * .9) % 2.8) / 2.8, o = p < .25 ? p / .25 : 1 - (p - .25) / .75;
-        z.style.opacity = o.toFixed(2);
-        z.style.transform = 'translate(' + (14 * p).toFixed(1) + 'px,' + (-26 * p).toFixed(1) + 'px) scale(' + (.6 + .5 * p).toFixed(2) + ')';
-      });
     } else if(Z && frozen()) Z.forEach((z, i) => { z.style.opacity = i === 1 ? '1' : '.6'; });
     setTimeout(tick, TICK());
   })();
@@ -372,7 +399,8 @@ window.PB = (() => {
     const late = all.filter(i => !i.done && (i.date < today || (i.time && mins(i.time) < now)));
     const night = allDone || skyLight(now).night > .5;
     return {now, allDone, night, next: nx && nx.time ? {id: nx.id, m: mins(nx.time)} : null, late,
-            ghost: typeof PEEK !== 'undefined' ? PEEK : null, idle: (Date.now() - lastInput) / 1000};
+            ghost: typeof PEEK !== 'undefined' ? PEEK : null, idle: (Date.now() - lastInput) / 1000,
+            work: workingNow() || Date.now() - lastWork < WORK_LINGER};
   }
   function settle(){ if(!busy()) think(); }
   function think(){
@@ -383,6 +411,7 @@ window.PB = (() => {
     if(wasAll === false && s.allDone) justAll = true;
     if(!s.allDone) justAll = false;
     wasAll = s.allDone;
+    S.night = s.night;
     if(busy()) return;                               /* 끝나면 settle 이 다시 부른다 */
     if(frozen()){                                    /* 갈무리: 늘 같은 그림 - 낮엔 제자리, 밤엔 잠자리 */
       S.mode = s.night ? 'sleep' : 'idle';
@@ -390,8 +419,12 @@ window.PB = (() => {
       place(); paint(); return;
     }
 
-    /* 밤 (해가 졌거나 · 오늘 일을 다 마침) - 잠자리로 */
-    if(s.night){
+    /* 밤 (해가 졌거나 · 오늘 일을 다 마침) - 잠자리로. 일하는 중이면 깨어 곁에 있는다 */
+    if(s.night && s.work && (S.mode === 'sleep' || S.mode === 'bed' || S.mode === 'all')){
+      S.mode = 'idle'; S.peek = false;
+      return play('hop', 720);
+    }
+    if(s.night && !s.work){
       if(S.mode === 'sleep') return;
       S.lookUp = false; S.away = null; S.gaze = null;
       if(justAll){                                   /* 막 다 마쳤다 - 기쁜 눈으로 굴러가서 눕는다 */
@@ -458,6 +491,7 @@ window.PB = (() => {
     const was = (Date.now() - lastInput) / 1000;
     lastInput = Date.now();
     if(was > 300) yawned = false;
+    if(Z) zRun(true);
     if(S.mode === 'nap'){                                  /* 화들짝 - 낮잠 깸, 곧 평상시 */
       S.mode = 'idle';
       play('squash', 420);
@@ -632,6 +666,15 @@ window.PB = (() => {
     }
   }).observe(document.body, {attributes: true, attributeFilter: ['class']});
 
+  /* 창 · 되돌리기 띠가 열리고 닫히는 것을 지켜본다 - 열리면 깨우고, 닫히고 6초 뒤 다시 판단(잠) */
+  new MutationObserver(() => {
+    const w = workingNow();
+    if(w === wasWork) return;
+    wasWork = w;
+    lastWork = Date.now();
+    if(w) settle(); else later(settle, WORK_LINGER + 50);
+  }).observe(document.body, {attributes: true, attributeFilter: ['class'], subtree: true});
+
   /* 5분 · 15분 · 10분 전 같은 시간 신호는 사건이 없으니 스스로 들여다본다 */
   setInterval(() => { if(onScreen()) settle(); }, 15000);
 
@@ -651,7 +694,8 @@ window.PB = (() => {
     sun(dir){ S.dir = dir; if(!S.gaze && !S.cursor) paint(); },
     /* 완료 - 팔짝. 6초 안에 또 완료하면 너무 신나서 한 바퀴 뒤집힌다 */
     done(){
-      if(S.mode === 'sleep'){ S.peek = true; paint(); later(() => { S.peek = false; paint(); }, 1500); return; }
+      lastWork = Date.now();
+      if(S.mode === 'sleep' || S.mode === 'bed'){ S.mode = 'idle'; S.peek = false; }   /* 밤에 완료해도 깨어 같이 기뻐한다 */
       if(S.mode === 'nap') S.mode = 'idle';
       const combo = Date.now() - lastDone < 6000;
       lastDone = Date.now();
