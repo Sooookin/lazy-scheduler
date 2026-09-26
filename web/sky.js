@@ -60,6 +60,9 @@ const hx = c => { c = c.replace('#',''); return [0,2,4].map(i => parseInt(c.slic
 const mixc = (a,b,t) => { const A = hx(a), B = hx(b);
   return '#' + [0,1,2].map(i => ('0' + Math.round(A[i] + (B[i]-A[i])*t).toString(16)).slice(-2)).join(''); };
 const smooth = (v,a,b) => { const t = Math.max(0, Math.min(1, (v-a)/(b-a))); return t*t*(3-2*t); };
+/* 상대 휘도 (WCAG). 글자를 먹빛으로 둘지 흰빛으로 둘지 면의 실제 밝기로 정할 때 쓴다 */
+const lum = c => { const [r, g, b] = hx(c).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+  return .2126 * r + .7152 * g + .0722 * b; };
 
 /* tokens.py 가 넣어 둔 재료를 읽는다 - 색을 여기 또 적으면 언젠가 어긋난다 */
 const LIT = (() => {
@@ -189,14 +192,23 @@ function applyLight(min){
   const surface = mixc(mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, (1-day)*.80);
   setLit('--bg',      mixc(mixc(LIT.base,  LIT.warm, warm*.70), LIT.night, (1-day)*.88));
   setLit('--surface', surface);
-  setLit('--text',    mixc(LIT.ink,  LIT.pale,  1-day));
-  setLit('--text2',   mixc(LIT.ink2, LIT.pale2, 1-day));
-  setLit('--teal',    mixc(LIT.teal, LIT['teal-lit'], 1-day));
+  /* 글자는 면의 실제 밝기를 보고 뒤집는다. 예전에는 면과 같은 비율(1-day)로 섞어서, 새벽 ·
+     해질녘에 면이 중간 회색을 지나는 동안 글자도 같이 회색이 되어 (1.5:1 안팎) 읽히지 않았다.
+     면의 휘도가 .22 근처(먹빛 · 흰빛 글자의 대비가 같아지는 곳)를 지나는 짧은 구간에서만
+     건너가므로, 그 밖에서는 본문 대비가 4.9:1 아래로 내려가지 않는다. */
+  const Ls = lum(surface), flip = smooth(Ls, .235, .205);
+  setLit('--text',    mixc(LIT.ink,  LIT.pale,  flip));
+  /* 보조 글자는 먹빛 · 흰빛 사이의 중간색이라 중간 회색 면에서 가장 약하다 - 그 근처에서는
+     본문 글자 쪽으로 당겨 한 단 아래의 위계만 남긴다 */
+  const pull = .55 * (1 - smooth(Math.abs(Ls - .22), 0, .45));
+  setLit('--text2',   mixc(mixc(LIT.ink2, LIT.pale2, flip), mixc(LIT.ink, LIT.pale, flip), pull));
+  /* 청록도 같은 까닭으로 중간 회색 면에서는 글자 쪽으로 조금 당긴다 (빛깔은 남기고 대비만 올린다) */
+  setLit('--teal',    mixc(mixc(LIT.teal, LIT['teal-lit'], flip), mixc(LIT.ink, LIT.pale, flip), pull * .7));
   /* 벽돌빛도 밤에는 밝아진다. 이 색만 고정이면 지난 일 · 공휴일 · 삭제가
      밤 화면에서 셋 다 바탕에 잠긴다 (3.3:1). */
-  setLit('--hol',     mixc(LIT.hol, LIT['hol-lit'], 1-day));
-  setLit('--late',    mixc(LIT.late, LIT['late-lit'], 1-day));
-  setLit('--danger',  mixc(LIT.danger, LIT['danger-lit'], 1-day));
+  setLit('--hol',     mixc(LIT.hol, LIT['hol-lit'], flip));
+  setLit('--late',    mixc(LIT.late, LIT['late-lit'], flip));
+  setLit('--danger',  mixc(LIT.danger, LIT['danger-lit'], flip));
   setLit('--rib-past', mixc(LIT['rib-past'], LIT['rib-past-n'], 1-day));
   /* 궤도 가운데의 점선 - 띠가 종이 두 겹을 이은 솔기처럼 보인다 */
   /* 실선 · 점선도 밤낮 사이를 이어서 섞는다. 예전에는 day .5 에서 먹빛 ↔ 흰빛으로

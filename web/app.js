@@ -569,7 +569,7 @@ function render(o){
     strip(o.notice, { action: '확인', onClick: () => strip('') });
   }
   const d = dObj(o.today);
-  $('#dow').textContent = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일';
+  $('#dow').textContent = $('#dow-m').textContent = (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일';
   /* 지난 일 + 오늘. 시간순으로 세우고 번호를 매긴다 - 이 번호가 목록과
      하늘의 구슬을 잇는 유일한 끈이다. 끝낸 것도 번호를 지키므로 하루 동안 안 흔들린다. */
   const all = o.overdue.concat(o.todays).sort((a,b) =>
@@ -605,7 +605,7 @@ function tickClock(){
   if(SHOT_MIN != null){ return; }                  /* 갈무리 중에는 시계를 묶어 둔다 */
   const n = new Date(), v = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
   const el = $('#clock');
-  if(el.textContent !== v) el.textContent = v;     /* 같은 글자를 다시 넣어도 큰 시계를 새로 그린다 */
+  if(el.textContent !== v) el.textContent = $('#clock-m').textContent = v;   /* 같은 글자를 다시 넣어도 큰 시계를 새로 그린다 */
 }
 tickClock();
 setInterval(tickClock, 10000);
@@ -622,6 +622,7 @@ function take(o){
   if(seen === lastSeen && RAW) return;
   lastSeen = seen;
   render(o);
+  updNotice(o.update);
   if(!load._first){                 /* 주소에 #cal 이 있으면 달력으로 시작 */
     load._first = true;
     if(location.hash === '#cal') setView('cal');
@@ -820,12 +821,14 @@ function openM(id){
   fold();
 }
 function closeM(id){
+  if(id === '#m-update') updSeen();
   $(id).classList.remove('on');
   if(!$$('.modal.on').length) $('#veil').classList.remove('on');
   fold();
   themeBack();
 }
 function closeAll(){
+  if($('#m-update').classList.contains('on')) updSeen();
   $('#veil').classList.remove('on');
   $$('.modal').forEach(m => m.classList.remove('on'));
   fold();
@@ -868,7 +871,7 @@ document.onkeydown = e => {
    규칙 하나를 정할 때 사람이 고르는 것은 셋뿐이다.
 
      ① 이 일을 하는 날 하나        달력
-     ② 단위와 간격                 일 · 주 · 월 · 년, 그리고 몇 단위마다 (격주 · 분기 · 반기)
+     ② 단위와 간격                 일 · 주 · 월 · 년, 그리고 몇 단위마다 (격주 · 격월 · 분기 · 반기)
      ③ 그 날을 어떻게 읽을지        말일 · 마지막 영업일 · 마지막 수요일 · 말일 3일 전 …
 
    ③ 은 엔진(recur.suggest)이 만든다. 화면에 뜨는 것은 모두 "고른 그 날에 도는" 규칙이라,
@@ -881,7 +884,7 @@ document.onkeydown = e => {
 const UNITS = [['day','일'], ['week','주'], ['month','월'], ['year','년']];
 const EVERY = {
   week:  [[1,'매주'], [2,'격주']],
-  month: [[1,'매달'], [3,'분기'], [6,'반기']],
+  month: [[1,'매달'], [2,'격월'], [3,'분기'], [6,'반기']],
 };
 /* 예전에 저장한 간격(2달마다 등)이 목록에 없으면 그 줄만 하나 더 붙여 둔다 -
    고치려고 연 규칙이 소리 없이 다른 주기로 바뀌면 안 된다 */
@@ -1485,7 +1488,12 @@ function hovShow(el){
   const box = $('#hov');
   box.innerHTML = '<b>' + esc(d.title) + '</b>' +
                   (d.when ? '<i>' + esc(d.when) + '</i>' : '') +
-                  (d.note ? '<i>' + esc(d.note) + '</i>' : '');
+                  (d.note ? '<i>' + esc(d.note) + '</i>' : '') +
+                  (d.rows ? '<div class="hov-rows">' + d.rows.map(r =>
+                    '<div' + (r.done ? ' class="dn"' : '') + '><span class="hr-t">' + esc(r.t || '종일') + '</span>' +
+                    '<span class="hr-x">' + esc(r.x) + '</span><span class="hr-s">' + (r.done ? '완료' : '') + '</span></div>').join('') +
+                    '</div>' : '');
+  box.classList.toggle('wide', !!d.rows);
   box.classList.add('on');
   const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
   /* 줄 바로 아래가 기본이되, 창 밖으로 나가면 위로 넘긴다 */
@@ -1654,8 +1662,7 @@ function drawCal(){
             (left && left !== rts.length ? '<span class="lf">' + left + ' 남음</span>' : '');
           rl.title = '';
           rl._hov = {title: '루틴 ' + rts.length + '건', when: fmtDay(key),
-                     note: rts.map(t => (t.due_time ? t.due_time + '  ' : '') + t.title +
-                                        (t.done ? '  · 완료' : '')).join(String.fromCharCode(10))};
+                     rows: rts.map(t => ({t: t.due_time || '', x: t.title, done: !!t.done}))};
           rl.onclick = e => { e.stopPropagation(); dayModal(key, list); };
           cell.appendChild(rl);
         }
@@ -1773,6 +1780,40 @@ function drawManage(){
   });
 }
 
+/* ══════════ 자동 업데이트 ══════════
+   서비스(updater.py)가 조용한 때 새 버전으로 바꿔 끼우고, 바꾼 뒤 처음 여는 창에 한 번
+   "무엇이 바뀌었는지" 를 보여 준다. 닫으면(확인 · 바깥 · Esc) 서비스에 봤다고 알려 다시 뜨지 않는다.
+   숨긴 채 미리 만든 창에서 먼저 열려도 괜찮다 - 사람이 창을 열 때 그대로 떠 있다. */
+let UPD_OPEN = false;
+function updNotice(u){
+  if(!u || UPD_OPEN || SHOT_MIN != null) return;
+  UPD_OPEN = true;
+  $('#up-ver').textContent = (u.from ? u.from + ' → ' : '') + u.to;
+  const lines = String(u.notes || '').split(/\r?\n/)
+    .map(l => l.replace(/^\s*(?:[-*·•]|\d+\.)\s*/, '').replace(/[#*`]/g, '').trim())
+    .filter(Boolean).slice(0, 6);
+  $('#up-notes').innerHTML = lines.map(l => '<li>' + esc(l) + '</li>').join('');
+  $('#up-notes').hidden = !lines.length;
+  openM('#m-update');
+}
+function updSeen(){
+  if(!UPD_OPEN) return;
+  api('/api/update/seen', {}).catch(() => {});
+}
+$('#up-ok').onclick = () => closeM('#m-update');
+
+/* 설정의 버전 한 줄: 지금 버전과 자동 업데이트가 어디까지 왔는지 */
+function paintUpdate(){
+  api('/api/update').then(u => {
+    const v = '버전 ' + u.version;
+    const tail = u.state === 'ready' ? u.latest + ' 받아 둠 · 조용할 때 바꿉니다'
+               : u.state === 'downloading' ? u.latest + ' 받는 중'
+               : u.state === 'error' ? '새 버전을 확인하지 못했습니다'
+               : u.latest && u.latest === u.version ? '최신' : '';
+    $('#s-ver').textContent = v + (tail ? ' (' + tail + ')' : '');
+  }).catch(() => {});
+}
+
 /* ══════════ 설정 ══════════ */
 /* 설정 창의 값은 창을 열 때 한 번만 채운다. 예전에는 45초마다 새로 읽을 때마다
    채워서, 고치던 값이 저장을 누르기 전에 조용히 예전 값으로 되돌아갔다. */
@@ -1785,6 +1826,9 @@ function fillSettings(){
   $('#s-auto').checked = !!st.autostart;
   $('#s-hold').checked = st.hold_when_busy !== false;
   $('#s-walk').checked = st.guy_walk !== false;
+  $('#s-upd').checked = st.auto_update !== false;
+  $('#s-ver').textContent = '버전 ' + (STATE.version || '');
+  paintUpdate();
   paintTheme(st.theme || 'auto');
 }
 
@@ -1801,7 +1845,8 @@ function saveSetting(patch){
     _savedT = setTimeout(() => { tag.textContent = ''; tag.classList.remove('ok'); }, 1600);
   }).catch(e => { say(e.message); if(STATE) fillSettings(); });
 }
-[['#s-biz', 'business_only'], ['#s-auto', 'autostart'], ['#s-hold', 'hold_when_busy'], ['#s-walk', 'guy_walk']]
+[['#s-biz', 'business_only'], ['#s-auto', 'autostart'], ['#s-hold', 'hold_when_busy'], ['#s-walk', 'guy_walk'],
+ ['#s-upd', 'auto_update']]
   .forEach(([id, key]) => { $(id).addEventListener('change', e => saveSetting({[key]: e.target.checked})); });
 $('#s-lead').addEventListener('change', e => {
   const v = +e.target.value;
@@ -1978,7 +2023,7 @@ function shotHook(){
   document.head.appendChild(st);
   const HHMM = SHOT_MIN === 0 ? '00:00' : '11:00';
   if(RAW){ RAW.now = HHMM; }
-  $('#clock').textContent = HHMM;
+  $('#clock').textContent = $('#clock-m').textContent = HHMM;
   repaint();
   const first = () => (STATE.todays || [])[0] || (STATE.overdue || [])[0];
   const go = {

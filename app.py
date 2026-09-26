@@ -11,6 +11,8 @@ import cloudsync
 import ipc
 import paths
 import recur, store, toast, tray
+import updater
+import version
 
 BASE = paths.APP_DIR
 WEB = os.path.normpath(paths.WEB_DIR)
@@ -259,10 +261,14 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(403, "허용되지 않은 출처입니다")
         if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
             raise ApiError(403, "인증되지 않은 요청입니다")
+        if api:
+            _UI["last"] = time.time()             # 창을 쓰고 있다 (자동 업데이트가 이때는 바꾸지 않는다)
 
     def _overview(self):
         o = store.overview()
         o["settings"] = dict(o["settings"], autostart=autostart.is_enabled())
+        o["version"] = version.VERSION
+        o["update"] = updater.notice()            # 바꾼 뒤 처음 여는 창에 한 번 보여 줄 것
         return o
 
     def _query(self, name):
@@ -387,6 +393,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"items": items})
         if p == "/api/sync":
             return self._send(200, sync_status())
+        if p == "/api/update":
+            return self._send(200, updater.status())
         if p == "/api/ping":
             # 화면이 자기가 아는 약속으로 이야기하고 있는지 확인할 때 쓴다
             return self._send(200, {"ok": True, "api": API_VERSION, "schema": store.SCHEMA_VERSION})
@@ -491,6 +499,9 @@ class Handler(BaseHTTPRequestHandler):
             local = bool(body.get("local")) if isinstance(body, dict) else False
             done = cloudsync.delete_account(local=local)
             return self._send(200, dict(sync_status(), **done))
+        if p == "/api/update/seen":
+            updater.mark_seen()
+            return self._send(200, {"ok": True})
         if p == "/api/hidden":
             _hint_hidden()
             return self._send(200, {"ok": True})
@@ -592,6 +603,8 @@ def _complete(tid, day):
 
 
 SNOOZE_MIN = 10
+_SNOOZED = set()                # 미뤄 둔 알림 (프로그램을 내리면 사라지므로 이때는 업데이트하지 않는다)
+_UI = {"last": 0.0}             # 창이 마지막으로 API 를 부른 때
 
 
 def _snooze(i):
@@ -617,8 +630,13 @@ def _snooze(i):
                      on_done=lambda: _complete(tid, day), on_snooze=lambda: _snooze(i),
                      key="snooze:%s:%s:%d" % (tid, day, int(time.time())))
 
-    t = threading.Timer(SNOOZE_MIN * 60, again)
+    def fire():
+        _SNOOZED.discard(t)
+        again()
+
+    t = threading.Timer(SNOOZE_MIN * 60, fire)
     t.daemon = True
+    _SNOOZED.add(t)
     t.start()
 
 
@@ -754,6 +772,36 @@ def _maybe_notify(i, now, default_lead, first_tick):
     return "shown"
 
 
+def alert_near(now=None, minutes=None):
+    """앞뒤 minutes 분 안에 알림(또는 아침 브리핑)이 있는지. 자동 업데이트는 이때 바꾸지 않는다 -
+    다시 켜지는 몇 초 사이에 알림이 빠지면 안 된다."""
+    now = now or datetime.now()
+    win = timedelta(minutes=updater.QUIET_ALERT_MIN if minutes is None else minutes)
+    d = store.load()
+    st = store.settings(d)
+    brief = st.get("brief_time")
+    if brief:
+        bt = datetime.combine(now.date(), datetime.strptime(brief, "%H:%M").time())
+        if abs(now - bt) <= win:
+            return True
+    default_lead = timedelta(minutes=st["notify_min"])
+    for i in store.instances(back=1, ahead=1, data=d, today=now.date()):
+        if not i["due"] or not i["time"] or i["done"] or i.get("muted"):
+            continue
+        due = datetime.fromisoformat(i["due"])
+        lead = timedelta(minutes=i["notify_min"]) if i["notify_min"] is not None else default_lead
+        if abs(due - lead - now) <= win:
+            return True
+    return False
+
+
+def update_quiet():
+    """지금 새 버전으로 바꿔 끼워도 되는지 (updater.quiet 에 이 서비스의 사정을 넘긴다)."""
+    if _SNOOZED:
+        return False, "미뤄 둔 알림이 있다"
+    return updater.quiet(time.time() - _UI["last"], alert_near(), toast.busy())
+
+
 def notify_plan():
     """알림 점검용. 어제~내일의 각 회차가 언제 알려질 예정인지, 안 알려지면 왜인지.
 
@@ -806,6 +854,9 @@ def main():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     threading.Thread(target=scheduler, daemon=True).start()
     cloudsync.start()                # 로그인하지 않았으면 조용히 기다린다
+    # 새 버전은 알아서 받아 두었다가 조용할 때 바꿔 끼운다 (빌드본에서만)
+    updater.start(enabled=lambda: store.settings(store.load()).get("auto_update", True),
+                  is_quiet=update_quiet, shutdown=shutdown)
     paths.log("main: 서버·스케줄러 시작, tray 진입")
     tray.start(on_open=open_window,
                on_test=_preview_toast,

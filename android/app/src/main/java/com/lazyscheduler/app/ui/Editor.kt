@@ -389,8 +389,9 @@ internal fun MiniCal(today: LocalDate, picked: LocalDate, marks: Set<String> = e
 private fun RoutinePart(d: Draft, today: LocalDate) {
     val pal = LocalPal.current
     val items = remember(d.base, d.unit, d.every) { if (d.unit == "week") emptyList() else Recur.suggest(d.base, d.unit, d.every) }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1.1f)) {
+    // 단위 · 간격은 한 줄씩 쌓는다 - 월 간격이 넷(매달 · 격월 · 분기 · 반기)이 되니 반 폭에서는 글자가 한 자씩 잘렸다
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.fillMaxWidth()) {
             Label("단위")
             Seg(RulePick.UNITS, d.unit, Modifier.fillMaxWidth(), fill = true) { u ->
                 if (u == "week" && d.unit != "week") d.wds = setOf(d.base.dayOfWeek.value - 1)
@@ -398,7 +399,7 @@ private fun RoutinePart(d: Draft, today: LocalDate) {
             }
         }
         RulePick.everyOpts(d.unit, d.every).takeIf { it.isNotEmpty() }?.let { opts ->
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxWidth()) {
                 Label("간격")
                 Seg(opts, d.every, Modifier.fillMaxWidth(), fill = true) { d.every = it; d.ruleText = ""; d.rule = null }
             }

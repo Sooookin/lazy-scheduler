@@ -1,0 +1,19 @@
+# 릴리스 빌드에 쓰는 패키지 (GitHub Actions · .venv-build 가 같은 판을 쓴다).
+# 판을 올릴 때는 .venv-build 에서 먼저 빌드해 --selftest 로 확인하고 여기를 고친다.
+altgraph==0.17.5
+bottle==0.13.4
+cffi==2.1.1
+clr_loader==0.3.1
+packaging==26.3
+pefile==2024.8.26
+pillow==10.4.0
+proxy_tools==0.1.0
+pycparser==3.0
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.7
+pystray==0.19.5
+pythonnet==3.1.0
+pywebview==6.2.1
+pywin32-ctypes==0.2.3
+six==1.17.0
+typing_extensions==4.16.0

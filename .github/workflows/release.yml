@@ -1,0 +1,72 @@
+# 릴리스: v 로 시작하는 태그를 올리면 테스트 → 빌드 → GitHub Releases 에 zip · 해시를 올린다.
+#
+#   version.py 의 VERSION 을 올리고 커밋한 뒤
+#   git tag -a v2.4.1 -m "바뀐 것 한 줄" -m "바뀐 것 한 줄" ...   (태그 설명이 릴리스 설명 · 앱의 새 버전 창이 된다)
+#   git push origin main v2.4.1
+#
+# 설치된 앱(updater.py)은 이 릴리스의 LazyScheduler.zip 과 LazyScheduler.zip.sha256 을 받아 스스로 바꾼다.
+# 둘 중 하나라도 빠지면 받지 않으므로, 손으로 릴리스를 만들지 않는다.
+#
+# 저장소 Secrets 에 FIREBASE_CONFIG (firebase/config.local.json 의 내용 그대로) 가 있어야 한다.
+# 없으면 동기화가 빠진 빌드가 사용자에게 자동으로 퍼지므로 멈춘다.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      # 체크아웃은 태그를 가벼운 태그로만 가져온다 - 설명(릴리스 노트)을 읽으려면 다시 받는다
+      - name: 태그 설명 받기
+        run: git fetch --force origin "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 태그와 version.py 가 같은지
+        run: python tools/check_version.py "${{ github.ref_name }}"
+
+      - name: 패키지
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tools/requirements-build.txt pytest
+
+      - name: 테스트
+        run: python -m pytest -q
+
+      - name: 동기화 설정
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
+        run: |
+          if (-not $env:FIREBASE_CONFIG) { throw "저장소 Secrets 에 FIREBASE_CONFIG 가 없다 (동기화가 빠진 빌드는 올리지 않는다)" }
+          [IO.File]::WriteAllText("firebase/config.local.json", $env:FIREBASE_CONFIG)
+
+      - name: 빌드
+        run: python tools/build.py
+
+      - name: 해시
+        run: |
+          $h = (Get-FileHash release/LazyScheduler.zip -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("release/LazyScheduler.zip.sha256", "$h  LazyScheduler.zip`n")
+          Write-Output "sha256 $h"
+
+      - name: 릴리스
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          git tag -l --format="%(contents)" $tag | Out-File -Encoding utf8 notes.txt
+          gh release create $tag release/LazyScheduler.zip release/LazyScheduler.zip.sha256 `
+            --title "LazyScheduler $($tag.TrimStart('v'))" --notes-file notes.txt --latest

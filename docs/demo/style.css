@@ -77,13 +77,14 @@ svg{display:block}
    하늘이 창 꼭대기부터 지평선까지 한 장으로 이어진다. */
 /* 참고 도안: 하늘 위에 얹힌 28px 한 줄. 이름을 적고, 창 단추는 옅고 작게 둔다 -
    하늘 한가운데에 운영체제 단추 셋이 크게 서 있으면 그림보다 먼저 눈에 걸린다.
-   누르는 자리는 그림(8px)보다 넉넉하게 22px 이다. */
+   그림은 8px 로 옅게 두되, 누르는 자리는 제목줄 높이 전체 × 40px 로 넓게 잡고 셋을 틈 없이
+   창 오른쪽 끝까지 붙인다 (22px 네모였을 때는 자꾸 빗나갔다). 오른쪽 위 구석으로 마우스를
+   던지기만 해도 닫기에 닿는다. 넓은 칸은 마우스를 올렸을 때만 드러난다. */
 .titlebar{position:absolute; left:0; right:0; top:0; height:var(--tb); z-index:5;
-  display:flex; align-items:center; gap:8px; padding:0 8px 0 14px; background:none;
+  display:flex; align-items:center; gap:0; padding:0 0 0 14px; background:none;
   font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text2)}
-.tb-name{font-size:var(--fs-label); letter-spacing:var(--tr-label); font-weight:var(--w-pri); color:var(--text)}
 .tb-gap{flex:1}
-.wbtn{width:22px; height:22px; border:0; border-radius:var(--r-xs); background-color:transparent;
+.wbtn{width:40px; height:var(--tb); flex:0 0 auto; border:0; border-radius:0; background-color:transparent;
   cursor:pointer; color:var(--text2); opacity:.5; display:grid; place-items:center; padding:0;
   transition:opacity var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease),
     color var(--t-fast) var(--ease)}
@@ -145,7 +146,7 @@ body.folded.peek .sky-art{transform:none}
 body.folded.peek .rib{opacity:1; transform:none}
 body.peek .clk, body.peek .acts{opacity:0; pointer-events:none}
 /* 하늘이 184px 로 낮아져 88px 만 올려서는 시계와 단추가 창 위쪽에 걸려 남는다.
-   접힌 동안에는 흐려서 비킨다 */
+   접힌 동안에는 흐려서 비키고, 그 자리를 작은 시계(.clk-m)가 맡는다 */
 body.folded .clk, body.folded .acts{opacity:0; visibility:hidden; pointer-events:none}
 /* 비킬 때는 빨리(접히는 하늘보다 먼저), 돌아올 때는 하늘이 거의 펼쳐진 뒤에 */
 .clk, .acts{transition:opacity var(--t-slow) var(--ease) 140ms, visibility 0s}
@@ -156,6 +157,17 @@ body.folded .clk, body.folded .acts, body.peek .clk, body.peek .acts{
    (.mc span.now) · 시각 고르기의 지금 시(.tp-g button.now)가 모두 이 규칙에
    걸려 position:absolute; left:46px 로 튕겨 나간다 - 실제로 그랬다. */
 .clk{position:absolute; left:46px; top:44px; z-index:3}
+/* 접힌 하늘의 작은 시계. 창 · 달력을 보는 동안에도 지금 몇 시 · 무슨 요일인지는 남는다.
+   접힌 띠(92px)에 들어가도록 한 줄로 눕히고 글자를 줄였다 (시각은 제목 크기 · 날짜는 본문 크기).
+   큰 시계와 같은 왼쪽 선 · 같은 가는 숫자다. 하늘이 거의 다 접힌 뒤에 나타난다. */
+.clk-m{position:absolute; left:46px; top:40px; z-index:3; display:flex; align-items:baseline; gap:10px;
+  pointer-events:none; opacity:0; visibility:hidden;
+  transition:opacity var(--t-fast) var(--ease-exit), visibility 0s linear var(--t-fast)}
+.clk-m b{font-size:var(--fs-title); letter-spacing:var(--tr-title); font-weight:var(--w-thin); line-height:1;
+  color:var(--text); font-variant-numeric:tabular-nums}
+.clk-m span{font-size:var(--fs-body); letter-spacing:var(--tr-body); line-height:1; color:var(--text2)}
+body.folded .clk-m{opacity:1; visibility:visible;
+  transition:opacity var(--t-slow) var(--ease) var(--t-med), visibility 0s}
 .clk-d{font-size:var(--fs-body); letter-spacing:var(--tr-body); color:var(--text2); line-height:1}
 .clk-c{margin-top:12px; font-size:var(--fs-display); letter-spacing:var(--tr-display);
   font-weight:var(--w-thin); line-height:.9; color:var(--text); font-variant-numeric:tabular-nums}
@@ -576,6 +588,18 @@ body.v-cal #btn-manage{display:none}
   color:var(--text); white-space:normal; word-break:keep-all}
 .hov i{display:block; margin-top:4px; white-space:pre-line; font-style:normal;
   font-size:var(--fs-label); letter-spacing:var(--tr-label); font-weight:var(--w-sec); color:var(--text2)}
+/* 그날의 루틴 목록. 시각 · 이름 · 완료를 세 칸으로 세운다 - 줄바꿈으로 이어 붙이면 긴 이름이
+   다음 줄의 시각 자리로 흘러내려 어디서 한 건이 끝나는지 읽히지 않았다. 이름이 길면 제 칸
+   안에서만 접힌다. 끝낸 것은 옅게. */
+.hov.wide{width:max-content; max-width:360px}
+.hov-rows{display:grid; grid-template-columns:auto 1fr auto; column-gap:12px; row-gap:6px;
+  margin-top:8px; padding-top:8px; border-top:1px solid var(--hair)}
+.hov-rows > div{display:contents}
+.hov-rows span{font-size:var(--fs-label); letter-spacing:var(--tr-label); line-height:1.35; color:var(--text)}
+.hov-rows .hr-t{color:var(--text2); font-variant-numeric:tabular-nums}
+.hov-rows .hr-x{word-break:keep-all; overflow-wrap:anywhere}
+.hov-rows .hr-s{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--teal)}
+.hov-rows .dn .hr-t, .hov-rows .dn .hr-x{color:var(--text2); opacity:.7}
 
 /* ---------- 창 (모달) ----------
    창은 땅과 같은 면이다. 모서리 하나, 그림자 하나, 그 위로는 아무 입체도 없다.
@@ -601,6 +625,10 @@ body.v-cal #btn-manage{display:none}
   transition:opacity var(--t-med) var(--ease), transform var(--t-slow) var(--ease)}
 .modal.wide{width:600px}
 .modal.narrow{width:400px}
+/* 새 버전 창의 바뀐 것 목록 (릴리스 설명을 줄마다) */
+.up-notes{margin:12px 0 20px; padding:0; list-style:none}
+.up-notes li{display:flex; gap:8px; padding:4px 0; font-size:var(--fs-body); letter-spacing:var(--tr-body); color:var(--text)}
+.up-notes li::before{content:"·"; color:var(--teal)}
 .modal h3{margin:0 0 16px; font-size:var(--fs-title); letter-spacing:var(--tr-title);
   font-weight:var(--w-thin); color:var(--text); display:flex; align-items:baseline; gap:10px}
 .opt{font-style:normal; font-size:var(--fs-label); letter-spacing:var(--tr-label);

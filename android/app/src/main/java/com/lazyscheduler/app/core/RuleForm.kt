@@ -95,7 +95,7 @@ object RulePick {
     val UNITS = listOf("day" to "일", "week" to "주", "month" to "월", "year" to "년")
     val EVERY = mapOf(
         "week" to listOf(1 to "매주", 2 to "격주"),
-        "month" to listOf(1 to "매달", 3 to "분기", 6 to "반기"),
+        "month" to listOf(1 to "매달", 2 to "격월", 3 to "분기", 6 to "반기"),
     )
     val SHIFTS = listOf("prev" to "앞 영업일로", "next" to "다음 영업일로", "none" to "그대로")
 

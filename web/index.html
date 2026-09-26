@@ -12,7 +12,6 @@
 <body>
 
 <div class="titlebar" id="titlebar">
-  <b class="tb-name">LazyScheduler</b>
   <div class="tb-gap"></div>
   <button class="wbtn" id="w-min" title="최소화" aria-label="최소화">
     <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" stroke-width="1.1"/></svg>
@@ -30,6 +29,8 @@
        시계 · 단추 · 게으름뱅이가 모두 땅(아래 판)의 윗변에 발을 붙인다.
        땅의 윗변이 곧 지평선이라, 따로 선을 긋지 않는다. -->
   <div class="sky" id="sky">
+   <!-- 접힌 하늘의 작은 시계 (창 · 달력을 보는 동안). sky-art 는 접히면 위로 밀려 올라가므로 밖에 둔다 -->
+   <div class="clk-m" aria-hidden="true"><b id="clock-m">--:--</b><span id="dow-m">—</span></div>
    <div class="sky-art" id="sky-art">
     <svg class="sky-svg" id="sky-svg" aria-hidden="true"></svg>
 
@@ -278,7 +279,8 @@
     <button type="button" id="s-shortcut">바탕화면에 바로가기 만들기</button>
     <button type="button" id="s-test">알림 미리보기</button>
   </div>
-  <p class="hint">저장 위치 <code>%APPDATA%\LazyScheduler\data.json</code></p>
+  <label class="chk"><input type="checkbox" id="s-upd"> 새 버전 자동으로 받기 <i class="opt">알림이 없는 조용한 때에 알아서 바꿉니다</i></label>
+  <p class="hint"><span id="s-ver">버전</span> · 저장 위치 <code>%APPDATA%\LazyScheduler\data.json</code></p>
 
   <span class="step">하늘</span>
   <label class="chk"><input type="checkbox" id="s-walk"> 돌멩이 움직임 <i class="opt">끄면 가운데에 가만히 앉아 눈만 굴립니다</i></label>
@@ -299,6 +301,14 @@
   <p class="hint" id="cf-msg"></p>
   <div id="cf-extra"></div>
   <div class="btns"><button class="ghost" data-close>취소</button><button class="danger-solid" id="cf-ok">삭제</button></div>
+</div>
+
+<!-- ── 새 버전으로 바꾼 뒤 처음 여는 창에 한 번 (updater.py) ── -->
+<div class="modal narrow" id="m-update" role="dialog" aria-modal="true" aria-labelledby="up-title">
+  <h3 id="up-title">새 버전으로 바꿨습니다</h3>
+  <p class="hint" id="up-ver"></p>
+  <ul class="up-notes" id="up-notes"></ul>
+  <div class="btns"><button id="up-ok">확인</button></div>
 </div>
 
 <script src="app.js"></script>

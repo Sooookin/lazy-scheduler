@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import java.time.LocalDate
 import kotlin.math.PI
 import kotlin.math.abs
@@ -127,17 +128,23 @@ fun palette(litMin: Double): Pal {
     val warm = sl.dusk
     val surface = mix(mix(L.panel, L.warm, warm * .85), L.night, (1 - day) * .80)
     val ink = mix(L.ink, Color(0xFFE8ECE9), smooth(1 - day, .3, .7))
+    // 글자는 면의 실제 밝기를 보고 뒤집는다 (PC 의 applyLight 와 같다). 면과 같은 비율로 섞으면
+    // 새벽 · 해질녘에 면이 중간 회색을 지나는 동안 글자도 회색이 되어 읽히지 않았다.
+    val ls = surface.luminance().toDouble()
+    val flip = smooth(ls, .235, .205)
+    val pull = .55 * (1 - smooth(abs(ls - .22), 0.0, .45))   // 중간 회색 근처: 보조 글자 · 청록을 글자 쪽으로
+    val textC = mix(L.ink, L.pale, flip)
     fun layer(d: Color, dusk: Color, n: Color) = mix(mix(d, dusk, sl.dusk), n, sl.night)
     return Pal(
         light = sl, day = day.toFloat(),
         bg = mix(mix(L.base, L.warm, warm * .70), L.night, (1 - day) * .88),
         surface = surface,
-        text = mix(L.ink, L.pale, 1 - day),
-        text2 = mix(L.ink2, L.pale2, 1 - day),
-        teal = mix(L.teal, L.tealLit, 1 - day),
-        hol = mix(L.hol, L.holLit, 1 - day),
-        late = mix(L.late, L.lateLit, 1 - day),
-        danger = mix(L.danger, L.dangerLit, 1 - day),
+        text = textC,
+        text2 = mix(mix(L.ink2, L.pale2, flip), textC, pull),
+        teal = mix(mix(L.teal, L.tealLit, flip), textC, pull * .7),
+        hol = mix(L.hol, L.holLit, flip),
+        late = mix(L.late, L.lateLit, flip),
+        danger = mix(L.danger, L.dangerLit, flip),
         ribPast = mix(L.ribPast, L.ribPastN, 1 - day),
         ribDot = ink.copy(alpha = (.16 + .08 * (1 - day)).toFloat()),
         hair = ink.copy(alpha = .12f),

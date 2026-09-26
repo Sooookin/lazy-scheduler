@@ -54,6 +54,7 @@ _SETTINGS = {
     # 한낮 · 한밤의 빛으로 세워 둔다. 이 기기에서만 쓰는 값이라 동기화하지 않는다.
     "theme": "auto",
     "guy_walk": True,              # 하늘의 돌멩이가 스스로 움직일지 (끄면 가운데에 앉아 눈만 굴린다)
+    "auto_update": True,           # 새 버전을 알아서 받아 조용할 때 바꿔 끼울지 (updater.py). 이 PC 에만
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
@@ -675,7 +676,7 @@ def _check_setting(k, v):
     elif k == "brief_time":
         if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
             raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
-    elif k in ("business_only", "show_weekend", "show_routines", "hold_when_busy", "guy_walk"):
+    elif k in ("business_only", "show_weekend", "show_routines", "hold_when_busy", "guy_walk", "auto_update"):
         if not isinstance(v, bool):
             raise ValidationError("요청 형식이 올바르지 않습니다")
     elif k == "theme":

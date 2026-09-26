@@ -22,6 +22,7 @@ python tools/build_fonts.py [--check]      assets/fonts/*.ttf -> web/fonts/*.wof
 python tools/shots.py [home cal ...]       screenshot screens into design/shots/ using seeded temp data
 python tools/site_demo.py                  rebuild docs/demo (homepage view-only preview: web/ copy + fake read API) and docs/card.png; rerun after UI changes before a release
 .venv-build/Scripts/python.exe tools/build.py   release build (PyInstaller lives only in .venv-build)
+git tag -a vX.Y.Z -m "..." && git push origin main vX.Y.Z   publish: GitHub Actions tests, builds, releases
 
 cd android && ./gradlew test               Kotlin unit tests (incl. the shared recurrence vectors)
 cd android && ./gradlew installPerf        release-equivalent build on the phone (debug builds are laggy; judge speed on perf)
@@ -29,6 +30,11 @@ cd android && ./gradlew testDebugUnitTest --tests '*ScreenShots'   phone screens
 ```
 
 - `tools/dev.py` only hot-reloads `web/`; after changing any `.py` file, rerun it.
+- Releases come only from `.github/workflows/release.yml` (tag `v*`): bump `version.py` first
+  (`tools/check_version.py` fails the run otherwise). The annotated tag message becomes the release notes
+  and the in-app "새 버전으로 바꿨습니다" popup. Never upload a release by hand: installed apps
+  (`updater.py`) only take releases that carry both `LazyScheduler.zip` and `LazyScheduler.zip.sha256`.
+  The workflow needs the repo secret `FIREBASE_CONFIG` (contents of `firebase/config.local.json`).
 - Before `tools/build.py`, the running exe must be stopped via the API (`tools/dev.py --stop`, or
   `POST /api/quit` with the `X-TM-Token` header from `%APPDATA%\LazyScheduler\ipc.key`), not by killing the process.
 - `tests/conftest.py` redirects `%APPDATA%` to a temp sandbox before any import, because modules resolve
@@ -40,7 +46,11 @@ cd android && ./gradlew testDebugUnitTest --tests '*ScreenShots'   phone screens
 ### Processes (desktop)
 `main.py` is the single entry point for every role, which matters because the release is one exe:
 - no args → background **service** (`app.py`): HTTP API + static `web/` on `127.0.0.1:8777`, the reminder
-  scheduler, the toast-card loop (`toast.py`), tray (`tray.py`), and the sync thread (`cloudsync.py`).
+  scheduler, the toast-card loop (`toast.py`), tray (`tray.py`), the sync thread (`cloudsync.py`), and the
+  auto-updater (`updater.py`: checks GitHub Releases, stages + `--probe`s the new build, swaps it in only when
+  no window use / reminder / card is near).
+- `--probe`, `--apply-update` → the updater's roles, run from the *new* staged exe (it replaces the app folder,
+  keeps `<folder>.old`, rolls back if the new service doesn't open its port).
 - `--ui` → the **window** process (`ui.py`, pywebview/WebView2) on port 8779, which only renders the web UI.
 - `--selftest` → writes a diagnostics file for broken builds.
 
@@ -57,7 +67,7 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
 ### Layers
 - **Core, platform-free** (`store.py`, `recur.py`, `syncdoc.py`, `tokens.py`): no Windows imports here.
   The Android app re-implements these rules and data format in `android/.../core/`.
-- **Desktop-only**: everything else at the root (`app.py`, `ui.py`, `toast.py`, `tray.py`, `win32.py`,
+- **Desktop-only**: everything else at the root (`app.py`, `ui.py`, `toast.py`, `tray.py`, `updater.py`, `win32.py`,
   `cloudauth.py`, `cloudsync.py`, `autostart.py`, `paths.py`).
 
 ### Data and sync invariants (`store.py`, `docs/sync.md`)

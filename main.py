@@ -4,6 +4,8 @@
   인수 없음     백그라운드 서비스
   --ui          앱 창
   --selftest    환경 점검 결과를 파일로 남긴다 (문제 생겼을 때 확인용)
+  --probe       자동 업데이트: 받아 둔 새 버전이 제 부품을 다 불러오는지 (updater.py)
+  --apply-update  자동 업데이트: 옛 서비스가 내려가면 앱 폴더를 새 것으로 바꾸고 다시 켠다
 
 실행 파일 하나로 모든 역할을 담당한다.
 """
@@ -153,6 +155,11 @@ def run():
 
     import paths
     paths.unblock()          # clr 을 부르기 전에 떼야 한다
+    for flag in ("--apply-update", "--probe"):
+        if flag in sys.argv:
+            import updater
+            rest = sys.argv[sys.argv.index(flag) + 1:]
+            sys.exit((updater.apply_main if flag == "--apply-update" else updater.probe_main)(rest))
     if "--selftest" in sys.argv:
         selftest()
     elif "--ui" in sys.argv:
