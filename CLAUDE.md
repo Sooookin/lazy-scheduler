@@ -35,7 +35,8 @@ cd android && ./gradlew testDebugUnitTest --tests '*ScreenShots'   phone screens
   (`tools/check_version.py` fails the run otherwise). The annotated tag message becomes the release notes
   and the in-app "새 버전으로 바꿨습니다" popup. Never upload a release by hand: installed apps
   (`desktop/updater.py`) only take releases that carry both the zip (`platforms/<os>/system.ASSET`:
-  `LazyScheduler.zip`, `LazyScheduler-mac.zip`) and its `.sha256`.
+  `LazyScheduler-win.zip`, `LazyScheduler-mac.zip`) and its `.sha256`. Windows installs up to 2.5.0
+  look for `LazyScheduler.zip`, so the release also carries the Windows zip under that name.
   The workflow needs the repo secret `FIREBASE_CONFIG` (contents of `firebase/config.local.json`).
 - Before `tools/build.py`, the running exe must be stopped via the API (`tools/dev.py --stop`, or
   `POST /api/quit` with the `X-TM-Token` header from `%APPDATA%\LazyScheduler\ipc.key`), not by killing the process.

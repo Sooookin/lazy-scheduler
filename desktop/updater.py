@@ -4,7 +4,7 @@
     확인      켠 지 2분 뒤, 그 뒤로 6시간마다 github.com/<저장소>/releases/latest 가 넘겨 주는 태그를 본다.
               GitHub API 는 쓰지 않는다 - 로그인 없는 API 는 IP 하나에 한 시간 60번이라, 회사처럼
               여럿이 한 주소를 쓰면 막힌다 (실제로 "rate limit exceeded" 로 확인이 실패했다)
-    받기      LazyScheduler.zip(Windows) · LazyScheduler-mac.zip(macOS) 과 그 .sha256,
+    받기      LazyScheduler-win.zip · LazyScheduler-mac.zip 과 그 .sha256,
               바뀐 것 목록 LazyScheduler-notes.txt (GitHub Actions 가 함께 올린다)
               크기와 SHA-256 이 맞아야 쓴다. 해시 파일이 없는 릴리스는 받지 않는다
     풀기      <데이터 폴더>/update/<버전>/files  (Windows 는 exe 가 든 폴더, macOS 는 LazyScheduler.app)

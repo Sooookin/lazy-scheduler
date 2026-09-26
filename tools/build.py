@@ -3,8 +3,9 @@
 
     python build.py
 
-결과 (Windows): release/LazyScheduler.zip      release/LazyScheduler/  (압축 전 폴더)
+결과 (Windows): release/LazyScheduler-win.zip  release/LazyScheduler/  (압축 전 폴더)
 결과 (macOS):   release/LazyScheduler-mac.zip  release/mac/LazyScheduler.app
+(zip 이름은 platforms/<os>/system.ASSET 과 같아야 한다 - 자동 업데이트가 그 이름을 받는다)
                 macOS 빌드는 Mac 에서만 된다 - GitHub Actions 의 macOS 러너가 한다.
 
 패키지 안에는 파이썬도 라이브러리도 없어도 되는 실행 파일 하나와
@@ -351,7 +352,7 @@ def main():
     with open(os.path.join(dst, "먼저 읽어주세요.txt"), "w", encoding="utf-8-sig") as f:
         f.write(READ_ME)
 
-    zip_path = os.path.join(RELEASE, OUT_NAME + ".zip")
+    zip_path = os.path.join(RELEASE, OUT_NAME + "-win.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for root, _, files in os.walk(dst):
             for name in files:
