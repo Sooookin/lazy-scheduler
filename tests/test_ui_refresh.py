@@ -66,7 +66,8 @@ def test_window_reloads_only_when_the_files_changed(web, monkeypatch):
     assert ui.refresh_if_stale() is False
     assert win.urls == []
 
-    (web / "app.js").write_text("2", encoding="utf-8")
+    # 크기도 바꾼다 - 러너의 디스크는 곧바로 쓰면 고친 때(mtime)가 그대로일 때가 있다
+    (web / "app.js").write_text("22", encoding="utf-8")
     assert ui.refresh_if_stale() is True
     assert win.urls == [ui.SERVICE_URL]
 
