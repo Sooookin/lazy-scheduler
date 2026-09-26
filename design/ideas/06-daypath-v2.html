@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>초안 v2 · 하루의 지평선</title>
+<style>
+@font-face{font-family:"Paperlogy"; font-weight:300; font-display:swap; src:url(../../web/fonts/paperlogy-300.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:400; font-display:swap; src:url(../../web/fonts/paperlogy-400.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:500; font-display:swap; src:url(../../web/fonts/paperlogy-500.woff2) format("woff2")}
+:root{
+  /* 팔레트 - 노트북 초안 것 그대로 */
+  --base:#e4e9e3; --panel:#eef2ec; --ink:#1f2a28; --ink2:#5d6a67;
+  --teal:#3f6f69; --tealink:#f2f6f3; --warm:#f3c58a; --night:#1a2128; --rust:#b0573f;
+  /* 빛이 만드는 것 (자바스크립트가 채운다) */
+  --bg:#e4e9e3; --surface:#eef2ec; --text:#1f2a28; --text2:#5d6a67; --accent:#3f6f69;
+  --shade:rgba(40,58,54,.18); --lite:rgba(255,255,255,.6);
+  --sx:-6px; --sy:-6px; --sb:18px;
+  --hair:rgba(31,42,40,.12);
+  --hi:rgba(63,111,105,.16);
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background-color:#cfd7d4; color:var(--text); font-family:"Paperlogy","Malgun Gothic",sans-serif;
+  font-weight:400; -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1;
+  display:flex; flex-direction:column; align-items:center; padding:22px 18px 50px}
+h1{margin:0 0 5px; font-size:21px; font-weight:500; letter-spacing:-.02em; color:#1f2a28}
+.sub{margin:0 0 18px; font-size:12.5px; color:#5d6a67; max-width:760px; line-height:1.7; text-align:center}
+.sub b{color:#3f6f69; font-weight:500}
+.raised{background-color:var(--surface);
+  box-shadow:calc(var(--sx)*-1) calc(var(--sy)*-1) var(--sb) var(--shade), var(--sx) var(--sy) var(--sb) var(--lite);
+  transition:box-shadow 1.2s ease, background-color 1.2s ease}
+
+/* ───────── 창 ───────── */
+.win{position:relative; flex:0 0 auto; width:1000px; height:640px; border-radius:10px; overflow:hidden;
+  background-color:var(--bg); box-shadow:0 18px 44px rgba(31,42,40,.3); transition:background-color 1.2s ease}
+.tb{height:28px; display:flex; align-items:center; gap:8px; padding:0 12px 0 14px; font-size:11px; color:var(--text2)}
+.tb .nm{color:var(--text); font-weight:500; font-size:11.5px}
+.tb .wc{margin-left:auto; letter-spacing:5px; opacity:.5}
+.app{position:absolute; left:0; right:0; top:28px; bottom:0; padding:0 26px 10px; display:flex; flex-direction:column}
+
+/* ───────── 밴드 · 지평선 ─────────
+   시계도 궤적도 게으름뱅이도 단추도 모두 이 선 위에 선다.
+   선 하나가 여럿을 한 사물로 묶는다. */
+.band{position:relative; flex:0 0 148px}
+/* 이 선이 안 보이면 묶는 힘도 없다. 머리카락보다는 진하게, 밑줄보다는 옅게. */
+.hz{position:absolute; left:0; right:0; top:100px; height:1px; background-color:var(--text2); opacity:.32}
+.hz::after{content:""; position:absolute; left:0; right:0; top:1px; height:1px; background-color:var(--lite)}
+
+/* 왼쪽 - 지금 */
+.nowblk{position:absolute; left:6px; bottom:48px; width:210px}   /* 48 = 밴드 148 - 지평선 100 */
+.nowblk .d{font-size:12.5px; color:var(--text2)}
+.nowblk .c{font-size:44px; font-weight:300; line-height:1; letter-spacing:-.03em; color:var(--text); margin-top:4px}
+.st{position:absolute; left:6px; top:110px; width:280px; font-size:12px; color:var(--text2); line-height:1.65}
+.st b{color:var(--text); font-weight:500}
+.st .nx{color:var(--accent)}
+
+/* 가운데 - 하루 */
+.sky{position:absolute; left:296px; right:206px; top:0; height:101px}
+.sky svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+.pf{fill:none; stroke:var(--text2); stroke-width:1.1; stroke-dasharray:2 5; opacity:.5}
+.pp{fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round}
+.dot{fill:none; stroke:var(--accent); stroke-width:1.8; cursor:pointer; transition:stroke .2s}
+.dot.soon{fill:var(--accent)}
+.dot.over{stroke:var(--rust)}
+.dot.hi{stroke-width:3}
+.halo{fill:var(--accent); opacity:0; animation:breathe 4s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:0; transform:scale(1)} 50%{opacity:.28; transform:scale(2.4)}}
+.stone{fill:var(--accent); cursor:pointer; transition:r .2s}
+.stone.hi{r:6}
+.sunglow{fill:#f7d36a; opacity:.24; filter:blur(6px)}
+
+/* 커서를 올렸을 때만 반짝 - 평소엔 아무 글자도 없다 */
+.spark{position:absolute; transform:translate(-50%,-100%); pointer-events:none; opacity:0;
+  transition:opacity .18s var(--ease), transform .18s var(--ease); white-space:nowrap}
+.spark.on{opacity:1; transform:translate(-50%,-100%) translateY(-8px)}
+.spark .b{display:flex; align-items:center; gap:7px; height:24px; padding:0 11px; border-radius:12px;
+  background-color:var(--text); color:var(--bg); font-size:11.5px}
+.spark .b em{font-style:normal; opacity:.6; font-weight:300}
+.spark::after{content:""; position:absolute; left:50%; bottom:-4px; margin-left:-4px; width:8px; height:8px;
+  background-color:var(--text); transform:rotate(45deg)}
+
+/* 게으름뱅이 - 지평선 위, 하루가 시작되기 전 자리 */
+.idler{position:absolute; left:228px; top:56px; width:50px; height:45px; cursor:grab}
+.guy{position:relative; width:42px; height:36px; margin:0 auto; transform:scaleX(var(--face,1))}
+.guy .bd{position:absolute; left:0; bottom:0; width:42px; height:34px; background-color:var(--text);
+  border-radius:52% 52% 44% 44% / 62% 62% 38% 38%; transform-origin:50% 100%;
+  animation:breathe2 3.6s ease-in-out infinite; opacity:.92;
+  transition:width .6s var(--ease), height .6s var(--ease), border-radius .6s var(--ease)}
+@keyframes breathe2{0%,100%{transform:scale(1,1)} 50%{transform:scale(1.02,.965)}}
+.guy .ft{position:absolute; bottom:-1px; width:9px; height:4px; background-color:var(--text); opacity:.92;
+  border-radius:50% 50% 45% 45%}
+.guy .ft.l{left:4px} .guy .ft.r{right:4px}
+.ey{position:absolute; left:0; right:0; top:10px; display:flex; justify-content:center; gap:8px}
+.ey .e{position:relative; width:7px; height:8px; border-radius:50%; background-color:var(--bg); transition:height .1s linear}
+.ey .p{position:absolute; left:1.6px; top:1.8px; width:3.8px; height:4.2px; border-radius:50%;
+  background-color:var(--text); transition:transform .18s var(--ease), opacity .1s}
+.guy.shut .e{height:1.5px} .guy.shut .p{opacity:0}
+.guy.sleep .bd{width:60px; height:11px; border-radius:50% 50% 46% 46% / 72% 72% 28% 28%; animation-duration:6.5s}
+.guy.sleep .ey{top:27px; gap:11px}
+.guy.sleep .e{height:2px; width:6px; border-radius:2px}
+.guy.sleep .p{opacity:0}
+
+/* 시각 없는 일 - 지평선 오른쪽 끝에 놓인 점들 */
+.loose{position:absolute; right:206px; bottom:48px; display:flex; align-items:flex-end; gap:7px}
+.loose .lb{font-size:10.5px; color:var(--text2); opacity:.75; margin-right:1px; line-height:1}
+.loose i{display:block; width:11px; height:11px; border-radius:50%; border:1.8px solid var(--accent);
+  cursor:pointer; transition:border-width .2s}
+.loose i.hi{border-width:3.5px}
+
+/* 오른쪽 - 할 것 */
+.acts{position:absolute; right:6px; top:62px; display:flex; align-items:center; gap:18px}
+.add{height:38px; padding:0 17px; border:0; border-radius:19px; background-color:var(--accent); color:var(--tealink);
+  font-family:inherit; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:7px;
+  box-shadow:0 4px 12px rgba(63,111,105,.3)}
+.cog{width:38px; height:38px; border:0; border-radius:19px; background:none; color:var(--text2);
+  display:grid; place-items:center; cursor:pointer; font-size:16px; transition:color .2s}
+.cog:hover{color:var(--text)}
+
+/* ───────── 종이 ───────── */
+.tabs{display:flex; gap:6px; flex:0 0 auto}
+.tab{border:0; border-radius:14px 14px 0 0; padding:9px 20px; background:none; color:var(--text2);
+  font-family:inherit; font-size:12.5px; cursor:pointer}
+.tab.on{color:var(--text); background-color:var(--surface)}
+.board{flex:1 1 auto; min-height:0; border-radius:0 20px 20px 20px; padding:14px 22px 16px;
+  display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:26px; overflow:hidden}
+.sec h2{margin:0 0 3px; font-size:12.5px; font-weight:500; color:var(--text); display:flex; align-items:baseline;
+  gap:7px; padding-bottom:6px; border-bottom:1px solid var(--hair)}
+.sec h2 .c{color:var(--text2); font-weight:400}
+.sec h2 .m{margin-left:auto; color:var(--text2); font-size:11px; font-weight:400; opacity:.8}
+.sec + .sec{margin-top:14px}
+
+/* 줄 - 규칙 라벨을 뺐다. 54px → 34px */
+.row{display:flex; align-items:center; gap:10px; height:34px; padding:0 4px; position:relative;
+  border-radius:8px; cursor:pointer; transition:background-color .18s var(--ease)}
+.row + .row{box-shadow:inset 0 1px 0 var(--hair)}
+.row.hi{background-color:var(--hi)}
+.row .bar{position:absolute; left:-8px; width:2.5px; height:14px; border-radius:2px; background-color:var(--accent); opacity:.85}
+.row.rt .bar{opacity:.42}
+.row .ck{position:relative; width:21px; height:21px; border-radius:50%; border:1.6px solid var(--accent);
+  background:none; display:grid; place-items:center; color:var(--accent); font-size:10.5px; font-weight:500;
+  font-family:inherit; flex:none; cursor:pointer; padding:0; transition:background-color .2s, color .2s}
+.row.done .ck{background-color:var(--accent); color:transparent}
+.row.done .ck::after{content:"\2713"; position:absolute; color:var(--tealink); font-size:11px}
+.row.over .ck{border-color:var(--rust); color:var(--rust)}
+.row .nm{flex:1; min-width:0; font-size:12.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.row.done .nm{color:var(--text2); text-decoration:line-through}
+.row .w{flex:0 0 auto; font-size:12px; color:var(--text2); font-weight:300}
+.row.over .w{color:var(--rust)}
+.board .r2 .row{height:30px}
+.board .r2 .row .nm{font-size:12px}
+.bdg{font-size:10px; padding:2px 7px; border-radius:999px; background-color:var(--hi); color:var(--text2)}
+.bdg.now{background-color:var(--text); color:var(--bg)}
+.empty{font-size:11.5px; color:var(--text2); opacity:.8; text-align:center; padding:8px}
+.foot{flex:0 0 auto; display:flex; gap:12px; padding:7px 0 0 6px; font-size:10.5px; color:var(--text2); opacity:.85}
+
+/* ───────── 조작 ───────── */
+.panel{flex:0 0 auto; margin-top:20px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center}
+.panel span{font-size:11.5px; color:#5d6a67}
+.panel input[type=range]{width:320px; accent-color:#3f6f69}
+button.ui{height:30px; padding:0 13px; border:0; border-radius:15px; cursor:pointer; font-family:inherit;
+  font-size:11.5px; color:#3d4a47; background-color:#eef2ec; box-shadow:2px 2px 5px rgba(40,58,54,.16), -2px -2px 5px rgba(255,255,255,.7)}
+button.ui.on{box-shadow:inset 2px 2px 5px rgba(40,58,54,.18), inset -2px -2px 5px rgba(255,255,255,.7)}
+
+.notes{flex:0 0 auto; margin-top:32px; max-width:1000px; display:grid; grid-template-columns:1fr 1fr; gap:26px}
+.notes h3{margin:0 0 8px; font-size:13.5px; font-weight:500; color:#1f2a28}
+.notes p{margin:0 0 9px; font-size:12px; line-height:1.75; color:#5d6a67}
+.notes b{color:#3f6f69; font-weight:500}
+.notes em{font-style:normal; color:#b0573f}
+.notes ul{margin:0 0 9px; padding-left:15px}
+.notes li{font-size:12px; line-height:1.85; color:#5d6a67}
+</style>
+</head>
+<body>
+
+<h1>초안 v2 · 하루의 지평선</h1>
+<p class="sub">밴드의 모든 것이 <b>선 하나 위에</b> 섭니다 &mdash; 시계 &middot; 궤적 &middot; 게으름뱅이 &middot; 놓인 일 &middot; 단추.
+궤적에는 <b>글자가 없습니다.</b> 아래 목록에 커서를 올리면 그 점이 궤도 위에서 반짝합니다.</p>
+
+<div class="win" id="win">
+  <div class="tb"><span>&#10003;</span><span class="nm">LazyScheduler</span><span class="wc">&minus; &square; &times;</span></div>
+  <div class="app">
+
+    <div class="band">
+      <div class="hz"></div>
+      <div class="nowblk"><div class="d" id="d-date">9월 23일 수요일</div><div class="c" id="d-clock">09:14</div></div>
+      <div class="st" id="d-st"></div>
+
+      <div class="sky" id="sky">
+        <svg id="svg"><path class="pf" id="pf"/><path class="pp" id="pp"/>
+          <g id="stones"></g><g id="dots"></g><g id="sun"></g></svg>
+      </div>
+      <div class="spark" id="spark"><div class="b"></div></div>
+
+      <div class="idler" id="idler">
+        <div class="guy" id="guy"><div class="bd"></div><i class="ft l"></i><i class="ft r"></i>
+          <div class="ey"><div class="e"><i class="p"></i></div><div class="e"><i class="p"></i></div></div></div>
+      </div>
+
+      <div class="loose" id="loose"></div>
+
+      <div class="acts">
+        <button class="add" type="button"><span>&#43;</span>새 항목</button>
+        <button class="cog" type="button">&#9881;</button>
+      </div>
+    </div>
+
+    <div class="tabs"><button class="tab on">오늘</button><button class="tab">달력</button></div>
+    <div class="board raised">
+      <div>
+        <div class="sec"><h2>오늘 <span class="c" id="c-today">7</span><span class="m" id="m-done">완료 0</span></h2>
+          <div id="today"></div></div>
+      </div>
+      <div class="r2">
+        <div class="sec"><h2>다가오는 마감 <span class="c">0</span><span class="m">7일</span></h2>
+          <div class="empty">앞으로 7일, 마감 없음</div></div>
+        <div class="sec"><h2>메모 <span class="c">3</span></h2><div id="memo"></div></div>
+        <div class="sec"><h2>루틴 <span class="c">8</span><span class="m">다음 실행일</span></h2><div id="rt"></div></div>
+      </div>
+    </div>
+    <div class="foot"><span>전체 항목 관리</span><span>&middot;</span><span id="sunword"></span></div>
+
+  </div>
+</div>
+
+<div class="panel">
+  <span>시각</span><input type="range" id="scrub" min="300" max="1439" step="5" value="554"><span id="scrubv">09:14</span>
+  <button class="ui on" id="b-live">실시간</button>
+  <button class="ui" id="b-play">빨리 감기</button>
+  <button class="ui" id="b-reset">하루 초기화</button>
+</div>
+
+<div class="notes">
+  <div>
+    <h3>4 &middot; 일체감 &mdash; 지평선 하나</h3>
+    <p>흩어져 보였던 까닭은 자리가 아니라 <b>기준선이 없었기 때문</b>입니다. 시계는 허공에 떠 있고,
+    궤적은 제 눈금을 따로 갖고, 단추는 또 다른 높이에 있었습니다. 넷이 각자 서 있으니 넷으로 보입니다.</p>
+    <p>이제 <b>선 하나가 창을 가로지르고 그 위에 전부 섭니다.</b>
+    시계가 서고, 궤적이 그 선에서 솟았다 내려앉고, 게으름뱅이가 서 있고,
+    시각 없는 일이 놓여 있고, 단추도 같은 선에 섭니다. 선 아래는 그 하루에 대한 말입니다.</p>
+    <p>단추도 말투를 맞췄습니다 &mdash; <b>채운 것은 &lsquo;새 항목&rsquo; 하나뿐</b>이고 설정은 맨 글리프입니다.
+    떠 있는 네모 두 개가 나란히 있으면 그것만으로 한 덩어리의 잡동사니가 됩니다.</p>
+    <p>궤적의 눈금과 시각 글자를 전부 뺀 것도 여기에 크게 기여합니다. 도표의 말투가 사라지니
+    나머지와 같은 결이 됩니다.</p>
+  </div>
+  <div>
+    <h3>1 &middot; 2 &middot; 3</h3>
+    <p><b>1. 팔레트를 통째로 바꿨습니다.</b> 주신 HTML 것 그대로입니다 &mdash;
+    <code>#e4e9e3</code> 바탕 &middot; <code>#eef2ec</code> 면 &middot; <code>#3f6f69</code> 청록 &middot;
+    <code>#b0573f</code> 지남. 우리 tokens.py 색은 이 초안에서 하나도 안 씁니다.</p>
+    <p><b>2. 궤적에 글자가 없습니다.</b> 점만 있습니다 &mdash; 빈 동그라미는 아직, 찬 것은 30분 안(숨 쉬는 테),
+    벽돌빛은 지남, 지평선에 내려앉은 것은 완료입니다.
+    <b>목록에 커서를 올리면 그 점이 굵어지고 이름표가 반짝 뜹니다.</b> 반대로도 됩니다.</p>
+    <p>덤: 글자가 없으니 <b>겹칠 일도 없어졌습니다.</b> 지난번 묶기/매달기가 통째로 필요 없어집니다.</p>
+    <p><b>3. 규칙 라벨을 뺐습니다.</b> &lsquo;루틴 &middot; 매일 &middot; 영업일만&rsquo; 이 사라지니
+    줄 높이가 <b>54px &rarr; 34px</b>. 같은 높이에 <b>줄이 1.6배</b> 들어갑니다.</p>
+    <p>갈래는 왼쪽 띠의 진하기로 남겨 뒀습니다 &mdash; 진하면 할 일, 흐리면 루틴. 높이를 한 픽셀도 안 씁니다.</p>
+    <p><em>견주기:</em> 오른쪽 칸도 30px로 줄이고 밴드는 148px입니다. 궤적 이전 머리줄이 84px였으니
+    실제로 늘어난 것은 <b>+64px</b>, 대신 목록이 훨씬 많이 들어갑니다.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+var $ = function(s){ return document.querySelector(s); };
+var clamp = function(v,a,b){ return Math.max(a, Math.min(b, v)); };
+var smooth = function(v,a,b){ var t = clamp((v-a)/(b-a),0,1); return t*t*(3-2*t); };
+var fmt = function(m){ return String(Math.floor(m/60)%24).padStart(2,"0") + ":" + String(Math.floor(m%60)).padStart(2,"0"); };
+var svgEl = function(t,a){ var e = document.createElementNS("http://www.w3.org/2000/svg", t); for(var k in a) e.setAttribute(k,a[k]); return e; };
+function hx(c){ c=c.replace("#",""); return [parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)]; }
+function mix(a,b,t){ var A=hx(a),B=hx(b),o="#"; for(var i=0;i<3;i++){ var v=Math.round(A[i]+(B[i]-A[i])*t); o+=("0"+v.toString(16)).slice(-2);} return o; }
+var P = {base:"#e4e9e3", panel:"#eef2ec", ink:"#1f2a28", ink2:"#5d6a67", teal:"#3f6f69",
+         warm:"#f3c58a", night:"#1a2128", pale:"#e8ece9", pale2:"#a9b3af", tealLit:"#8fc2b9"};
+
+var SEED = [
+  {id:1, nm:"아침운용현황 출력(대표님 전달) 및 부문 메일 송부", rt:1, min:510},
+  {id:2, nm:"교보생명 802807 컴플 체크리스트 송부", rt:1, min:520},
+  {id:3, nm:"퇴연 RA 비즈니스 미팅", rt:1, min:600},
+  {id:4, nm:"팀장님 해외통합 업데이트", rt:1, min:635},
+  {id:5, nm:"국내 일임 매매", rt:1, min:900},
+  {id:6, nm:"월간 운용보고서 초안 검토", rt:0, min:null},
+  {id:7, nm:"출장 경비 정산", rt:0, min:null}
+];
+var MEMOS = ["멀모 해외 리밸 내역","운용시스템-8U3150 주간 코멘트 추가","운시-설정해지 반영"];
+var RTS = [["아침운용현황 출력","done"],["교보생명 컴플 체크리스트","done"],["퇴연 RA 비즈니스 미팅","done"],
+  ["팀장님 해외통합 업데이트","done"],["국내 일임 매매","today"],["카디프 기변보 if any","9/28 (월)"],
+  ["하나은행 월간운용보고서 작성","10/5 (월)"],["홍콩 수익자 요청 정리","10/19 (월)"]];
+function number(ts){ ts.slice().sort(function(a,b){ return (a.min==null?1e9:a.min)-(b.min==null?1e9:b.min); })
+  .forEach(function(t,i){ t.n=i+1; }); return ts; }
+var tasks = number(SEED.map(function(t){ return Object.assign({},t,{done:false}); }));
+var live = true, playing = false, sim = 554, last = performance.now();
+function now(){ if(live){ var d=new Date(); return d.getHours()*60+d.getMinutes()+d.getSeconds()/60; } return sim; }
+
+/* ── 해 ── */
+var LAT=37.57, LON=126.98, TZM=135, rad=Math.PI/180;
+function sun(min){
+  var d=new Date(), st=new Date(d.getFullYear(),0,0), N=Math.floor((d-st)/86400000);
+  var decl=23.44*Math.sin(rad*(360/365)*(284+N)), B=rad*(360/365)*(N-81);
+  var eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);
+  var sol=min+4*(LON-TZM)+eot, H=rad*(15*(sol/60-12)), phi=rad*LAT, dl=rad*decl;
+  var alt=Math.asin(Math.sin(phi)*Math.sin(dl)+Math.cos(phi)*Math.cos(dl)*Math.cos(H));
+  var az=(Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(phi)-Math.tan(dl)*Math.cos(phi))/rad+540)%360;
+  return {alt:alt/rad, az:az};
+}
+var DIRW=["북","북동","동","남동","남","남서","서","북서"];
+function light(min){
+  var s=sun(min), r=document.documentElement.style;
+  var day=smooth(s.alt,-9,3), warm=s.alt>-4?Math.exp(-Math.pow(s.alt/9,2)):0;
+  r.setProperty("--bg", mix(mix(P.base,P.warm,warm*0.35), P.night, (1-day)*0.88));
+  r.setProperty("--surface", mix(mix(P.panel,P.warm,warm*0.25), P.night, (1-day)*0.80));
+  r.setProperty("--text", mix(P.ink, P.pale, (1-day)*0.90));
+  r.setProperty("--text2", mix(P.ink2, P.pale2, (1-day)*0.90));
+  r.setProperty("--accent", mix(P.teal, P.tealLit, (1-day)*0.60));
+  r.setProperty("--hair", "rgba(" + (day>0.5?"31,42,40":"232,236,233") + ",.14)");
+  r.setProperty("--hi", "rgba(" + (day>0.5?"63,111,105":"143,194,185") + ",.16)");
+  var len=s.alt>0?6+12*(1-clamp(s.alt/75,0,1)):8, blur=s.alt>0?14+18*clamp(s.alt/75,0,1):26;
+  var lx=-Math.sin(s.az*rad)*day, ly=-1, nn=Math.hypot(lx,ly);
+  r.setProperty("--sx",(lx/nn*len).toFixed(1)+"px"); r.setProperty("--sy",(ly/nn*len).toFixed(1)+"px");
+  r.setProperty("--sb", blur.toFixed(0)+"px");
+  r.setProperty("--shade","rgba(40,58,54,"+(0.16+0.14*warm+0.12*(1-day)).toFixed(3)+")");
+  r.setProperty("--lite","rgba(255,255,255,"+(0.2+0.4*day*(1-0.4*warm)).toFixed(3)+")");
+  $("#sunword").textContent = s.alt>-0.83 ? "해 "+Math.round(s.alt)+"° · "+DIRW[Math.round(s.az/45)%8]
+    : "해가 졌습니다 · "+DIRW[Math.round(s.az/45)%8]+" 아래";
+  return s;
+}
+
+/* ── 기하 ── */
+var sky=$("#sky"), svg=$("#svg"), W=500, HH=101, span={a:420,b:1140};
+var GND=100, PK=26;
+function fr(m){ return clamp((m-span.a)/(span.b-span.a),0,1); }
+function pos(m){ var t=fr(m); return [t*W, GND-4*(GND-PK)*t*(1-t)]; }
+function arc(t0,t1){
+  var P0=pos(span.a), P2=pos(span.b), P1=[(P0[0]+P2[0])/2, 2*PK-GND];
+  var lp=function(a,b,t){ return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]; };
+  var bz=function(t){ return lp(lp(P0,P1,t), lp(P1,P2,t), t); };
+  var A=bz(t0), Bp=bz(t1), Cc=lp(lp(P0,P1,t0), lp(P1,P2,t0), t1);
+  return "M"+A[0].toFixed(1)+" "+A[1].toFixed(1)+" Q"+Cc[0].toFixed(1)+" "+Cc[1].toFixed(1)+" "+Bp[0].toFixed(1)+" "+Bp[1].toFixed(1);
+}
+function setSpan(min){
+  var tm=tasks.filter(function(t){return t.min!=null;}).map(function(t){return t.min;});
+  var a=Math.floor(Math.min.apply(null,[420,min].concat(tm.map(function(m){return m-30;})))/60)*60;
+  var b=Math.ceil(Math.max.apply(null,[1140,min+1].concat(tm.map(function(m){return m+30;})))/60)*60;
+  if(a!==span.a||b!==span.b){ span={a:a,b:b}; build(); }
+}
+function build(){
+  W=sky.clientWidth||500; HH=sky.clientHeight||101;
+  svg.setAttribute("viewBox","0 0 "+W+" "+HH);
+  $("#pf").setAttribute("d", arc(0,1));
+  renderDots();
+}
+
+/* ── 점 (글자 없음) ── */
+function renderDots(){
+  var d=$("#dots"); d.innerHTML="";
+  tasks.filter(function(t){ return t.min!=null && !t.done; }).forEach(function(t){
+    var p=pos(t.min), g=svgEl("g");
+    g.appendChild(svgEl("circle",{"class":"halo", cx:p[0], cy:p[1], r:4.5}));
+    var c=svgEl("circle",{"class":"dot", cx:p[0], cy:p[1], r:4.5});
+    c.dataset.id=t.id; g.appendChild(c); d.appendChild(g);
+    c.addEventListener("mouseenter", function(){ hl(t.id,true); sparkAt(t,p); });
+    c.addEventListener("mouseleave", function(){ hl(t.id,false); sparkOff(); });
+    c.addEventListener("click", function(){ complete(t.id); });
+  });
+  var st=$("#stones"); st.innerHTML="";
+  tasks.filter(function(t){ return t.min!=null && t.done; }).forEach(function(t){
+    var x=pos(t.min)[0];
+    var c=svgEl("circle",{"class":"stone", cx:x, cy:GND-4, r:4});
+    c.dataset.id=t.id; st.appendChild(c);
+    c.addEventListener("mouseenter", function(){ hl(t.id,true); sparkAt(t,[x,GND-8]); });
+    c.addEventListener("mouseleave", function(){ hl(t.id,false); sparkOff(); });
+  });
+}
+var spark=$("#spark");
+function sparkAt(t, p){
+  var sb=sky.getBoundingClientRect(), bb=$(".band").getBoundingClientRect();
+  spark.querySelector(".b").innerHTML = (t.min!=null ? '<em>'+fmt(t.min)+'</em>' : '<em>아무 때나</em>') + t.nm;
+  spark.style.left = (sb.left-bb.left + p[0]) + "px";
+  spark.style.top = (sb.top-bb.top + p[1] - 6) + "px";
+  spark.classList.add("on");
+}
+function sparkOff(){ spark.classList.remove("on"); }
+function hl(id,on){ document.querySelectorAll('[data-id="'+id+'"]').forEach(function(e){ e.classList.toggle("hi",on); }); }
+
+/* ── 시각 없는 일 ── */
+function renderLoose(){
+  var L=$("#loose"); L.innerHTML="";
+  var it=tasks.filter(function(t){ return t.min==null && !t.done; });
+  if(!it.length) return;
+  var l=document.createElement("span"); l.className="lb"; l.textContent="아무 때나"; L.appendChild(l);
+  it.forEach(function(t){
+    var i=document.createElement("i"); i.dataset.id=t.id; L.appendChild(i);
+    i.addEventListener("mouseenter", function(){
+      hl(t.id,true);
+      var r=i.getBoundingClientRect(), bb=$(".band").getBoundingClientRect();
+      sparkAt(t, [r.left-bb.left + 5.5 - ($("#sky").getBoundingClientRect().left-bb.left),
+                  r.top-bb.top - ($("#sky").getBoundingClientRect().top-bb.top)]);
+    });
+    i.addEventListener("mouseleave", function(){ hl(t.id,false); sparkOff(); });
+    i.addEventListener("click", function(){ complete(t.id); });
+  });
+}
+
+/* ── 목록 (규칙 라벨 없음) ── */
+function renderList(){
+  var l=$("#today"); l.innerHTML="";
+  tasks.slice().sort(function(a,b){ return (a.min==null?1e9:a.min)-(b.min==null?1e9:b.min); }).forEach(function(t){
+    var r=document.createElement("div");
+    r.className="row"+(t.done?" done":"")+(t.rt?" rt":""); r.dataset.id=t.id;
+    r.innerHTML='<i class="bar"></i><button class="ck">'+(t.done?"":t.n)+'</button>'+
+      '<span class="nm">'+t.nm+'</span><span class="w">'+(t.min!=null?fmt(t.min):"—")+'</span>';
+    r.querySelector(".ck").addEventListener("click", function(e){ e.stopPropagation(); complete(t.id); });
+    r.addEventListener("mouseenter", function(){
+      hl(t.id,true);
+      if(t.min!=null){ var p=pos(t.min); sparkAt(t, t.done?[p[0],GND-8]:p); }
+      else { var i=document.querySelector('.loose [data-id="'+t.id+'"]'); if(i){
+        var rb=i.getBoundingClientRect(), sb=sky.getBoundingClientRect();
+        sparkAt(t,[rb.left-sb.left+5.5, rb.top-sb.top]); } }
+    });
+    r.addEventListener("mouseleave", function(){ hl(t.id,false); sparkOff(); });
+    l.appendChild(r);
+  });
+  $("#c-today").textContent=tasks.length;
+  $("#m-done").textContent="완료 "+tasks.filter(function(t){return t.done;}).length;
+  $("#memo").innerHTML=MEMOS.map(function(m){
+    return '<div class="row"><i class="bar" style="opacity:.28"></i><span class="ck" style="cursor:default"></span><span class="nm">'+m+'</span></div>'; }).join("");
+  $("#rt").innerHTML=RTS.map(function(a){
+    var tail = a[1]==="done" ? '<span class="bdg">완료</span>' : a[1]==="today" ? '<span class="bdg now">오늘</span>'
+             : '<span class="w">'+a[1]+'</span>';
+    return '<div class="row rt"><i class="bar"></i><span class="nm">'+a[0]+'</span>'+tail+'</div>'; }).join("");
+}
+function complete(id){
+  var t=tasks.filter(function(x){return x.id===id;})[0];
+  if(!t||t.done) return; t.done=true; sparkOff();
+  renderDots(); renderLoose(); renderList(); update();
+}
+
+/* ── 게으름뱅이 ── */
+var guy=$("#guy"), pup=guy.querySelectorAll(".p");
+document.addEventListener("mousemove", function(e){
+  if(guy.classList.contains("sleep")) return;
+  var r=guy.getBoundingClientRect(), dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+12);
+  var d=Math.max(1,Math.hypot(dx,dy)), k=Math.min(2.2,d/34);
+  var tf="translate("+(dx/d*k).toFixed(2)+"px,"+(dy/d*k*.7).toFixed(2)+"px)";
+  pup[0].style.transform=pup[1].style.transform=tf;
+});
+(function blink(){
+  if(!guy.classList.contains("sleep")){ guy.classList.add("shut"); setTimeout(function(){ guy.classList.remove("shut"); },110); }
+  setTimeout(blink, 2800+Math.random()*4200);
+})();
+
+/* ── 갱신 ── */
+function update(){
+  var min=now(); setSpan(min);
+  $("#d-clock").textContent=fmt(min);
+  $("#pp").setAttribute("d", fr(min)>.002?arc(0,fr(min)):"");
+  var s=light(min), sg=$("#sun"); sg.innerHTML="";
+  var p=pos(min);
+  var fill = s.alt>-0.83 ? mix("#f7d36a","#f3a35b", Math.min(1,Math.exp(-Math.pow(s.alt/9,2)))) : "#c9d3dc";
+  if(s.alt>-0.83) sg.appendChild(svgEl("circle",{"class":"sunglow", cx:p[0], cy:p[1], r:13}));
+  sg.appendChild(svgEl("circle",{cx:p[0], cy:p[1], r:7, fill:fill}));
+  guy.classList.toggle("sleep", s.alt<=-0.83);
+
+  var open=tasks.filter(function(t){ return !t.done; });
+  document.querySelectorAll(".dot").forEach(function(c){
+    var t=open.filter(function(x){ return x.id===+c.dataset.id; })[0]; if(!t) return;
+    var u=t.min-min;
+    c.classList.toggle("soon", u>0&&u<=30); c.classList.toggle("over", u<-1);
+    var h=c.parentNode.querySelector(".halo"); if(h) h.style.display=(u>0&&u<=30)?"":"none";
+  });
+  document.querySelectorAll("#today .row").forEach(function(r){
+    var t=open.filter(function(x){ return x.id===+r.dataset.id; })[0];
+    r.classList.toggle("over", !!t && t.min!=null && t.min-min<-1);
+  });
+  var left=open.length, un=open.filter(function(t){return t.min==null;}).length;
+  var nx=open.filter(function(t){ return t.min!=null && t.min-min>-1; }).sort(function(a,b){return a.min-b.min;})[0];
+  var over=open.filter(function(t){ return t.min!=null && t.min-min<-1; }).length;
+  var line = nx ? '<span class="nx">다음 '+nx.nm.slice(0,16)+(nx.nm.length>16?"…":"")+" "+fmt(nx.min)+
+        (nx.min-min<60?" · "+Math.ceil(nx.min-min)+"분 후":"")+"</span>"
+      : over ? '<span class="nx">지난 일 '+over+"건</span>" : "";
+  $("#d-st").innerHTML = left ? "<b>"+left+"건 남음</b>"+(un?" · 아무 때나 "+un:"")+"<br>"+line
+                              : "<b>오늘 끝</b><br>저도 이제 쉴게요.";
+  $("#scrub").value=Math.round(min); $("#scrubv").textContent=fmt(min);
+}
+
+var bl=$("#b-live"), bp=$("#b-play");
+function setLive(v){ live=v; bl.classList.toggle("on",v); if(v){ playing=false; bp.classList.remove("on"); } }
+$("#scrub").addEventListener("input", function(){ setLive(false); sim=+this.value; update(); });
+bl.addEventListener("click", function(){ setLive(true); update(); });
+bp.addEventListener("click", function(){ if(live){ sim=now(); setLive(false);} playing=!playing; bp.classList.toggle("on",playing); });
+$("#b-reset").addEventListener("click", function(){
+  tasks=number(SEED.map(function(t){ return Object.assign({},t,{done:false}); }));
+  setLive(false); sim=440; build(); renderLoose(); renderList(); update(); });
+new ResizeObserver(function(){ build(); update(); }).observe(sky);
+
+var td=new Date();
+$("#d-date").textContent=(td.getMonth()+1)+"월 "+td.getDate()+"일 "+"일월화수목금토"[td.getDay()]+"요일";
+var s0=now(); tasks.forEach(function(t){ t.done = t.min!=null && t.min < s0-20; });
+setSpan(s0); build(); renderLoose(); renderList(); update();
+(function loop(ts){ var dt=ts-last; last=ts;
+  if(playing&&!live) sim=(sim+dt/1000*4)%1440;
+  if(playing||live) update();
+  requestAnimationFrame(loop); })(performance.now());
+})();
+</script>
+</body>
+</html>

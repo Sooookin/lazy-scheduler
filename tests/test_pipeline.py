@@ -149,7 +149,9 @@ def test_prewarm_prepares_every_font_a_card_uses():
 # ---------- 화면 코드 ----------
 
 def _js():
-    return io.open(os.path.join(ROOT, "web", "app.js"), encoding="utf-8").read()
+    """화면 코드 전부 (app.js · 하늘 sky.js · 돌멩이 pebble.js)."""
+    return "\n".join(io.open(os.path.join(ROOT, "web", n), encoding="utf-8").read()
+                     for n in ("app.js", "sky.js", "pebble.js"))
 
 
 def test_background_refresh_does_not_touch_the_settings_form():

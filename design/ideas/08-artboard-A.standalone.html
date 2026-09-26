@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
+<title>아트보드 · A</title>
+<style>
+:root{
+  --bg:#e4e9e3; --surface:#eef2ec; --text:#1f2a28; --text2:#5d6a67;
+  --teal:#3f6f69; --tealink:#f2f6f3; --rust:#b0573f; --warm:#f3c58a;
+  --hair:rgba(31,42,40,.11); --hair2:rgba(31,42,40,.2);
+  --shade:rgba(40,58,54,.16); --lite:rgba(255,255,255,.55);
+  --paper:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .19 0 0 0 0 .14 0 0 0 .26 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#cdd5d2; color:var(--text); font-family:"Paperlogy","Noto Sans KR","Malgun Gothic",sans-serif;
+  font-weight:400; -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1;
+  display:flex; flex-direction:column; align-items:center; padding:20px 18px 60px}
+.top{position:sticky; top:0; z-index:30; background:#cdd5d2; width:100%; padding:6px 0 10px;
+  display:flex; flex-direction:column; align-items:center; box-shadow:0 8px 12px -8px rgba(31,42,40,.25)}
+h1{margin:0 0 6px; font-size:20px; font-weight:500; letter-spacing:-.02em}
+.ctl{display:flex; gap:10px; align-items:center; font-size:12px; color:var(--text2)}
+.ctl input{width:320px; accent-color:#3f6f69}
+
+h2.sec{width:940px; margin:34px 0 4px; font-size:15px; font-weight:500; display:flex; align-items:baseline; gap:9px}
+h2.sec span{font-size:12px; color:var(--text2); font-weight:400}
+p.lead{width:940px; margin:0 0 14px; font-size:12.5px; line-height:1.75; color:var(--text2)}
+p.lead b{color:var(--teal); font-weight:500}
+p.lead em{font-style:normal; color:var(--rust)}
+
+/* ───────── 창 ───────── */
+.win{position:relative; width:940px; height:600px; border-radius:9px; overflow:hidden;
+  background:var(--bg); box-shadow:0 16px 38px rgba(31,42,40,.26);
+  transition:background-color 1s ease}
+.tb{position:absolute; left:0; right:0; top:0; height:28px; display:flex; align-items:center; gap:8px;
+  padding:0 12px 0 14px; font-size:10.5px; color:var(--text2); z-index:6}
+.tb b{font-weight:500; color:var(--text); font-size:11px}
+.tb i{margin-left:auto; font-style:normal; letter-spacing:5px; opacity:.45}
+
+/* 하늘 */
+.sky{position:absolute; left:0; right:0; top:28px; height:118px; z-index:1}
+.sky svg{position:absolute; left:0; top:0; width:100%; height:150px; overflow:visible}
+.dateline{font-size:11.5px; color:var(--text2)}
+.clock{font-size:40px; font-weight:300; line-height:.92; letter-spacing:-.03em}
+.stat{font-size:11.5px; color:var(--text2); line-height:1.55}
+.stat b{color:var(--text); font-weight:500}
+.stat .nx{color:var(--teal)}
+.add{height:34px; padding:0 15px; border:0; border-radius:17px; background:var(--teal); color:var(--tealink);
+  font-family:inherit; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  box-shadow:0 4px 11px rgba(63,111,105,.28)}
+.cog{width:34px; height:34px; border:0; border-radius:17px; background:none; color:var(--text2);
+  display:grid; place-items:center; font-size:15px; cursor:pointer}
+.cog:hover{color:var(--text)}
+
+/* 땅 = 종이. 창 좌·우·아래 끝까지 */
+.ground{position:absolute; left:0; right:0; top:146px; bottom:0; z-index:4;
+  transition:background-color 1s ease;
+  background:var(--surface); background-image:var(--paper); background-size:200px 200px;
+  background-blend-mode:multiply; box-shadow:0 -1px 0 var(--hair2), 0 -6px 14px -6px rgba(31,42,40,.16)}
+.pad{padding:16px 30px 0; display:grid; grid-template-columns:minmax(0,1.5fr) 1px minmax(0,1fr); gap:0 26px; height:100%}
+.vr{background:var(--hair)}
+.h3{font-size:12px; font-weight:500; display:flex; align-items:baseline; gap:7px;
+  padding-bottom:7px; border-bottom:1px solid var(--hair2)}
+.h3 s{text-decoration:none; color:var(--text2); font-weight:400}
+.h3 u{text-decoration:none; margin-left:auto; color:var(--text2); font-size:10.5px; font-weight:400}
+
+/* 시간대 머리 */
+.bandh{display:flex; align-items:center; gap:9px; margin:11px 0 3px; font-size:10.5px; color:var(--text2)}
+.bandh::after{content:""; flex:1; height:1px; background:var(--hair)}
+/* 지금 선 */
+.nowline{display:flex; align-items:center; gap:8px; margin:5px 0; font-size:10px; color:var(--teal)}
+.nowline::after{content:""; flex:1; height:1px; background:var(--teal); opacity:.45}
+.nowline i{font-style:normal; width:6px; height:6px; border-radius:50%; background:var(--teal)}
+
+.r{display:flex; align-items:center; gap:10px; height:32px; font-size:12.5px; position:relative; border-radius:7px}
+.r i.b{position:absolute; left:-9px; width:2.5px; height:13px; border-radius:2px; background:var(--teal); opacity:.8}
+.r.rt i.b{opacity:.36}
+.r .k{width:20px; height:20px; border-radius:50%; border:1.5px solid var(--teal); color:var(--teal);
+  display:grid; place-items:center; font-size:10px; font-weight:500; flex:none}
+.r.dn .k{background:var(--teal); color:var(--tealink)}
+.r.ov .k{border-color:var(--rust); color:var(--rust)}
+.r .t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.r.dn .t{color:var(--text2); text-decoration:line-through}
+.r .w{font-size:11.5px; color:var(--text2); font-weight:300}
+.r.ov .w{color:var(--rust)}
+.r2{height:28px; font-size:11.5px}
+.sec2{margin-top:15px}
+.emp{font-size:11px; color:var(--text2); opacity:.75; text-align:center; padding:9px}
+
+/* 게으름뱅이 */
+.guy{position:absolute; width:40px; height:34px; z-index:2}
+.guy .bd2{position:absolute; left:0; bottom:0; width:40px; height:32px; background:var(--text); opacity:.9;
+  border-radius:52% 52% 44% 44% / 62% 62% 38% 38%}
+.guy .ft{position:absolute; bottom:-1px; width:8px; height:4px; background:var(--text); opacity:.9; border-radius:50% 50% 45% 45%}
+.guy .ft.l{left:4px} .guy .ft.r{right:4px}
+.guy .ey{position:absolute; left:0; right:0; top:10px; display:flex; justify-content:center; gap:7px}
+.guy .ey s{display:block; width:6.5px; height:7.5px; border-radius:50%; background:var(--bg); position:relative}
+.guy .ey s::after{content:""; position:absolute; left:1.6px; top:1.8px; width:3.4px; height:3.8px;
+  border-radius:50%; background:var(--text)}
+
+svg{overflow:visible}
+.arcf{fill:none; stroke:var(--text2); stroke-width:1.1; stroke-dasharray:2 5; opacity:.45}
+.arcp{fill:none; stroke:var(--teal); stroke-width:2.2; stroke-linecap:round}
+.band-r{fill:var(--teal); opacity:.10}
+.d0{fill:none; stroke:var(--teal); stroke-width:1.7}
+.dov{fill:none; stroke:var(--rust); stroke-width:1.7}
+.ddn{fill:var(--teal)}
+.sun{fill:#eec45a}
+.sung{fill:#f7d36a; opacity:.22; filter:blur(5px)}
+.suntxt{fill:var(--text2); font-size:10.5px; text-anchor:middle; font-weight:300}
+
+/* ───────── 변형판 ───────── */
+.vars{display:flex; flex-direction:column; gap:14px; width:940px}
+.vrow{position:relative; height:150px; border-radius:9px; overflow:hidden; background:var(--bg);
+  box-shadow:0 8px 20px rgba(31,42,40,.18); transition:background-color 1s ease}
+.vrow .lbl{position:absolute; left:0; top:0; z-index:9; font-size:10.5px; color:var(--tealink);
+  background:var(--teal); padding:3px 9px; border-radius:0 0 8px 0}
+.vrow .gnd{position:absolute; left:0; right:0; top:118px; bottom:0; background:var(--surface);
+  background-image:var(--paper); background-size:200px 200px; background-blend-mode:multiply;
+  box-shadow:0 -1px 0 var(--hair2); z-index:4; padding:7px 30px; font-size:11.5px; color:var(--text2)}
+.vnote{width:940px; margin:2px 0 0; font-size:12px; line-height:1.7; color:var(--text2)}
+.vnote b{color:var(--teal); font-weight:500}
+
+.swats{display:flex; gap:14px; width:940px}
+.swat{flex:1; height:150px; border-radius:9px; background:var(--bg); position:relative; overflow:hidden;
+  box-shadow:0 8px 20px rgba(31,42,40,.18); transition:background-color 1s ease}
+.swat .lbl{position:absolute; left:0; top:0; z-index:9; font-size:10.5px; color:var(--tealink);
+  background:var(--teal); padding:3px 9px; border-radius:0 0 8px 0}
+.swat .gnd{position:absolute; left:0; right:0; top:112px; bottom:0; background:var(--surface);
+  background-image:var(--paper); background-size:200px 200px; background-blend-mode:multiply;
+  box-shadow:0 -1px 0 var(--hair2); z-index:4}
+.swatcap{display:flex; gap:14px; width:940px; margin-top:8px}
+.swatcap div{flex:1; font-size:11.5px; line-height:1.65; color:var(--text2)}
+.swatcap b{color:var(--teal); font-weight:500; display:block; margin-bottom:2px}
+
+.cols{display:flex; gap:20px; width:940px}
+.cols > div{flex:1}
+.cols h4{margin:0 0 6px; font-size:12.5px; font-weight:500}
+.cols p{margin:0 0 8px; font-size:12px; line-height:1.7; color:var(--text2)}
+.cols em{font-style:normal; color:var(--rust)}
+.cols b{color:var(--teal); font-weight:500}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>아트보드 · A · 하늘과 땅</h1>
+  <div class="ctl"><span>시각</span><input type="range" id="t" min="270" max="1380" step="5" value="640"><span id="tv">10:40</span></div>
+</div>
+
+<h2 class="sec">본안 <span>서류철 없음 · 루틴 없음 · 시간대 묶음 · 지금 선</span></h2>
+<p class="lead">종이가 창 좌 &middot; 우 &middot; 아래 끝까지 찹니다. <b>종이의 윗변이 지평선</b>이고,
+궤도는 거기서 솟아 다시 종이 뒤로 들어갑니다. 완료한 일은 그 가장자리에 돌로 남습니다.
+시계 &middot; 게으름뱅이 &middot; 단추가 모두 같은 선 위에 섭니다.</p>
+<p class="lead"><b>색은 실제 해 높이가 만듭니다</b> &mdash; 막대를 05시에서 23시까지 밀어 보세요.
+해 뜰 무렵과 질 무렵에는 따뜻한 쪽으로, 해가 지면 밤빛으로 갑니다. 해는 노랑 &rarr; 주황 &rarr;
+창백한 달로 바뀝니다. 서울 기준으로 <em>오늘 날짜의</em> 진짜 해를 계산합니다 (인터넷 안 씁니다).
+<span style="opacity:.8">설명 글까지 어두워지면 못 읽으니 빛은 창 안에만 걸었습니다.</span></p>
+
+<div class="win" id="W">
+  <div class="tb"><span>&#10003;</span><b>LazyScheduler</b><i>&minus; &square; &times;</i></div>
+  <div class="sky"><svg id="sv"></svg></div>
+  <div style="position:absolute; left:30px; bottom:454px; z-index:5">
+    <div class="dateline">9월 23일 수요일</div>
+    <div style="display:flex; align-items:flex-end; gap:14px">
+      <div class="clock" id="ck">10:40</div>
+      <div class="stat" id="st" style="padding-bottom:2px"></div>
+    </div>
+  </div>
+  <div style="position:absolute; right:26px; top:112px; z-index:5; display:flex; align-items:center; gap:16px">
+    <button class="add"><span>&#43;</span>새 항목</button><button class="cog">&#9881;</button></div>
+  <div class="guy" id="gy" style="left:712px; top:112px"><div class="bd2"></div><i class="ft l"></i><i class="ft r"></i>
+    <div class="ey"><s></s><s></s></div></div>
+
+  <div class="ground">
+    <div class="pad">
+      <div>
+        <div class="h3">오늘 <s id="c1">7</s><u id="c2">완료 0</u></div>
+        <div id="list"></div>
+      </div>
+      <div class="vr"></div>
+      <div>
+        <div class="h3">다가오는 마감 <s>0</s><u>7일</u></div>
+        <div class="emp">앞으로 7일, 마감 없음</div>
+        <div class="sec2"><div class="h3">메모 <s>3</s></div><div id="memo"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── Q1 ─────────── -->
+<h2 class="sec">Q1 &middot; 시계 &middot; 날짜 &middot; 새 항목 &middot; 설정을 어디에 <span>하늘 띠만 떼어 견줍니다</span></h2>
+<div class="vars">
+  <div class="vrow" id="v1"><span class="lbl">V1 &middot; 지평선 위에 나란히 (본안)</span>
+    <svg class="vsv"></svg><div class="gnd">오늘 &nbsp;7</div></div>
+  <div class="vrow" id="v2"><span class="lbl">V2 &middot; 해가 시계다</span>
+    <svg class="vsv"></svg><div class="gnd">오늘 &nbsp;7</div></div>
+  <div class="vrow" id="v3"><span class="lbl">V3 &middot; 도구는 종이 안으로</span>
+    <svg class="vsv"></svg><div class="gnd">오늘 &nbsp;7</div></div>
+</div>
+<p class="vnote"><b>V1</b> 시계는 왼쪽, 단추는 오른쪽, 둘 다 지평선에 발을 붙입니다. 상태는 시계 옆에 붙습니다.
+&nbsp;&middot;&nbsp; <b>V2</b> 큰 시계를 없애고 <b>해가 시각을 답니다</b> &mdash; 하늘에 물건이 하나 줄어 가장 조용합니다.
+날짜는 종이 안 왼쪽 위로 내려갑니다.
+&nbsp;&middot;&nbsp; <b>V3</b> 하늘에는 하늘 것만 둡니다(궤도 &middot; 해 &middot; 녀석). 시계 &middot; 날짜 &middot; 단추는 전부 종이 안으로 내려
+&lsquo;하늘=하루, 종이=일과 연장&rsquo; 으로 가릅니다.</p>
+
+<!-- ─────────── Q2 ─────────── -->
+<h2 class="sec">Q2 &middot; 궤도의 모양 <span>같은 데이터, 같은 시각</span></h2>
+<div class="swats">
+  <div class="swat" id="s1"><span class="lbl">S1 &middot; 얕은 포물선</span><svg class="ssv"></svg><div class="gnd"></div></div>
+  <div class="swat" id="s2"><span class="lbl">S2 &middot; 실제 태양 궤도</span><svg class="ssv"></svg><div class="gnd"></div></div>
+  <div class="swat" id="s3"><span class="lbl">S3 &middot; 선이 아니라 띠</span><svg class="ssv"></svg><div class="gnd"></div></div>
+</div>
+<div class="swatcap">
+  <div><b>S1 · 얕은 포물선</b>좌우 대칭. 07&ndash;19시를 임의로 잡습니다. 읽기 쉽고 계절을 안 탑니다.</div>
+  <div><b>S2 · 실제 태양 궤도</b>오늘 서울의 진짜 해 높이입니다. 시작/끝이 실제 일출·일몰이고 <b>계절 따라 모양이 바뀝니다</b>. 겨울 저녁 일은 지평선 아래로 내려가 안 보이는 게 흠입니다.</div>
+  <div><b>S3 · 선이 아니라 띠</b>도표 말투를 버리고 대기처럼. 점이 띠 위에 얹힙니다. 가장 조용하지만 시각을 읽기는 제일 어렵습니다.</div>
+</div>
+
+<!-- ─────────── Q3 ─────────── -->
+<h2 class="sec">Q3 &middot; 루틴을 홈에서 빼는 문제</h2>
+<div class="cols">
+  <div>
+    <h4>빼는 쪽에 동의합니다</h4>
+    <p>오늘 도는 루틴은 <b>이미 &lsquo;오늘&rsquo; 에 다 나옵니다.</b> 홈의 루틴 칸이 혼자 하던 일은
+    &lsquo;다음 실행일&rsquo; 하나뿐인데, 그건 <b>한 달에 몇 번 궁금한 것</b>입니다.
+    매일 보는 화면의 3분의 1을 거기 쓸 값은 아닙니다.</p>
+    <p>본안에서는 뺐습니다. 덕분에 오른쪽 칸이 <b>다가오는 마감 + 메모</b> 둘만 남아 가벼워지고,
+    왼쪽 &lsquo;오늘&rsquo; 이 <b>1.5 : 1</b> 로 넓어졌습니다.</p>
+  </div>
+  <div>
+    <h4>다만 하나는 챙겨야 합니다</h4>
+    <p><em>건너뛴 루틴</em>이 조용히 사라지면 안 됩니다. 지금은 루틴 칸이 그걸 간접적으로 보여 줬습니다.</p>
+    <p>홈에서 빼려면 &lsquo;오늘&rsquo; 이 그 일을 맡아야 합니다 &mdash; <b>오늘 돌아야 했는데 안 한 루틴은
+    지난 마감과 똑같이 벽돌빛으로</b> 남기면 됩니다. 이미 그렇게 되어 있습니다.</p>
+    <p>나머지(다음 실행일 훑어보기 &middot; 규칙 고치기)는 <b>전체 항목 관리</b>로 충분합니다.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+var $=function(s,r){return (r||document).querySelector(s);};
+var fmt=function(m){return String(Math.floor(m/60)%24).padStart(2,"0")+":"+String(Math.floor(m%60)).padStart(2,"0");};
+var S=function(t,a){var e=document.createElementNS("http://www.w3.org/2000/svg",t);for(var k in a)e.setAttribute(k,a[k]);return e;};
+var T=[
+ {n:1,nm:"아침운용현황 출력(대표님 전달) 및 부문 메일 송부",s:"아침운용현황 출력",rt:1,min:510},
+ {n:2,nm:"교보생명 802807 컴플 체크리스트 송부",s:"교보 컴플 체크",rt:1,min:520},
+ {n:3,nm:"퇴연 RA 비즈니스 미팅",s:"퇴연 RA 미팅",rt:1,min:600},
+ {n:4,nm:"팀장님 해외통합 업데이트",s:"해외통합 업데이트",rt:1,min:635},
+ {n:5,nm:"국내 일임 매매",s:"국내 일임 매매",rt:1,min:900},
+ {n:6,nm:"월간 운용보고서 초안 검토",s:"월간보고서 초안",rt:0,min:null},
+ {n:7,nm:"출장 경비 정산",s:"경비 정산",rt:0,min:null}];
+var MEMO=["멀모 해외 리밸 내역","운용시스템-8U3150 주간 코멘트 추가","운시-설정해지 반영"];
+
+/* ── 해 (서울) ── */
+var rad=Math.PI/180, LAT=37.57, LON=126.98, TZM=135;
+function alt(min){
+  var d=new Date(), st=new Date(d.getFullYear(),0,0), N=Math.floor((d-st)/86400000);
+  var dc=23.44*Math.sin(rad*(360/365)*(284+N)), B=rad*(360/365)*(N-81);
+  var eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);
+  var H=rad*(15*((min+4*(LON-TZM)+eot)/60-12)), p=rad*LAT, dl=rad*dc;
+  return Math.asin(Math.sin(p)*Math.sin(dl)+Math.cos(p)*Math.cos(dl)*Math.cos(H))/rad;
+}
+var SUNUP=(function(){ for(var m=0;m<1440;m++){ if(alt(m)>-0.83) return m; } return 380; })();
+var SUNDN=(function(){ for(var m=1439;m>0;m--){ if(alt(m)>-0.83) return m; } return 1100; })();
+var ALTMAX=alt((SUNUP+SUNDN)/2);
+
+/* ── 빛 : 해 높이가 색을 만든다 ──
+   :root 에 걸면 아트보드의 설명 글까지 같이 어두워져 못 읽는다.
+   그래서 창 mock 하나하나에만 건다 (사용자 정의 속성은 안으로 상속된다). */
+function hx(c){ c=c.replace("#",""); return [parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)]; }
+function mix(a,b,t){ var A=hx(a),B=hx(b),o="#"; for(var i=0;i<3;i++){ var v=Math.round(A[i]+(B[i]-A[i])*t); o+=("0"+v.toString(16)).slice(-2);} return o; }
+var PAL={base:"#e4e9e3", panel:"#eef2ec", ink:"#1f2a28", ink2:"#5d6a67", teal:"#3f6f69",
+         warm:"#f3c58a", night:"#1a2128", pale:"#e8ece9", pale2:"#a9b3af", tealLit:"#8fc2b9"};
+function smooth(v,a,b){ var t=Math.max(0,Math.min(1,(v-a)/(b-a))); return t*t*(3-2*t); }
+function lit(el, now){
+  var a=alt(now), day=smooth(a,-9,3), warm=a>-4?Math.exp(-Math.pow(a/9,2)):0, st=el.style;
+  st.setProperty("--bg",      mix(mix(PAL.base, PAL.warm, warm*0.35),  PAL.night, (1-day)*0.88));
+  st.setProperty("--surface", mix(mix(PAL.panel,PAL.warm, warm*0.25),  PAL.night, (1-day)*0.80));
+  st.setProperty("--text",    mix(PAL.ink,  PAL.pale,  (1-day)*0.90));
+  st.setProperty("--text2",   mix(PAL.ink2, PAL.pale2, (1-day)*0.90));
+  st.setProperty("--teal",    mix(PAL.teal, PAL.tealLit,(1-day)*0.60));
+  st.setProperty("--hair",  "rgba("+(day>0.5?"31,42,40":"232,236,233")+",.12)");
+  st.setProperty("--hair2", "rgba("+(day>0.5?"31,42,40":"232,236,233")+",.20)");
+  return {alt:a, warm:warm, day:day};
+}
+
+/* ── 궤도 ── */
+function mkArc(kind, x0, x1, gnd, peak){
+  /* {p:(min)->[x,y], d:(a,b)->path} */
+  var A0 = kind==="sun" ? SUNUP : 420, A1 = kind==="sun" ? SUNDN : 1140;
+  var fr=function(m){ return Math.max(0,Math.min(1,(m-A0)/(A1-A0))); };
+  var p;
+  if(kind==="sun"){
+    p=function(m){ var t=fr(m); var a=alt(A0+t*(A1-A0));
+      return [x0+t*(x1-x0), gnd-Math.max(0,a)/ALTMAX*(gnd-peak)]; };
+  } else {
+    p=function(m){ var t=fr(m); return [x0+t*(x1-x0), gnd-4*(gnd-peak)*t*(1-t)]; };
+  }
+  var d=function(a,b){ var o="", n=70;
+    for(var i=0;i<=n;i++){ var m=a+(b-a)*(i/n), q=p(m);
+      o+=(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1); }
+    return o; };
+  return {A0:A0, A1:A1, p:p, d:d};
+}
+
+function drawSky(svg, opt){
+  var now=opt.now, W=opt.W, gnd=opt.gnd, peak=opt.peak, x0=opt.x0, x1=opt.x1;
+  svg.setAttribute("viewBox","0 0 "+W+" "+(gnd+40));
+  svg.style.height=(gnd+40)+"px";
+  svg.innerHTML="";
+  var A=mkArc(opt.kind, x0, x1, gnd, peak);
+  if(opt.kind==="band"){
+    /* 띠: 궤도를 따라 위아래로 두께를 준다 */
+    var up="", dn=[];
+    for(var i=0;i<=70;i++){ var m=A.A0+(A.A1-A.A0)*(i/70), q=A.p(m);
+      var th=5+9*Math.sin(Math.PI*(i/70));
+      up+=(i?"L":"M")+q[0].toFixed(1)+" "+(q[1]-th).toFixed(1);
+      dn.push([q[0],q[1]+th]); }
+    for(var j=dn.length-1;j>=0;j--) up+="L"+dn[j][0].toFixed(1)+" "+dn[j][1].toFixed(1);
+    svg.appendChild(S("path",{"class":"band-r", d:up+"Z"}));
+  } else {
+    svg.appendChild(S("path",{"class":"arcf", d:A.d(A.A0,A.A1)}));
+  }
+  if(now>A.A0) svg.appendChild(S("path",{"class":"arcp", d:A.d(A.A0, Math.min(now,A.A1))}));
+  var lastUp=-1e9, lastDn=-1e9;
+  T.forEach(function(t){ if(t.min==null) return;
+    var q=A.p(t.min), done=t.min<now-25, over=!done&&t.min<now;
+    if(done){
+      var xd=Math.max(q[0], lastDn+9); lastDn=xd;
+      svg.appendChild(S("circle",{"class":"ddn", cx:xd, cy:gnd-2.6, r:3.8}));
+    } else {
+      var xu=Math.max(q[0], lastUp+10); lastUp=xu;
+      svg.appendChild(S("circle",{"class":over?"dov":"d0", cx:xu, cy:q[1], r:4.3}));
+    }
+  });
+  var sp=A.p(Math.max(A.A0,Math.min(now,A.A1))), av=alt(now);
+  var fill = av>-0.83 ? mix("#f7d36a","#e08a4e", Math.min(1,Math.exp(-Math.pow(av/9,2)))) : "#b9c6cf";
+  if(av>-0.83) svg.appendChild(S("circle",{"class":"sung", cx:sp[0], cy:sp[1], r:13, fill:fill}));
+  svg.appendChild(S("circle",{cx:sp[0], cy:sp[1], r:6.5, fill:fill}));
+  if(opt.sunTime){
+    var tx=S("text",{"class":"suntxt", x:sp[0], y:sp[1]-13}); tx.textContent=fmt(now); svg.appendChild(tx);
+  }
+  return A;
+}
+
+/* ── 목록 (시간대 묶음 + 지금 선) ── */
+function bandOf(m){ return m==null?3 : m<720?0 : m<1080?1 : 2; }
+var BN=["오전","오후","저녁","아무 때나"];
+function drawList(now){
+  var out="", cur=-1, placed=false;
+  var sorted=T.slice().sort(function(a,b){ return (a.min==null?1e9:a.min)-(b.min==null?1e9:b.min); });
+  sorted.forEach(function(t){
+    var b=bandOf(t.min);
+    /* 지금 선을 시간대 머리보다 먼저 놓는다 - 안 그러면 다음 칸 안으로 밀려 들어간다 */
+    if(!placed && t.min!=null && t.min>now){
+      out+='<div class="nowline"><i></i>'+fmt(now)+'</div>'; placed=true; }
+    if(b!==cur){ cur=b; out+='<div class="bandh">'+BN[b]+'</div>'; }
+    var done=t.min!=null&&t.min<now-25, over=t.min!=null&&!done&&t.min<now;
+    out+='<div class="r'+(t.rt?" rt":"")+(done?" dn":"")+(over?" ov":"")+'"><i class="b"></i>'+
+      '<span class="k">'+(done?"\u2713":t.n)+'</span><span class="t">'+t.nm+'</span>'+
+      '<span class="w">'+(t.min!=null?fmt(t.min):"")+'</span></div>';
+  });
+  $("#list").innerHTML=out;
+  var dn=T.filter(function(t){ return t.min!=null&&t.min<now-25; }).length;
+  $("#c1").textContent=T.length; $("#c2").textContent="완료 "+dn;
+  $("#memo").innerHTML=MEMO.map(function(m){
+    return '<div class="r r2"><i class="b" style="opacity:.3"></i><span class="t">'+m+'</span></div>'; }).join("");
+}
+
+/* ── Q1 변형 ── */
+function variants(now){
+  /* V1 - 본안과 같음 */
+  ["#v1","#v2","#v3"].forEach(function(id){ lit($(id), now); });
+  var v=$("#v1"); var sv=$(".vsv",v); drawSky(sv,{now:now,W:940,gnd:118,peak:34,x0:318,x1:690,kind:"para"});
+  v.querySelectorAll(".ov").forEach(function(e){e.remove();});
+  v.insertAdjacentHTML("beforeend",
+    '<div class="ov" style="position:absolute; left:30px; bottom:32px; z-index:5">'+
+    '<div class="dateline">9월 23일 수요일</div><div style="display:flex; align-items:flex-end; gap:12px">'+
+    '<div class="clock">'+fmt(now)+'</div><div class="stat" style="padding-bottom:2px"><b>4건 남음</b><br>'+
+    '<span class="nx">다음 국내 일임 매매 15:00</span></div></div></div>'+
+    '<div class="ov" style="position:absolute; right:26px; top:84px; z-index:5; display:flex; align-items:center; gap:16px">'+
+    '<button class="add">+ 새 항목</button><button class="cog">&#9881;</button></div>'+
+    '<div class="ov guy" style="left:712px; top:84px; z-index:2"><div class="bd2"></div><i class="ft l"></i><i class="ft r"></i>'+
+    '<div class="ey"><s></s><s></s></div></div>');
+
+  /* V2 - 해가 시계다 */
+  v=$("#v2"); sv=$(".vsv",v); drawSky(sv,{now:now,W:940,gnd:118,peak:34,x0:70,x1:700,kind:"para",sunTime:true});
+  v.querySelectorAll(".ov").forEach(function(e){e.remove();});
+  v.insertAdjacentHTML("beforeend",
+    '<div class="ov" style="position:absolute; right:26px; top:84px; z-index:5; display:flex; align-items:center; gap:16px">'+
+    '<button class="add">+ 새 항목</button><button class="cog">&#9881;</button></div>'+
+    '<div class="ov guy" style="left:26px; top:84px; z-index:2"><div class="bd2"></div><i class="ft l"></i><i class="ft r"></i>'+
+    '<div class="ey"><s></s><s></s></div></div>');
+  $(".gnd",v).innerHTML='<span style="color:var(--text)">9월 23일 수요일</span> &nbsp;&middot;&nbsp; 오늘 7 &nbsp;&middot;&nbsp; 4건 남음';
+
+  /* V3 - 도구는 종이 안으로 */
+  v=$("#v3"); sv=$(".vsv",v); drawSky(sv,{now:now,W:940,gnd:118,peak:34,x0:60,x1:880,kind:"para"});
+  v.querySelectorAll(".ov").forEach(function(e){e.remove();});
+  v.insertAdjacentHTML("beforeend",
+    '<div class="ov guy" style="left:20px; top:84px; z-index:2"><div class="bd2"></div><i class="ft l"></i><i class="ft r"></i>'+
+    '<div class="ey"><s></s><s></s></div></div>');
+  $(".gnd",v).innerHTML='<div style="display:flex; align-items:center; gap:14px">'+
+    '<span style="font-size:19px; font-weight:300; color:var(--text); letter-spacing:-.02em">'+fmt(now)+'</span>'+
+    '<span>9월 23일 수요일 &middot; 4건 남음</span>'+
+    '<span style="margin-left:auto; display:flex; align-items:center; gap:12px">'+
+    '<button class="add" style="height:30px; font-size:12px">+ 새 항목</button>'+
+    '<button class="cog" style="width:30px; height:30px">&#9881;</button></span></div>';
+}
+
+/* ── Q2 swatches ── */
+function swatches(now){
+  [["#s1","para"],["#s2","sun"],["#s3","band"]].forEach(function(a){
+    var el=$(a[0]), sv=$(".ssv",el), W=el.clientWidth||300;
+    lit(el, now);
+    drawSky(sv,{now:now,W:W,gnd:112,peak:30,x0:26,x1:W-26,kind:a[1]});
+  });
+}
+
+/* ── 본안 ── */
+function main(now){
+  lit($("#W"), now);
+  drawSky($("#sv"),{now:now,W:940,gnd:118,peak:34,x0:318,x1:690,kind:"para"});
+  $("#ck").textContent=fmt(now);
+  var open=T.filter(function(t){ return !(t.min!=null&&t.min<now-25); });
+  var nx=open.filter(function(t){ return t.min!=null&&t.min>=now; }).sort(function(a,b){return a.min-b.min;})[0];
+  $("#st").innerHTML="<b>"+open.length+"건 남음</b><br>"+
+    (nx?'<span class="nx">다음 '+nx.s+" "+fmt(nx.min)+"</span>":'<span class="nx">남은 시각 없음</span>');
+  drawList(now);
+}
+
+function all(){ var v=+$("#t").value; $("#tv").textContent=fmt(v); main(v); variants(v); swatches(v); }
+$("#t").addEventListener("input", all);
+all();
+window.addEventListener("resize", all);
+})();
+</script>
+</body>
+</html>

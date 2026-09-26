@@ -5,12 +5,16 @@
 빠르게 만들려고 둔 "같은 값을 두 벌로 들고 있는" 자리들이 서로 어긋나지
 않는지, 그리고 지워 버린 응답 항목이 되살아나지 않는지를 본다.
 """
-from datetime import date
+import os
+from datetime import date, datetime
 
 import pytest
 
+import paths
 import recur
 import store
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_holiday_strings_and_dates_stay_in_sync():
@@ -78,3 +82,56 @@ def test_edit_form_still_gets_what_it_needs():
     for i in rows:
         assert i["rule_n"] and i["rule_n"].get("period") == "month"
         assert i["rule_text"]
+
+
+def test_overview_is_not_recomputed_while_the_file_is_unchanged(monkeypatch):
+    """창은 45초마다, 스케줄러는 1분마다 개요를 묻는다. 파일이 그대로면 다시 펼치지 않는다.
+
+    시각(now)은 부를 때마다 새로 싣는다 - 계산해 둔 본문은 날짜와 파일만 본다.
+    """
+    store.add({"kind": "routine", "title": "매 영업일", "rule": {"period": "day", "business_only": True}})
+    calls = []
+    real = store._overview_body
+    monkeypatch.setattr(store, "_overview_body", lambda d, t: calls.append(t) or real(d, t))
+
+    a = store.overview(now=datetime(2026, 9, 24, 9, 0))
+    b = store.overview(now=datetime(2026, 9, 24, 9, 5))
+    assert len(calls) == 1
+    assert (a["now"], b["now"]) == ("09:00", "09:05")
+    assert a["routines"] == b["routines"]
+
+    store.add({"kind": "floating", "title": "새 메모"})        # 파일이 바뀌면 다시
+    c = store.overview(now=datetime(2026, 9, 24, 9, 6))
+    assert len(calls) == 2
+    assert [i["title"] for i in c["floating"]] == ["새 메모"]
+
+    store.overview(now=datetime(2026, 9, 25, 9, 0))           # 날이 바뀌어도 다시
+    assert len(calls) == 3
+
+
+def test_overview_without_a_rev_is_never_cached(monkeypatch):
+    """data 만 넘기면(저장하지 않은 내용일 수 있다) 계산해 둔 것을 쓰면 안 된다."""
+    calls = []
+    real = store._overview_body
+    monkeypatch.setattr(store, "_overview_body", lambda d, t: calls.append(t) or real(d, t))
+    d = store.load()
+    store.overview(data=d, now=datetime(2026, 9, 24, 9, 0))
+    store.overview(data=d, now=datetime(2026, 9, 24, 9, 0))
+    assert len(calls) == 2
+
+
+def test_data_file_is_written_without_indentation():
+    """indent 를 주면 json 이 느린 파이썬 인코더로 떨어지고 파일도 40% 커진다."""
+    store.add({"kind": "deadline", "title": "보고", "due_date": "2026-09-30"})
+    with open(paths.DATA_FILE, encoding="utf-8") as f:
+        raw = f.read()
+    assert "\n" not in raw and ": " not in raw
+
+
+def test_the_sun_glow_is_not_an_animated_svg_filter():
+    """SVG 안에서 흐림 필터를 숨 쉬게 하면 창이 가만히 있어도 1초에 60번 다시 칠한다."""
+    js = ""
+    for name in ("app.js", "sky.js", "pebble.js"):
+        with open(os.path.join(ROOT, "web", name), encoding="utf-8") as f:
+            js += f.read()
+    assert "feGaussianBlur" not in js

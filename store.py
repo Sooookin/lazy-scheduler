@@ -50,6 +50,10 @@ _SETTINGS = {
     "show_weekend": True,          # 달력에 주말 칸을 보여줄지
     "show_routines": True,         # 달력에 반복 업무도 얹을지
     "hold_when_busy": True,        # 발표 · 화면 공유 중에는 알림을 미뤘다가 나중에
+    # 화면 밝기. 'auto' 는 해 높이를 따라 하루 종일 바뀌고, 'light' · 'dark' 는
+    # 한낮 · 한밤의 빛으로 세워 둔다. 이 기기에서만 쓰는 값이라 동기화하지 않는다.
+    "theme": "auto",
+    "guy_walk": True,              # 하늘의 돌멩이가 스스로 움직일지 (끄면 가운데에 앉아 눈만 굴린다)
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
@@ -123,10 +127,14 @@ def _write_json(path, obj):
     """임시 파일에 쓰고 디스크에 내린 뒤 한 번에 바꿔 끼운다. 쓴 내용의 지문을 돌려준다.
 
     fsync 없이 바꿔 끼우면 전원이 나갔을 때 내용이 빈 파일이 남을 수 있다.
+
+    들여쓰기 없이 쓴다. indent 를 주면 json 이 C 인코더를 못 쓰고 파이썬으로 한 글자씩
+    지어서 5배 느리고(90건 기준 2.9ms → 0.6ms), 완료 날짜가 한 줄에 하나씩 서서 파일이
+    40% 가까이 커진다. 완료 날짜는 해마다 수백 개씩 늘어나므로 차이도 따라 커진다.
     """
     paths.ensure_data_dir()
     tmp = path + ".tmp"
-    raw = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
+    raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     try:
         with open(tmp, "wb") as f:
             f.write(raw)
@@ -667,9 +675,12 @@ def _check_setting(k, v):
     elif k == "brief_time":
         if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
             raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
-    elif k in ("business_only", "show_weekend", "show_routines", "hold_when_busy"):
+    elif k in ("business_only", "show_weekend", "show_routines", "hold_when_busy", "guy_walk"):
         if not isinstance(v, bool):
             raise ValidationError("요청 형식이 올바르지 않습니다")
+    elif k == "theme":
+        if v not in ("auto", "light", "dark"):
+            raise ValidationError("화면 밝기는 auto · light · dark 중 하나여야 합니다")
     else:
         return False
     return True
@@ -986,18 +997,38 @@ def _inst(t, day, pre=None, done_dates=None):
     }
 
 
-def overview(data=None, now=None):
+# 마지막으로 만든 개요: ((rev, 오늘), 본문). 개요는 일정 파일과 날짜만으로 정해진다 -
+# 시각(now)은 글자 하나로 실릴 뿐이고 늦음 표시는 화면이 한다. 그래서 화면이 45초마다
+# 묻고 스케줄러가 20초마다 물어도, 파일이 그대로면 85일치를 다시 펼칠 까닭이 없다.
+# 파일 내용이 바뀌면 rev 가 바뀌므로 따로 지울 일도 없다.
+_ov_cache = (None, None)
+
+
+def overview(data=None, now=None, rev=None):
     """한 화면 개요. 마감 있는 일을 앞세우고, 반복 업무는 따로 묶는다.
 
     data 를 주지 않으면 파일을 읽고, 그 내용의 지문(rev)도 함께 싣는다.
+    data 를 줄 때 그 지문(rev)도 주면 같은 내용의 개요를 다시 계산하지 않는다.
+    돌려준 것의 안쪽(목록 · 항목)은 다음 호출과 나눠 쓴다. 고치지 말 것.
     """
-    rev = None
+    global _ov_cache
     if data is None:
         d, rev = snapshot()
     else:
         d = data
     now = now or datetime.now()
-    today = now.date()
+    key = (rev, now.date()) if rev else None
+    if key is not None and _ov_cache[0] == key:
+        body = _ov_cache[1]
+    else:
+        body = _overview_body(d, now.date())
+        if key is not None:
+            _ov_cache = (key, body)
+    return dict(body, now=now.strftime("%H:%M"), notice=NOTICE, rev=rev)
+
+
+def _overview_body(d, today):
+    """overview 에서 시각 · 알림 띠 · rev 를 뺀 나머지. 일정과 날짜만 본다."""
     ti = today.isoformat()
     ins = instances(back=10, ahead=75, data=d, today=today)
     live = [t for t in d["tasks"] if not t.get("archived") and not t.get("deleted")]
@@ -1056,7 +1087,6 @@ def overview(data=None, now=None):
 
     return {
         "today": ti,
-        "now": now.strftime("%H:%M"),
         "is_business_day": recur.is_business_day(today),
         "holidays": sorted(recur.HOLIDAYS),
         "holiday_names": recur.HOLIDAY_NAMES,
@@ -1072,6 +1102,4 @@ def overview(data=None, now=None):
         },
         "tasks": [public_task(t) for t in live],
         "settings": settings(d),
-        "notice": NOTICE,
-        "rev": rev,
     }

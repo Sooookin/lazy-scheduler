@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>세 갈래 · A 하늘 / B 아래 길 / C 시간축</title>
+<style>
+@font-face{font-family:"Paperlogy"; font-weight:300; font-display:swap; src:url(../../web/fonts/paperlogy-300.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:400; font-display:swap; src:url(../../web/fonts/paperlogy-400.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:500; font-display:swap; src:url(../../web/fonts/paperlogy-500.woff2) format("woff2")}
+:root{
+  --bg:#e4e9e3; --surface:#eef2ec; --text:#1f2a28; --text2:#5d6a67;
+  --teal:#3f6f69; --tealink:#f2f6f3; --rust:#b0573f;
+  --hair:rgba(31,42,40,.12); --shade:rgba(40,58,54,.18); --lite:rgba(255,255,255,.6);
+  --sheet2:#dfe4de; --sheet3:#d6dcd6;
+  --paper:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .19 0 0 0 0 .14 0 0 0 .28 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#cfd7d4; color:var(--text); font-family:"Paperlogy","Malgun Gothic",sans-serif;
+  font-weight:400; -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1;
+  display:flex; flex-direction:column; align-items:center; padding:22px 18px 60px}
+h1{margin:0 0 4px; font-size:20px; font-weight:500; letter-spacing:-.02em}
+.top{position:sticky; top:0; z-index:20; background:#cfd7d4; padding:6px 0 12px; width:100%;
+  display:flex; flex-direction:column; align-items:center}
+.ctl{display:flex; gap:10px; align-items:center; font-size:12px; color:var(--text2)}
+.ctl input{width:340px; accent-color:#3f6f69}
+.hint{font-size:12px; color:#5d6a67; margin:4px 0 0}
+
+.case{margin-top:26px; width:880px}
+.cap{display:flex; align-items:baseline; gap:10px; margin:0 0 8px 2px}
+.cap b{font-size:15px; font-weight:500}
+.cap span{font-size:12px; color:var(--text2)}
+.cap .cost{margin-left:auto; font-size:11.5px; color:var(--teal)}
+.note{margin:9px 2px 0; font-size:12px; line-height:1.7; color:var(--text2)}
+.note em{font-style:normal; color:var(--rust)}
+.note b{color:var(--teal); font-weight:500}
+
+.win{position:relative; width:880px; height:452px; border-radius:9px; overflow:hidden;
+  background:var(--bg); box-shadow:0 14px 34px rgba(31,42,40,.26)}
+.tb{height:26px; display:flex; align-items:center; gap:8px; padding:0 11px 0 13px; font-size:10.5px; color:var(--text2)}
+.tb b{font-weight:500; color:var(--text); font-size:11px}
+.tb i{margin-left:auto; font-style:normal; letter-spacing:5px; opacity:.5}
+
+.clock{font-size:36px; font-weight:300; line-height:1; letter-spacing:-.03em}
+.dateline{font-size:11.5px; color:var(--text2)}
+.stat{font-size:11.5px; color:var(--text2); line-height:1.6}
+.stat b{color:var(--text); font-weight:500}
+.stat .nx{color:var(--teal)}
+.add{height:32px; padding:0 14px; border-radius:16px; background:var(--teal); color:var(--tealink);
+  font-size:12px; display:inline-grid; place-items:center; white-space:nowrap}
+.cog{width:32px; height:32px; display:inline-grid; place-items:center; color:var(--text2); font-size:14px}
+
+/* 종이 */
+.paper{background:var(--surface); background-image:var(--paper); background-size:200px 200px;
+  background-blend-mode:multiply}
+.rows{padding:10px 18px 0}
+.col2{display:grid; grid-template-columns:minmax(0,1.08fr) 1px minmax(0,1fr); gap:0 20px}
+.vr{background:var(--hair)}
+.h2{font-size:11.5px; font-weight:500; padding-bottom:5px; border-bottom:1px solid var(--hair);
+  display:flex; gap:6px; align-items:baseline}
+.h2 s{text-decoration:none; color:var(--text2); font-weight:400}
+.h2 u{text-decoration:none; margin-left:auto; color:var(--text2); font-size:10.5px}
+.r{display:flex; align-items:center; gap:9px; height:31px; font-size:11.5px; position:relative}
+.r + .r{box-shadow:inset 0 1px 0 var(--hair)}
+.r i.b{position:absolute; left:-7px; width:2.5px; height:12px; border-radius:2px; background:var(--teal); opacity:.8}
+.r.rt i.b{opacity:.38}
+.r .k{width:19px; height:19px; border-radius:50%; border:1.5px solid var(--teal); color:var(--teal);
+  display:grid; place-items:center; font-size:9.5px; font-weight:500; flex:none}
+.r.dn .k{background:var(--teal); color:var(--tealink)}
+.r.ov .k{border-color:var(--rust); color:var(--rust)}
+.r .t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.r.dn .t{color:var(--text2); text-decoration:line-through}
+.r .w{font-size:11px; color:var(--text2); font-weight:300}
+.r.ov .w{color:var(--rust)}
+.sec2{margin-top:11px}
+.r2{height:27px; font-size:11px}
+.bd{font-size:9.5px; padding:2px 6px; border-radius:99px; background:rgba(63,111,105,.14); color:var(--text2)}
+.emp{font-size:11px; color:var(--text2); opacity:.75; text-align:center; padding:7px}
+
+/* 게으름뱅이 */
+.guy{position:absolute; width:38px; height:32px}
+.guy .bd2{position:absolute; left:0; bottom:0; width:38px; height:30px; background:var(--text); opacity:.92;
+  border-radius:52% 52% 44% 44% / 62% 62% 38% 38%}
+.guy .ft{position:absolute; bottom:-1px; width:8px; height:4px; background:var(--text); opacity:.92; border-radius:50% 50% 45% 45%}
+.guy .ft.l{left:4px} .guy .ft.r{right:4px}
+.guy .ey{position:absolute; left:0; right:0; top:9px; display:flex; justify-content:center; gap:7px}
+.guy .ey s{display:block; width:6.5px; height:7.5px; border-radius:50%; background:var(--bg); position:relative}
+.guy .ey s::after{content:""; position:absolute; left:1.6px; top:1.8px; width:3.4px; height:3.8px;
+  border-radius:50%; background:var(--text)}
+.guy.zz .bd2{height:9px; width:52px; border-radius:50% 50% 46% 46% / 72% 72% 28% 28%}
+.guy.zz .ey{top:22px} .guy.zz .ey s{height:2px; width:6px; border-radius:2px}
+.guy.zz .ey s::after{opacity:0}
+
+svg{overflow:visible}
+.arcf{fill:none; stroke:var(--text2); stroke-width:1.1; stroke-dasharray:2 5; opacity:.5}
+.arcp{fill:none; stroke:var(--teal); stroke-width:2.1; stroke-linecap:round}
+.d0{fill:none; stroke:var(--teal); stroke-width:1.7}
+.dov{fill:none; stroke:var(--rust); stroke-width:1.7}
+.ddn{fill:var(--teal)}
+.sun{fill:#f0c85f}
+.sung{fill:#f7d36a; opacity:.22; filter:blur(5px)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>세 갈래를 나란히</h1>
+  <div class="ctl"><span>시각</span><input type="range" id="t" min="420" max="1230" step="5" value="640"><span id="tv">10:40</span></div>
+  <p class="hint">막대 하나가 셋을 같이 움직입니다. <b>B</b>에서 녀석이 언덕을 오르내리는 걸 보세요.</p>
+</div>
+
+<!-- ───────────── A ───────────── -->
+<div class="case">
+  <div class="cap"><b>A · 종이의 윗변이 지평선</b><span>서류철을 버리고, 종이가 창을 꽉 채운다</span>
+    <span class="cost">하늘 띠 +110px</span></div>
+  <div class="win" id="A">
+    <div class="tb"><span>&#10003;</span><b>LazyScheduler</b><i>&minus; &square; &times;</i></div>
+    <!-- 하늘 -->
+    <svg id="Asvg" style="position:absolute; left:0; top:26px; width:880px; height:130px"></svg>
+    <div style="position:absolute; left:26px; top:60px"><div class="dateline">9월 23일 수요일</div>
+      <div class="clock" id="Ac">10:40</div></div>
+    <div style="position:absolute; right:22px; top:74px; display:flex; align-items:center; gap:14px">
+      <span class="add">+ 새 항목</span><span class="cog">&#9881;</span></div>
+    <div class="guy" id="Ag" style="left:216px; top:104px"><div class="bd2"></div><i class="ft l"></i><i class="ft r"></i>
+      <div class="ey"><s></s><s></s></div></div>
+    <!-- 땅 = 종이. 창 좌·우·아래 끝까지 찬다 -->
+    <div class="paper" style="position:absolute; left:0; right:0; top:136px; bottom:0; z-index:3">
+      <div class="stat" style="position:absolute; left:26px; top:-30px; z-index:5"></div>
+      <div class="rows">
+        <div class="col2">
+          <div><div class="h2">오늘 <s>7</s><u>완료 0</u></div><div id="Alist"></div></div>
+          <div class="vr"></div>
+          <div><div class="h2">다가오는 마감 <s>0</s><u>7일</u></div><div class="emp">앞으로 7일, 마감 없음</div>
+            <div class="sec2"><div class="h2">메모 <s>3</s></div><div id="Amemo"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>선을 안 긋습니다</b> &mdash; 종이 윗변이 지평선입니다. 궤도의 양 끝이 종이 뒤로 들어가
+  초승달만 남고, 완료한 돌이 그 가장자리에 쌓입니다. 겹쳐 쌓인 장과 오늘/달력 인덱스 탭은
+  <em>버립니다</em>. 루틴 칸도 자리가 없어 접습니다.</p>
+</div>
+
+<!-- ───────────── B ───────────── -->
+<div class="case">
+  <div class="cap"><b>B · 하루를 아래로 &mdash; 게으름뱅이가 언덕을 걷는다</b><span>서류철은 그대로</span>
+    <span class="cost">아래 띠 +70px</span></div>
+  <div class="win" id="B">
+    <div class="tb"><span>&#10003;</span><b>LazyScheduler</b><i>&minus; &square; &times;</i></div>
+    <div style="position:absolute; left:26px; top:44px"><div class="dateline">9월 23일 수요일</div>
+      <div class="clock" id="Bc">10:40</div></div>
+    <div class="stat" style="position:absolute; left:250px; top:62px" id="Bst"></div>
+    <div style="position:absolute; right:22px; top:52px; display:flex; align-items:center; gap:14px">
+      <span class="add">+ 새 항목</span><span class="cog">&#9881;</span></div>
+    <!-- 서류철 그대로 -->
+    <div style="position:absolute; left:26px; right:26px; top:126px; bottom:86px">
+      <div style="position:absolute; inset:0; border-radius:14px; background:var(--sheet3); transform:translate(9px,9px) rotate(.3deg)"></div>
+      <div style="position:absolute; inset:0; border-radius:14px; background:var(--sheet2); transform:translate(4.5px,4.5px) rotate(-.18deg)"></div>
+      <div style="position:absolute; left:26px; top:-28px; display:flex; gap:10px; font-size:11px">
+        <span style="height:28px; padding:0 17px; border-radius:11px 11px 0 0; background:var(--surface); display:grid; place-items:center">오늘</span>
+        <span style="height:28px; padding:0 17px; border-radius:11px 11px 0 0; background:#c9d2cb; color:var(--text2); display:grid; place-items:center">달력</span></div>
+      <div class="paper" style="position:absolute; inset:0; border-radius:14px; z-index:2">
+        <div class="rows">
+          <div class="col2">
+            <div><div class="h2">오늘 <s>7</s><u>완료 0</u></div><div id="Blist"></div></div>
+            <div class="vr"></div>
+            <div><div class="h2">다가오는 마감 <s>0</s><u>7일</u></div><div class="emp">앞으로 7일, 마감 없음</div>
+              <div class="sec2"><div class="h2">메모 <s>3</s></div><div id="Bmemo"></div></div>
+              <div class="sec2"><div class="h2">루틴 <s>8</s><u>다음 실행일</u></div><div id="Brt"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 오늘의 길 -->
+    <svg id="Bsvg" style="position:absolute; left:0; bottom:0; width:880px; height:86px"></svg>
+    <div class="guy" id="Bg" style="left:0; top:0"><div class="bd2"></div><i class="ft l"></i><i class="ft r"></i>
+      <div class="ey"><s></s><s></s></div></div>
+  </div>
+  <p class="note">궤도가 창 아래 <b>아주 낮은 언덕</b>이 되고, <b>녀석의 자리가 곧 지금 시각</b>입니다.
+  아침엔 왼쪽 아래, 점심엔 꼭대기, 저녁엔 오른쪽으로 내려와 눕습니다.
+  뒤쪽 찬 점은 끝낸 것, 벽돌빛은 놓친 것, 앞쪽 빈 점은 앞으로 할 것입니다.
+  시계 &middot; 궤적 &middot; 캐릭터가 <b>한 물건</b>이 되므로 셋을 정렬할 일 자체가 없습니다.</p>
+</div>
+
+<!-- ───────────── C ───────────── -->
+<div class="case">
+  <div class="cap"><b>C · 궤도를 없애고, 목록이 곧 시간축</b><span>별도 위젯 없음</span>
+    <span class="cost">+0px</span></div>
+  <div class="win" id="C">
+    <div class="tb"><span>&#10003;</span><b>LazyScheduler</b><i>&minus; &square; &times;</i></div>
+    <div style="position:absolute; left:26px; top:44px"><div class="dateline">9월 23일 수요일</div>
+      <div class="clock" id="Cc">10:40</div></div>
+    <div class="stat" style="position:absolute; left:250px; top:62px" id="Cst"></div>
+    <div style="position:absolute; right:22px; top:52px; display:flex; align-items:center; gap:14px">
+      <span class="add">+ 새 항목</span><span class="cog">&#9881;</span></div>
+    <div style="position:absolute; left:26px; right:26px; top:126px; bottom:16px">
+      <div style="position:absolute; left:26px; top:-28px; display:flex; gap:10px; font-size:11px">
+        <span style="height:28px; padding:0 17px; border-radius:11px 11px 0 0; background:var(--surface); display:grid; place-items:center">오늘</span>
+        <span style="height:28px; padding:0 17px; border-radius:11px 11px 0 0; background:#c9d2cb; color:var(--text2); display:grid; place-items:center">달력</span></div>
+      <div class="paper" style="position:absolute; inset:0; border-radius:14px">
+        <div class="rows" style="padding:10px 18px 0">
+          <div class="col2">
+            <div style="position:relative; height:270px" id="Caxis"></div>
+            <div class="vr"></div>
+            <div><div class="h2">다가오는 마감 <s>0</s><u>7일</u></div><div class="emp">앞으로 7일, 마감 없음</div>
+              <div class="sec2"><div class="h2">메모 <s>3</s></div><div id="Cmemo"></div></div>
+              <div class="sec2"><div class="h2">루틴 <s>8</s><u>다음 실행일</u></div><div id="Crt"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note">줄 간격이 <b>시간에 비례</b>하고, &lsquo;지금&rsquo; 선이 하루 동안 아래로 내려옵니다.
+  10:35 &rarr; 15:00 처럼 텅 빈 구간은 <b>접습니다</b>(&#8943;). 별도 위젯이 없으니 자리 문제도 없습니다 &mdash;
+  대신 <em>해도 하늘도 사라지고</em>, 접는 장치가 하나 더 늘어납니다.</p>
+</div>
+
+<script>
+(function(){
+var $=function(s){return document.querySelector(s);};
+var fmt=function(m){return String(Math.floor(m/60)).padStart(2,"0")+":"+String(Math.floor(m%60)).padStart(2,"0");};
+var SVG=function(t,a){var e=document.createElementNS("http://www.w3.org/2000/svg",t);for(var k in a)e.setAttribute(k,a[k]);return e;};
+var T=[
+ {n:1,nm:"아침운용현황 출력(대표님 전달) 및 부문 메일 송부",s:"아침운용현황 출력",rt:1,min:510},
+ {n:2,nm:"교보생명 802807 컴플 체크리스트 송부",s:"교보 컴플 체크",rt:1,min:520},
+ {n:3,nm:"퇴연 RA 비즈니스 미팅",s:"퇴연 RA 미팅",rt:1,min:600},
+ {n:4,nm:"팀장님 해외통합 업데이트",s:"해외통합 업데이트",rt:1,min:635},
+ {n:5,nm:"국내 일임 매매",s:"국내 일임 매매",rt:1,min:900},
+ {n:6,nm:"월간 운용보고서 초안 검토",s:"월간보고서 초안",rt:0,min:null},
+ {n:7,nm:"출장 경비 정산",s:"경비 정산",rt:0,min:null}];
+var MEMO=["멀모 해외 리밸 내역","운용시스템-8U3150 주간 코멘트 추가","운시-설정해지 반영"];
+var RT=[["아침운용현황 출력","완료"],["교보생명 컴플 체크리스트","완료"],["국내 일임 매매","오늘"],["카디프 기변보 if any","9/28"]];
+var A0=420, A1=1140;   /* 07:00 ~ 19:00 */
+
+function rowHTML(t,now){
+  var done = t.min!=null && t.min < now-25;      /* 러프: 25분 지난 것은 끝낸 셈 */
+  var over = t.min!=null && !done && t.min < now;
+  return '<div class="r'+(t.rt?" rt":"")+(done?" dn":"")+(over?" ov":"")+'"><i class="b"></i>'+
+    '<span class="k">'+(done?"\u2713":t.n)+'</span><span class="t">'+t.nm+'</span>'+
+    '<span class="w">'+(t.min!=null?fmt(t.min):"\u2014")+'</span></div>';
+}
+function fill(now){
+  var list=T.map(function(t){return rowHTML(t,now);}).join("");
+  ["#Alist","#Blist"].forEach(function(s){ $(s).innerHTML=list; });
+  var memo=MEMO.map(function(m){return '<div class="r r2"><i class="b" style="opacity:.3"></i><span class="t">'+m+'</span></div>';}).join("");
+  ["#Amemo","#Bmemo","#Cmemo"].forEach(function(s){ if($(s)) $(s).innerHTML=memo; });
+  var rt=RT.map(function(a){return '<div class="r r2 rt"><i class="b"></i><span class="t">'+a[0]+'</span><span class="bd">'+a[1]+'</span></div>';}).join("");
+  ["#Brt","#Crt"].forEach(function(s){ if($(s)) $(s).innerHTML=rt; });
+}
+
+/* ── A · 하늘 ── */
+function drawA(now){
+  var s=$("#Asvg"); s.innerHTML=""; var W=880, GND=110, PK=26;
+  var pos=function(m){var t=Math.max(0,Math.min(1,(m-A0)/(A1-A0)));return [40+t*(W-80), GND-4*(GND-PK)*t*(1-t)];};
+  var P0=pos(A0),P2=pos(A1),P1=[(P0[0]+P2[0])/2,2*PK-GND];
+  s.appendChild(SVG("path",{"class":"arcf",d:"M"+P0[0]+" "+P0[1]+" Q"+P1[0]+" "+P1[1]+" "+P2[0]+" "+P2[1]}));
+  var tt=Math.max(0,Math.min(1,(now-A0)/(A1-A0)));
+  var lp=function(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];};
+  var C=lp(lp(P0,P1,tt),lp(P1,P2,tt),0), E=lp(lp(P0,P1,tt),lp(P1,P2,tt),tt);
+  var Cc=lp(P0,P1,tt);
+  s.appendChild(SVG("path",{"class":"arcp",d:"M"+P0[0]+" "+P0[1]+" Q"+Cc[0]+" "+Cc[1]+" "+E[0]+" "+E[1]}));
+  T.forEach(function(t){ if(t.min==null) return;
+    var p=pos(t.min), done=t.min<now-25, over=!done&&t.min<now;
+    if(done){ s.appendChild(SVG("circle",{"class":"ddn",cx:p[0],cy:GND-2.4,r:3.8})); }
+    else { s.appendChild(SVG("circle",{"class":over?"dov":"d0",cx:p[0],cy:p[1],r:4.2})); }
+  });
+  var sp=pos(now);
+  s.appendChild(SVG("circle",{"class":"sung",cx:sp[0],cy:sp[1],r:12}));
+  s.appendChild(SVG("circle",{"class":"sun",cx:sp[0],cy:sp[1],r:6.5}));
+  $("#Ac").textContent=fmt(now);
+}
+
+/* ── B · 아래 길 ── */
+function drawB(now){
+  var s=$("#Bsvg"); s.innerHTML=""; var W=880, GND=68, PK=40;
+  var pos=function(m){var t=Math.max(0,Math.min(1,(m-A0)/(A1-A0)));return [40+t*(W-80), GND-4*(GND-PK)*t*(1-t)];};
+  var P0=pos(A0),P2=pos(A1),P1=[(P0[0]+P2[0])/2,2*PK-GND];
+  s.appendChild(SVG("path",{"class":"arcf",d:"M"+P0[0]+" "+P0[1]+" Q"+P1[0]+" "+P1[1]+" "+P2[0]+" "+P2[1]}));
+  var tt=Math.max(0,Math.min(1,(now-A0)/(A1-A0)));
+  var lp=function(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];};
+  var E=lp(lp(P0,P1,tt),lp(P1,P2,tt),tt), Cc=lp(P0,P1,tt);
+  s.appendChild(SVG("path",{"class":"arcp",d:"M"+P0[0]+" "+P0[1]+" Q"+Cc[0]+" "+Cc[1]+" "+E[0]+" "+E[1]}));
+  T.forEach(function(t){ if(t.min==null) return;
+    var p=pos(t.min), done=t.min<now-25, over=!done&&t.min<now;
+    s.appendChild(SVG("circle",{"class":done?"ddn":(over?"dov":"d0"),cx:p[0],cy:p[1],r:done?3.6:4.2}));
+  });
+  /* 시각 없는 일 - 길 끝에 놓여 있다 */
+  s.appendChild(SVG("circle",{"class":"d0",cx:W-30,cy:GND-2,r:4.2}));
+  s.appendChild(SVG("circle",{"class":"d0",cx:W-16,cy:GND-2,r:4.2}));
+  var g=$("#Bg"), win=$("#B").getBoundingClientRect(), sv=s.getBoundingClientRect();
+  var p=pos(now);
+  g.style.left=(p[0]-19)+"px";
+  g.style.top=(sv.top-win.top+p[1]-31)+"px";
+  g.className="guy"+(now>1150?" zz":"");
+  $("#Bc").textContent=fmt(now);
+  var open=T.filter(function(t){return !(t.min!=null&&t.min<now-25);});
+  var nx=open.filter(function(t){return t.min!=null&&t.min>=now;}).sort(function(a,b){return a.min-b.min;})[0];
+  $("#Bst").innerHTML="<b>"+open.length+"건 남음</b> · 아무 때나 2<br>"+
+    (nx?'<span class="nx">다음 '+nx.s+" "+fmt(nx.min)+"</span>":'<span class="nx">오늘 남은 시각 없음</span>');
+}
+
+/* ── C · 시간축 ── */
+function drawC(now){
+  var box=$("#Caxis"); box.innerHTML=""; var H=270;
+  /* 08:00~11:00 과 14:30~16:00 만 펼치고 사이는 접는다 */
+  var SEG=[[480,660,0,150],[870,960,182,250]];
+  var y=function(m){ for(var i=0;i<SEG.length;i++){ var g=SEG[i];
+      if(m>=g[0]&&m<=g[1]) return g[2]+(m-g[0])/(g[1]-g[0])*(g[3]-g[2]); }
+    return m<SEG[0][0]?0:(m>SEG[1][1]?250:166); };
+  var html='<div class="h2" style="margin-bottom:6px">오늘 <s>7</s><u>완료 0</u></div>';
+  html+='<div style="position:absolute; left:34px; top:26px; bottom:0; width:1px; background:var(--hair)"></div>';
+  html+='<div style="position:absolute; left:0; right:0; top:'+(26+166)+'px; height:14px; display:flex; align-items:center; gap:8px">'+
+        '<span style="font-size:10px; color:var(--text2); width:30px; text-align:right">&#8943;</span>'+
+        '<span style="flex:1; border-top:1px dashed var(--hair)"></span>'+
+        '<span style="font-size:10px; color:var(--text2)">3시간 25분 비어 있음</span></div>';
+  var lastY=-99;
+  T.forEach(function(t){ if(t.min==null) return;
+    var done=t.min<now-25, over=!done&&t.min<now;
+    /* 시간에 비례시키면 08:30 과 08:40 이 8px 차이가 된다 - 최소 간격을 둔다 */
+    var yy=Math.max(y(t.min), lastY+21); lastY=yy;
+    html+='<div style="position:absolute; left:0; right:0; top:'+(26+yy-11)+'px; display:flex; align-items:center; gap:9px; font-size:11.5px">'+
+      '<span style="width:30px; text-align:right; font-size:10.5px; color:'+(over?"var(--rust)":"var(--text2)")+'; font-weight:300">'+fmt(t.min)+'</span>'+
+      '<span class="k" style="width:19px;height:19px;border-radius:50%;border:1.5px solid '+(over?"var(--rust)":"var(--teal)")+
+        ';color:'+(done?"var(--tealink)":(over?"var(--rust)":"var(--teal)"))+';background:'+(done?"var(--teal)":"transparent")+
+        ';display:grid;place-items:center;font-size:9.5px;flex:none">'+(done?"\u2713":t.n)+'</span>'+
+      '<span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;'+
+        (done?"color:var(--text2); text-decoration:line-through":"")+'">'+t.nm+'</span></div>';
+  });
+  var ny=26+y(now);
+  html+='<div style="position:absolute; left:0; right:0; top:'+ny+'px; height:1px; background:var(--teal)"></div>'+
+        '<div style="position:absolute; left:0; top:'+(ny-7)+'px; width:30px; text-align:right; font-size:10px; color:var(--teal)">'+fmt(now)+'</div>';
+  html+='<div style="position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:9px; font-size:11px; color:var(--text2); border-top:1px solid var(--hair); padding-top:6px">'+
+        '<span style="width:30px; text-align:right; font-size:10px">아무<br>때나</span>'+
+        '<span>6 월간보고서 초안 · 7 경비 정산</span></div>';
+  box.innerHTML=html;
+  $("#Cc").textContent=fmt(now);
+  $("#Cst").innerHTML="<b>"+T.filter(function(t){return !(t.min!=null&&t.min<now-25);}).length+"건 남음</b> · 아무 때나 2<br>"+
+    '<span class="nx">지금 10:40 선 아래가 남은 하루</span>';
+}
+
+function all(){ var v=+$("#t").value; $("#tv").textContent=fmt(v);
+  fill(v); drawA(v); drawB(v); drawC(v); }
+$("#t").addEventListener("input", all);
+all();
+})();
+</script>
+</body>
+</html>

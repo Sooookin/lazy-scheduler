@@ -66,7 +66,7 @@ def test_web_icons_are_all_referenced():
     """쓰지 않는 그림을 들고 있으면 창을 열 때마다 같이 묶여 나간다."""
     web = os.path.join(ROOT, "web")
     text = ""
-    for name in ("index.html", "app.js", "style.css"):
+    for name in ("index.html", "app.js", "sky.js", "pebble.js", "style.css"):
         text += io.open(os.path.join(web, name), encoding="utf-8").read()
     for name in ("tray.py", "main.py"):
         text += io.open(os.path.join(ROOT, name), encoding="utf-8").read()

@@ -110,3 +110,60 @@ def test_held_notifications_are_kept_not_dropped(monkeypatch):
     item = toast._queue.get_nowait()
     assert item["rows"][0][1] == "보고서 제출" and item["rows"][0][2] is True
     assert "2건" in item["title"]
+
+
+# ---------- 눌렀을 때 ----------
+# 카드는 어디를 눌러도 닫힌다. 그 밖에 무엇이 더 일어나는지만 여기서 지킨다.
+
+def plan(target, **item):
+    it = dict(CARD)
+    it.update(item)
+    return toast._click_plan(it, target)
+
+
+def test_done_button_runs_only_the_done_callback(monkeypatch):
+    monkeypatch.setattr(toast, "_open_handler", lambda: None)
+    done = []
+    cb, opens = plan("done", on_done=lambda: done.append(1))
+    cb()
+    assert done == [1] and not opens          # 완료만 하고 창은 열지 않는다
+
+
+def test_clicking_the_card_body_opens_the_app(monkeypatch):
+    """단추가 아닌 곳을 누르면 그 일을 보러 가겠다는 뜻이다 (윈도우 알림과 같다)."""
+    monkeypatch.setattr(toast, "_open_handler", lambda: None)
+    cb, opens = plan(None)
+    assert cb is None and opens
+    assert plan("open")[1]                     # [열기] 단추도 같은 일을 한다
+
+
+def test_the_close_mark_only_closes(monkeypatch):
+    """✕ 는 '지금은 됐다' 는 뜻이다. 창까지 열면 반대로 받아들인 것이다."""
+    monkeypatch.setattr(toast, "_open_handler", lambda: None)
+    assert plan("x") == (None, False)
+
+
+def test_a_card_that_says_not_to_open_does_not(monkeypatch):
+    """창을 닫았다는 안내처럼, 눌러도 창이 다시 열려서는 안 되는 카드가 있다."""
+    monkeypatch.setattr(toast, "_open_handler", lambda: None)
+    assert plan(None, can_open=False) == (None, False)
+
+
+def test_nothing_opens_without_a_handler(monkeypatch):
+    monkeypatch.setattr(toast, "_open_handler", None)
+    assert plan(None)[1] is False
+
+
+def test_the_folded_row_always_opens(monkeypatch):
+    monkeypatch.setattr(toast, "_open_handler", lambda: None)
+    assert toast._click_plan({"fold": True, "count": 3}, "fold")[1]
+
+
+# ---------- 얼마나 떠 있나 ----------
+
+def test_a_card_can_ask_for_a_shorter_life():
+    """스쳐 가는 안내는 30초나 머물 까닭이 없다."""
+    assert toast._life({"life": 1.6}) == 1.6
+    assert toast._life({}) == toast.LIFE_S
+    assert toast._life({"late": True}) is None        # 지난 것은 직접 닫을 때까지
+    assert toast._life({"rows": []}) == toast.LIFE_LIST_S

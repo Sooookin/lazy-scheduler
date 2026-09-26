@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>돌멩이 — 행동 구상</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="./ls-m-light.js"></script>
+<style>
+body{margin:0;background:#cdd5d2;font-family:"Noto Sans KR","Malgun Gothic",sans-serif;color:#1f2a28;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
+a{color:#3f6f69}a:hover{color:#b1782f}
+@keyframes pb-breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.04,.96)}}
+@keyframes pb-sleep{0%,100%{transform:scale(1,1)}50%{transform:scale(1.06,.93)}}
+@keyframes pb-hop{0%{transform:translateY(0) scale(1,1)}18%{transform:translateY(2px) scale(1.15,.8)}45%{transform:translateY(-26px) scale(.9,1.14)}70%{transform:translateY(0) scale(1.1,.86)}85%{transform:translateY(-6px) scale(.98,1.04)}100%{transform:translateY(0) scale(1,1)}}
+@keyframes pb-squash{0%{transform:scale(1,1)}30%{transform:scale(1.28,.68)}60%{transform:scale(.92,1.1)}100%{transform:scale(1,1)}}
+@keyframes pb-stretch{0%{transform:scaleY(1)}35%{transform:scaleY(1.32) scaleX(.9)}60%{transform:scaleY(1.28) scaleX(.9)}100%{transform:scaleY(1)}}
+@keyframes pb-yawn{0%{transform:scale(1,1)}40%{transform:scale(1.1,1.12)}70%{transform:scale(1.1,1.12)}100%{transform:scale(1,1)}}
+@keyframes pb-wobble{0%{transform:rotate(0)}25%{transform:rotate(-9deg)}55%{transform:rotate(6deg)}80%{transform:rotate(-3deg)}100%{transform:rotate(0)}}
+@keyframes pb-zzz{0%{opacity:0;transform:translate(0,0) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translate(14px,-26px) scale(1.1)}}
+@keyframes pb-dust{0%{opacity:.5;transform:scale(.4)}100%{opacity:0;transform:scale(1.6) translateX(var(--dx,-10px))}}
+@keyframes pb-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes pb-sigh{0%{transform:scaleY(1)}30%{transform:scaleY(1.06)}55%{transform:scaleY(.86) scaleX(1.06)}80%{transform:scaleY(.86) scaleX(1.06)}100%{transform:scaleY(1)}}
+@keyframes pb-pant{0%,100%{transform:scale(1,1)}50%{transform:scale(1.06,.94)}}
+@keyframes pb-topple{0%{transform:rotate(0) translateY(0)}30%{transform:rotate(-180deg) translateY(-12px)}55%{transform:rotate(-180deg) translateY(-2px)}70%{transform:rotate(-196deg) translateY(-2px)}100%{transform:rotate(-360deg) translateY(0)}}
+@keyframes pb-note{0%{opacity:0;transform:translate(0,0) rotate(0)}20%{opacity:1}100%{opacity:0;transform:translate(10px,-22px) rotate(14deg)}}
+@keyframes pb-drool{0%{height:0;opacity:0}30%{opacity:.9}100%{height:7px;opacity:.9}}
+@keyframes pb-fidget{0%,100%{transform:scale(1,1) rotate(0)}30%{transform:scale(1.05,.95) rotate(-3deg)}65%{transform:scale(.97,1.03) rotate(3deg)}}
+@keyframes pb-rollbob{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-2.5px) scale(.97,1.03)}}
+@keyframes pb-scoot{0%{transform:translateY(0) scale(1,1)}20%{transform:translateY(1px) scale(1.12,.86)}55%{transform:translateY(-9px) scale(.94,1.08)}85%{transform:translateY(0) scale(1.06,.94)}100%{transform:translateY(0) scale(1,1)}}
+@keyframes pb-spark{0%{opacity:0;transform:translate(0,0) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(var(--sx),var(--sy)) scale(1)}}
+</style>
+</helmet>
+<template id="__bundler_thumbnail" data-bg-color="#b7d3e6"><svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><rect width="1200" height="800" fill="#b7d3e6"></rect><path d="M0 600 C400 540 800 640 1200 580 L1200 800 L0 800Z" fill="#8fb0c0"></path><ellipse cx="600" cy="560" rx="150" ry="120" fill="#1f2a28"></ellipse><circle cx="555" cy="530" r="22" fill="#e4e9e3"></circle><circle cx="645" cy="530" r="22" fill="#e4e9e3"></circle><circle cx="560" cy="534" r="10" fill="#1f2a28"></circle><circle cx="650" cy="534" r="10" fill="#1f2a28"></circle></svg></template>
+
+<div style="max-width:980px;margin:0 auto;padding:36px 20px 70px;display:flex;flex-direction:column;gap:30px">
+  <div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:baseline;gap:14px"><span style="font-size:20px;font-weight:300;letter-spacing:-.01em">돌멩이 — 행동 구상</span><span style="font-size:12.5px;color:#5d6a67">게으른 돌 하나가 화면 옆에 앉아 있는 친구처럼 굴려면</span></div>
+  <p style="margin:0;font-size:12.5px;color:#5d6a67;line-height:1.65;max-width:760px">원칙은 하나 — <b style="color:#1f2a28;font-weight:500">돌은 게으르다.</b> 그래서 평소엔 거의 안 움직이고, 눈만 굴리고, 움직여야 할 땐 짧은 거리는 <b style="color:#1f2a28;font-weight:500">총총 뛰어(scoot)</b> 가고, 먼 거리는 <b style="color:#1f2a28;font-weight:500">굴러</b>간다. 미끄러지는 동작은 없다 — 돌은 미끄러지지 않으니까. 굴러가는 건 진짜 급할 때와 진짜 기쁠 때, 그리고 잠자리로 갈 때뿐. 모든 동작은 실제 상태(시각·완료·커서·비활성)에서만 나옵니다.</p></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;font-size:12.5px;line-height:1.65">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">살아 있음 — 예측 못 하게</div>
+      <div><b style="font-weight:500">시계가 아니라 주사위.</b> 8초마다가 아니라 5~13초 사이 무작위. 행동도 무작위 가중 추첨 — 무게 옮기기(2) · 총총 두세 걸음(2) · 꿈틀 · 둘러보기 · 한숨 · 하품 · 기지개. 같은 행동 연속 금지.</div>
+      <div><b style="font-weight:500">눈이 해만 보지 않는다.</b> 2.5~6초마다 40%는 해, 60%는 아무 데나. 커서가 오면 즉시 커서.</div>
+      <div><b style="font-weight:500">한숨은 80%만.</b> 가끔은 한숨 없이 바로 움직여서 '또 그 순서'가 되지 않게.</div></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">자리 — 기억이 있다</div>
+      <div><b style="font-weight:500">잠자리 셋.</b> 일몰 자리 · 왼쪽 구석 · 가운데. 어제 잔 곳은 오늘 피한다(60px 이상 떨어진 곳만). 각 자리 안에서도 ±25px 흔들림.</div>
+      <div><b style="font-weight:500">낮잠은 그 자리에서.</b> 게으르니까 — 절반은 그대로 잠들고, 절반은 두세 걸음만 옆으로.</div>
+      <div><b style="font-weight:500">평상시 자리도 ±60px.</b> 켤 때마다 정확히 같은 픽셀에 있지 않다.</div></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">이동 — 물리가 있다</div>
+      <div><b style="font-weight:500">예비 동작 220ms.</b> 어느 방향으로든 가기 전에 반대쪽으로 7° 기운다 — 몸을 일으키는 순간. 그리고 가는 쪽을 본다.</div>
+      <div><b style="font-weight:500">굴림 = 회전 + 들썩.</b> 회전각은 실제 둘레(r 17)로 계산, 한 바퀴마다 2.5px 들썩. 가속 → 감속 곡선, 도착하면 0.5초 흔들리며 자리 잡음.</div>
+      <div><b style="font-weight:500">총총 = 2~4번 뛰기.</b> 110px 미만은 굴리지 않고 340ms짜리 작은 점프를 반복 — 눌렸다 튀어오르며 한 칸씩. 게으른 돌의 종종걸음.</div></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div ref="{{ stageRef }}" onMouseMove="{{ onMove }}" onMouseLeave="{{ onLeave }}" style="position:relative;width:900px;height:210px;border-radius:10px;overflow:hidden;box-shadow:0 16px 38px rgba(31,42,40,.26);cursor:default">
+      <dc-import name="LS PC Diorama" now-min="{{ now }}" done="{{ done }}" sky="auto" ghost="{{ ghost }}" hide-guy="{{ true }}" hint-size="900px,210px" style="position:absolute;left:0;top:0;width:900px;height:210px"></dc-import>
+      <x-import component-from-global-scope="LSMLight" t="{{ lightT }}" mode="auto" dusk="{{ dusk }}" night="{{ night }}" width="{{ 900 }}" height="{{ 210 }}" hint-size="900px,210px" style="position:absolute;left:0;top:0;width:900px;height:210px"></x-import>
+      {{ pebble }}
+      <div style="position:absolute;left:16px;top:14px;font-size:22px;font-weight:300;letter-spacing:-.03em;line-height:1;color:{{ inkColor }}">{{ nowText }}</div>
+      <div style="position:absolute;left:16px;top:42px;font-size:11px;color:{{ inkColor }};opacity:.75">{{ caption }}</div>
+    </div>
+    <div style="width:900px;display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ buttons }}" as="b" hint-placeholder-count="10"><span onClick="{{ b.go }}" style="{{ b.style }}">{{ b.label }}</span></sc-for></div>
+    <div style="width:900px;font-size:11.5px;color:#5d6a67;line-height:1.6">마우스를 움직이면 눈이 따라옵니다. 너무 가까이 가면 눈을 가늘게 뜨고 물러섭니다. 누르면 움찔하고 잠깐 삐칩니다(등을 돌림). 자는데 누르면 한쪽 눈만 뜨고 째려봅니다. 완료를 6초 안에 두 번 누르면 너무 신나서 뒤집힙니다.</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">움직임 어휘 — 돌이 할 수 있는 일</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 22px;font-size:12.5px;line-height:1.6">
+      <div><b style="font-weight:500">눈</b> <span style="color:#5d6a67">감정은 눈 모양 하나로</span><br>동그라미(평상시) · 크게 뜬 동그라미(놀람·헐떡) · 위로 휜 활 ^ ^(기쁨) · 가는 실눈(개인 공간 침범) · 점 두 개(삐침·못 본 척) · 일자(감음) · 한쪽만 뜸(자다 깸). 입도 눈썹도 없다.</div>
+      <div><b style="font-weight:500">종이 소품</b> <span style="color:#5d6a67">한 번에 하나만</span><br>밤잠엔 청록 파자마 모자(방울 달림), 낮잠엔 머리에 떨어진 나뭇잎 하나(그만큼 오래 가만히 있었다는 뜻), 헐떡일 땐 땀방울, 한숨엔 작은 숨 구름, 놀랄 땐 !, 시각 고르는 중엔 ?, 못 본 척엔 ♪.</div>
+      <div><b style="font-weight:500">예비 동작</b> <span style="color:#5d6a67">모든 이동 앞 220ms</span><br>가려는 반대쪽으로 7° 기울어 몸을 일으키고, 가는 쪽을 본다.</div>
+      <div><b style="font-weight:500">총총</b> <span style="color:#5d6a67">기본 이동 · 110px 미만</span><br>340ms짜리 작은 점프 2~4번 — 눌렸다 튀어오르며 한 칸씩. 뒤에 먼지 한 톨. 게으른 돌의 종종걸음.</div>
+      <div><b style="font-weight:500">굴러가기</b> <span style="color:#5d6a67">110px 이상 · 급할 때 · 기쁠 때</span><br>실제 둘레로 회전각 계산(눈도 같이 돈다), 한 바퀴마다 2.5px 들썩, 가속→감속. 멈출 때 흔들흔들.</div>
+      <div><b style="font-weight:500">팔짝</b> <span style="color:#5d6a67">완료</span><br>눌렸다가 튀어오르기 — squash &amp; stretch. 착지 먼지.</div>
+      <div><b style="font-weight:500">움찔</b> <span style="color:#5d6a67">클릭 · 갑작스런 복귀</span><br>납작해졌다 돌아옴. 눈이 커짐.</div>
+      <div><b style="font-weight:500">기지개 · 하품</b> <span style="color:#5d6a67">한가할 때</span><br>세로로 길게 늘어나며 눈 감기 / 부풀며 눈 찡그리기.</div>
+      <div><b style="font-weight:500">잠</b> <span style="color:#5d6a67">밤 · 전부 완료 · 오래 비활성</span><br>눈 감고 느리게 부풀기, 종이 조각 z 세 개가 떠오름. 낮잠엔 침 한 방울.</div>
+      <div><b style="font-weight:500">한숨</b> <span style="color:#5d6a67">움직여야 할 때</span><br>움직이기 전에 꼭 한 번 푹 꺼진다. 게으름의 서명.</div>
+      <div><b style="font-weight:500">뒤집힘</b> <span style="color:#5d6a67">너무 신날 때</span><br>연속 완료 콤보에 팔짝이 과해서 한 바퀴 넘어간다. 눈이 커진 채 거꾸로 잠깐.</div>
+      <div><b style="font-weight:500">못 본 척</b> <span style="color:#5d6a67">지난 업무</span><br>점 눈으로 반대쪽을 보며 음표 하나. 잔소리 대신 코미디.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">순간 → 신호 → 행동</div>
+    <div style="display:grid;grid-template-columns:120px 150px 1fr 1fr 90px;gap:0 16px;font-size:12px;line-height:1.55">
+      <div style="color:#5d6a67;font-size:11px;padding-bottom:5px">순간</div><div style="color:#5d6a67;font-size:11px;padding-bottom:5px">앱이 아는 신호</div><div style="color:#5d6a67;font-size:11px;padding-bottom:5px">옆에 앉은 친구라면</div><div style="color:#5d6a67;font-size:11px;padding-bottom:5px">돌멩이는</div><div style="color:#5d6a67;font-size:11px;padding-bottom:5px">강도 · 빈도</div>
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="9">
+        <div style="{{ r.c }}"><b style="font-weight:500">{{ r.moment }}</b></div><div style="{{ r.c }}">{{ r.signal }}</div><div style="{{ r.c }}">{{ r.friend }}</div><div style="{{ r.c }}">{{ r.act }}</div><div style="{{ r.c }}">{{ r.weight }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">내가 고른 셋 — 먼저 만들 것</div>
+      <div style="font-size:12.5px;line-height:1.65;display:flex;flex-direction:column;gap:8px">
+        <div><b style="font-weight:500">1. 다음 업무 아래로 가서 올려다보기.</b> 알림이 울리기 전의 예고를 캐릭터가 대신함 — 재미이면서 기능. 유일하게 '굴러가는' 일상 동작이라 눈에 띔.</div>
+        <div><b style="font-weight:500">2. 눈이 커서를 따라오기 + 누르면 움찔.</b> 비용이 거의 없고 매번 살아 있다는 인상을 줌. 50번째에도 거슬리지 않는 강도.</div>
+        <div><b style="font-weight:500">3. 완료 팔짝 → 전부 완료 시 궤도 끝에서 잠.</b> 체크 한 번의 보상 + 하루의 끝. 밤 전환(a or b 조건)과 같은 신호로 묶임.</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:13px;font-weight:500;padding-bottom:7px;border-bottom:1px solid rgba(31,42,40,.2)">상태 계약 — 돌이 듣는 입력</div>
+      <div style="font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.7;color:#1f2a28;background:rgba(31,42,40,.05);border-radius:8px;padding:10px 14px">nowMin: number · 현재 시각<br>nextTaskMin: number|null · 다음 업무 시각<br>overdueCount: number<br>justCompleted: trigger(taskId)<br>allDone: boolean<br>isNight: boolean · 팔레트와 같은 조건<br>cursor: {x,y}|null · 장면 좌표<br>idleSec: number · 입력 없는 시간<br>ghostMin: number|null · 새 항목 시각 고르는 중<br>reducedMotion: boolean · 잠·팔짝·굴림 → 즉시 상태 교체</div>
+      <div style="font-size:11.5px;color:#5d6a67;line-height:1.6">지킬 것 — 과업을 막지 않음(모든 동작 &lt; 600ms, 이동은 비차단), 지난 업무를 놀리지 않음(눈치 한 번, 반복 없음), 설정에서 끌 수 있음, 움직임 줄이기 설정 존중.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { x:470, rot:0, lean:0, gaze:null, mode:"idle", moveKind:null, lookUp:false, cursor:null, now:600, done:"2,3", ghost:null, caption:"평상시 — 눈만 굴린다. 가끔 깜빡, 가끔 하품.", anim:null, animKey:0, sparks:false, dust:null };
+  stageRef = (el)=>{ this._stage=el; };
+  // ---- living idle: random delays, weighted acts, never the same act twice in a row ----
+  componentDidMount(){ this.scheduleIdle(); this.scheduleGaze(); }
+  componentWillUnmount(){ clearTimeout(this._idle); clearTimeout(this._gz); clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3); clearTimeout(this._t4); }
+  rnd(a,b){ return a+Math.random()*(b-a); }
+  scheduleIdle(){ clearTimeout(this._idle); this._idle=setTimeout(()=>{ this.idleAct(); this.scheduleIdle(); }, this.rnd(5000,13000)); }
+  idleAct(){ const S=this.state; if(S.mode!=="idle" || S.anim || S.moveKind || S.cursor) return;
+    const acts=["shift","shift","fidget","yawn","stretch","sigh","shuffle","shuffle","lookaround"].filter(a=>a!==this._lastAct); const a=acts[Math.floor(Math.random()*acts.length)]; this._lastAct=a;
+    if(a==="shift"){ this.setState({lean:(Math.random()<.5?-1:1)*this.rnd(2,4)}); setTimeout(()=>this.setState({lean:0}), this.rnd(2500,5000)); }
+    else if(a==="fidget"){ this.play("fidget",380); }
+    else if(a==="lookaround"){ this.gazeTo({x:this.rnd(-1,1),y:this.rnd(-.9,-.1)}); setTimeout(()=>this.gazeTo({x:-this.state.gaze.x,y:this.rnd(-.9,-.1)}),900); setTimeout(()=>this.gazeTo(null),2000); }
+    else if(a==="shuffle"){ const x=this.clampX(S.x+(Math.random()<.5?-1:1)*this.rnd(24,70)); Math.random()<.5? this.moveTo(x,"scoot") : this.go(x,"scoot"); }
+    else this.play(a, a==="sigh"?700:1400); }
+  scheduleGaze(){ clearTimeout(this._gz); this._gz=setTimeout(()=>{ const S=this.state; if(!S.cursor && !S.lookUp && !S.awayFrom && S.mode!=="sleep" && S.mode!=="nap" && !S.anim){ const r=Math.random(); this.gazeTo(r<.4?null:{x:this.rnd(-1,1),y:this.rnd(-1,.1)}); } this.scheduleGaze(); }, this.rnd(2500,6000)); }
+  gazeTo(g){ this.setState({gaze:g}); }
+  clampX(x){ return Math.max(170, Math.min(740, x)); }
+  // spots have memory: never sleep in the same place twice in a row
+  spot(kind){ const {T1}=this.sun(); const cands = kind==="sleep" ? [this.beadX(T1)+this.rnd(10,50), 190+this.rnd(0,50), 430+this.rnd(0,90)] : [this.state.x, this.clampX(this.state.x+(Math.random()<.5?-1:1)*this.rnd(30,60))];
+    const pick=cands.filter(c=>Math.abs(c-(this._lastSpot||-999))>60); const x=pick[Math.floor(Math.random()*pick.length)] ?? cands[0]; this._lastSpot=x; return x; }
+  alt(min){ const rad=Math.PI/180, LAT=37.57, LON=126.98, TZM=135, d=new Date(), st=new Date(d.getFullYear(),0,0), N=Math.floor((d-st)/86400000);
+    const dc=23.44*Math.sin(rad*(360/365)*(284+N)), B=rad*(360/365)*(N-81), eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B);
+    const H=rad*(15*((min+4*(LON-TZM)+eot)/60-12)), p=rad*LAT, dl=rad*dc;
+    return Math.asin(Math.sin(p)*Math.sin(dl)+Math.cos(p)*Math.cos(dl)*Math.cos(H))/rad; }
+  sun(){ if(this._sun) return this._sun; let T0=380,T1=1100; for(let m=0;m<1440;m++){ if(this.alt(m)>-0.83){T0=m;break;} } for(let m=1439;m>0;m--){ if(this.alt(m)>-0.83){T1=m;break;} } return this._sun={T0,T1}; }
+  beadX(min){ const {T0,T1}=this.sun(); const mm=Math.max(T0+20,Math.min(T1-20,min)); return 150+(mm-T0)/(T1-T0)*610; }
+  play(anim, ms, after){ clearTimeout(this._t1); this.setState(s=>({anim, animKey:s.animKey+1})); this._t1=setTimeout(()=>{ this.setState({anim:null}); after&&after(); }, ms); }
+  // movement = anticipation (lean back) → travel → settle. "slide" is gone: short = scoot (2–4 tiny hops), long = roll (bobbing with each turn)
+  moveTo(x, kind, after){ const S0=this.state, dx=x-S0.x, dist=Math.abs(dx); if(dist<4){ after&&after(); return; }
+    if(kind==="slide"||kind==="auto") kind = dist<110 ? "scoot" : "roll"; // auto: scoot when near, roll when far
+    const sgn=dx>0?1:-1;
+    const travel=()=>{ const s=this.state;
+      if(kind==="roll"){ const dur=Math.min(1600, 420+dist*1.7), turns=dx/(2*Math.PI*17), perTurn=dur/Math.max(1,Math.abs(turns));
+        this.setState({ x, moveKind:"roll", moveDur:dur, moveDir:sgn, perTurn, rot:s.rot+turns*360, dust:{x:s.x, dir:-sgn, key:s.animKey+1}, animKey:s.animKey+1, lean:0 });
+        clearTimeout(this._t2); this._t2=setTimeout(()=>{ this.setState({moveKind:null}); this.play("wobble",500,after); }, dur); }
+      else { const hops=Math.max(2,Math.min(4,Math.round(dist/32))), per=340, dur=hops*per;
+        this.setState({ x, moveKind:"scoot", moveDur:dur, moveDir:sgn, hops, hopMs:per, dust:{x:s.x, dir:-sgn, key:s.animKey+1}, animKey:s.animKey+1, lean:0 });
+        clearTimeout(this._t2); this._t2=setTimeout(()=>{ this.setState({moveKind:null}); after&&after(); }, dur); } };
+    // anticipation: 220ms lean away from the direction of travel
+    this.setState({lean:-sgn*7}); clearTimeout(this._t5); this._t5=setTimeout(travel, 220); }
+  // lazy: a move usually (not always) starts with a sigh
+  go(x, kind, after){ Math.random()<.8 ? this.play("sigh", 700, ()=>this.moveTo(x, kind, after)) : this.moveTo(x, kind, after); }
+  sulk(ms){ this.setState({sulk:true}); clearTimeout(this._t3); this._t3=setTimeout(()=>this.setState({sulk:false}), ms); }
+  peek(ms){ this.setState({peek:true}); clearTimeout(this._t4); this._t4=setTimeout(()=>this.setState({peek:false}), ms); }
+  set(patch){ this.setState(patch); }
+  renderVals(){
+    const S=this.state, R=React.createElement, {T0,T1}=this.sun();
+    const inDay=S.now>T0&&S.now<T1, dTo=Math.min(Math.abs(S.now-T1),Math.abs(S.now-T0)), sm=(v,a,b)=>{const u=Math.max(0,Math.min(1,(v-a)/(b-a)));return u*u*(3-2*u);};
+    const dusk=Math.exp(-Math.pow(dTo/55,2)), night=inDay?0:sm(dTo,15,80), isNight=night>0.5;
+    const tt=Math.max(0,Math.min(1,(S.now-T0)/(T1-T0))), lightT=0.06+tt*0.88, dir=(0.5-tt)*2;
+    const fmt=(m)=>`${String(Math.floor(m/60)%24).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
+    // ---- pebble ----
+    const bodyC=isNight?"#0d1218":"#1f2a28", eyeC=isNight?"#dfe6ea":"#e4e9e3";
+    const px=S.x, py=204; // ground contact (scene px)
+    let gx=dir, gy=-0.6; // default gaze toward the sun
+    if(S.gaze){ gx=S.gaze.x; gy=S.gaze.y; } // wandering gaze from the idle scheduler
+    if(S.moveKind){ gx=S.moveDir||gx; gy=-0.2; } // look where you're going
+    if(S.lookUp){ gx=0; gy=-1; }
+    let near=false;
+    if(S.cursor){ const dx=S.cursor.x-px, dy=S.cursor.y-(py-16), L=Math.hypot(dx,dy)||1; gx=dx/L; gy=dy/L; near=L<46; }
+    if(S.sulk){ gx=-dir||0.8; gy=0.2; } // turned away from the user/sun
+    if(S.awayFrom!=null){ gx=S.awayFrom>px?-1:1; gy=-0.3; }
+    const asleep=S.mode==="sleep"||S.mode==="nap", closed=(asleep&&!S.peek)||S.anim==="stretch"||S.anim==="yawn"||S.anim==="sigh";
+    // ---- expression: eyes only + one paper prop ----
+    let shape="round", prop=null;
+    if(S.anim==="hop"||S.anim==="topple"){ shape=S.anim==="topple"?"wide":"happy"; }
+    else if(S.anim==="squash"){ shape="wide"; prop="bang"; }
+    else if(S.sulk){ shape="dot"; }
+    else if(S.anim==="sigh"){ shape="closed"; prop="puff"; }
+    else if(S.anim==="yawn"){ shape="closed"; prop="puff"; }
+    else if(S.anim==="stretch"){ shape="happy"; }
+    else if(S.anim==="pant"){ shape="wide"; prop="sweat"; }
+    else if(S.awayFrom!=null){ shape="dot"; prop="note"; }
+    else if(asleep){ shape=S.peek?"peek":S.mode==="nap"?"closed":"closed"; prop=S.mode==="nap"?"leaf":"cap"; }
+    else if(S.mode==="all"){ shape="happy"; }
+    else if(S.mode==="done"){ shape="happy"; }
+    else if(near){ shape="squint"; }
+    else if(S.lookUp){ shape="roundBig"; prop=S.mode==="ghost"?"q":null; }
+    const pupil=(k,sz)=>R("span",{key:k,style:{position:"absolute",left:"50%",top:"50%",marginLeft:-sz/2+gx*1.7,marginTop:-sz/2+gy*1.7,width:sz,height:sz*1.12,borderRadius:"50%",background:bodyC,transition:"margin .25s"}});
+    const eye=(k,sh)=>{
+      if(sh==="happy") return R("svg",{key:k,width:9,height:5,viewBox:"0 0 9 5",style:{display:"block"}},R("path",{d:"M.8 4.2 Q4.5 -.6 8.2 4.2",fill:"none",stroke:eyeC,strokeWidth:1.9,strokeLinecap:"round"}));
+      if(sh==="closed") return R("span",{key:k,style:{display:"block",width:7,height:1.6,borderRadius:1,background:eyeC}});
+      if(sh==="squint") return R("span",{key:k,style:{display:"block",width:7.5,height:2.6,borderRadius:2,background:eyeC,position:"relative",overflow:"hidden"}},R("span",{style:{position:"absolute",left:2+gx*1.5,top:0,width:3,height:3,background:bodyC,borderRadius:"50%"}}));
+      if(sh==="dot") return R("span",{key:k,style:{display:"block",width:3.2,height:3.2,borderRadius:"50%",background:eyeC,transform:`translate(${gx*2.2}px,${gy*1.5+2}px)`,transition:"transform .25s"}});
+      if(sh==="wide") return R("span",{key:k,style:{display:"block",width:9,height:10,borderRadius:"50%",background:eyeC,position:"relative"}},pupil("p",2.6));
+      if(sh==="roundBig") return R("span",{key:k,style:{display:"block",width:7.5,height:8.5,borderRadius:"50%",background:eyeC,position:"relative"}},pupil("p",3.6));
+      return R("span",{key:k,style:{display:"block",width:6.5,height:7.5,borderRadius:"50%",background:eyeC,position:"relative"}},pupil("p",3.4));
+    };
+    const L=shape==="peek"?"round":shape, Rr=shape==="peek"?"closed":shape;
+    const eyeTop={happy:11,closed:14,squint:12,dot:11,wide:8,roundBig:9,round:10,peek:10}[shape];
+    const eyes=R("div",{style:{position:"absolute",left:0,right:0,top:eyeTop,display:"flex",justifyContent:"center",alignItems:"center",gap:shape==="wide"?5:7,animation:(shape==="round"||shape==="roundBig")?"pb-blink 4.6s infinite":"none",transformOrigin:"50% 60%",transition:"top .2s"}},eye("l",L),eye("r",Rr));
+    // paper props
+    const teal=isNight?"#8fc2b9":"#3f6f69", pale=isNight?"#dfe6ea":"#f5f8f4";
+    const props={
+      cap: R("div",{key:"cap",style:{position:"absolute",left:6,top:-14,width:30,height:22,transform:`rotate(${dir>0?-14:14}deg)`,transformOrigin:"50% 100%"}},
+        R("span",{style:{position:"absolute",left:2,bottom:0,width:26,height:20,background:teal,clipPath:"polygon(50% 0, 100% 100%, 0 100%)",borderRadius:2}}),
+        R("span",{style:{position:"absolute",left:0,bottom:-1,width:30,height:4,background:pale,borderRadius:2}}),
+        R("span",{style:{position:"absolute",left:12,top:-4,width:7,height:7,borderRadius:"50%",background:pale,boxShadow:"1px 1px 1px rgba(31,42,40,.3)"}})),
+      leaf: R("svg",{key:"leaf",width:16,height:10,viewBox:"0 0 16 10",style:{position:"absolute",left:16,top:-7,transform:"rotate(-18deg)"}},R("path",{d:"M1 9 Q4 0 15 1 Q12 9 1 9Z",fill:"#9db98a"}),R("path",{d:"M1 9 Q8 5 15 1",fill:"none",stroke:"#6f8f5e",strokeWidth:.8})),
+      sweat: R("span",{key:"sw",style:{position:"absolute",left:dir>0?-4:36,top:6,width:5,height:7,background:"#bcd8e6",borderRadius:"50% 50% 50% 50% / 30% 30% 70% 70%",animation:"pb-drool 1.2s ease-in-out infinite alternate"}}),
+      puff: R("span",{key:"pf",style:{position:"absolute",left:dir>0?-8:38,top:12,width:9,height:6,borderRadius:"50%",background:pale,opacity:0,animation:"pb-note 1.3s ease-out forwards",filter:"blur(.6px)"}}),
+      bang: R("span",{key:"bg",style:{position:"absolute",left:36,top:-10,fontSize:13,fontWeight:500,color:pale,opacity:0,animation:"pb-note 1s ease-out forwards",textShadow:"0 1px 0 rgba(31,42,40,.4)"}},"!"),
+      q: R("span",{key:"q",style:{position:"absolute",left:36,top:-8,fontSize:12,fontWeight:500,color:pale,textShadow:"0 1px 0 rgba(31,42,40,.4)"}},"?"),
+      note: null };
+    const propEl=prop?props[prop]:null;
+    const brows=null, mouthEl=null, drool=null;
+    const body=R("div",{style:{position:"absolute",left:0,bottom:0,width:40,height:32,background:bodyC,borderRadius:"52% 52% 44% 44% / 62% 62% 38% 38%",boxShadow:`inset ${dir>0?1:-1}px 1px 0 rgba(255,255,255,.18)`}});
+    const animName={fidget:"pb-fidget 380ms ease-in-out",hop:"pb-hop 720ms cubic-bezier(.3,.7,.3,1)",squash:"pb-squash 420ms ease-out",stretch:"pb-stretch 1400ms ease-in-out",yawn:"pb-yawn 1400ms ease-in-out",wobble:"pb-wobble 500ms ease-out",sigh:"pb-sigh 700ms ease-in-out",pant:"pb-pant .5s ease-in-out infinite",topple:"pb-topple 1400ms cubic-bezier(.4,.2,.3,1)"}[S.anim];
+    const idleAnim=asleep?"pb-sleep 3.2s ease-in-out infinite":"pb-breathe 5s ease-in-out infinite";
+    const tilt = (S.moveKind==="scoot" ? (S.moveDir||0)*6 : near&&!asleep ? (gx>0?-6:6) : S.sulk ? (dir>0?6:-6) : 0) + (S.lean||0);
+    const travelAnim = S.moveKind==="roll" ? `pb-rollbob ${Math.max(120,Math.round(S.perTurn||300))}ms ease-in-out infinite` : S.moveKind==="scoot" ? `pb-scoot ${S.hopMs||340}ms cubic-bezier(.35,.6,.4,1) ${S.hops||3}` : null;
+    const rollLayer=R("div",{style:{position:"absolute",inset:0,transform:`rotate(${S.rot}deg)`,transformOrigin:"50% 60%",transition:S.moveKind==="roll"?`transform ${S.moveDur}ms cubic-bezier(.25,.6,.3,1)`:"none"}},body,eyes,propEl);
+    const squashLayer=R("div",{key:S.animKey+(S.anim||"")+(S.moveKind||""),style:{position:"absolute",inset:0,transformOrigin:S.anim==="topple"?"50% 60%":"50% 100%",animation:animName||travelAnim||idleAnim}},rollLayer);
+    const leanLayer=R("div",{style:{position:"absolute",inset:0,transformOrigin:"50% 100%",transform:`rotate(${tilt}deg) ${asleep?"rotate(-8deg) translateY(2px)":""}`,transition:"transform .4s"}},squashLayer);
+    const note=S.awayFrom!=null?R("span",{style:{position:"absolute",left:34,top:2,fontSize:11,color:eyeC,opacity:0,animation:"pb-note 1.6s ease-out infinite"}},"♪"):null;
+    const zzz=asleep?[0,1,2].map(i=>R("span",{key:"z"+i,style:{position:"absolute",left:30+i*4,top:2-i*6,fontSize:9+i*1.5,fontWeight:500,color:isNight?"#dfe6ea":"#1f2a28",opacity:0,animation:`pb-zzz 2.8s ease-out ${i*0.9}s infinite`}},"z")):null;
+    const sparks=S.sparks?[[-14,-22],[16,-24],[-20,-6],[22,-8],[0,-30]].map((p,i)=>R("span",{key:"s"+i,style:{position:"absolute",left:18,top:6,width:5,height:5,borderRadius:1,background:"#3f6f69",transform:"rotate(45deg)","--sx":p[0]+"px","--sy":p[1]+"px",animation:`pb-spark .7s ease-out ${i*.04}s forwards`}})):null;
+    const dust=S.dust&&S.moveKind?R("span",{key:"d"+S.dust.key,style:{position:"absolute",left:S.dust.x-8,top:py-8,width:16,height:7,borderRadius:"50%",background:isNight?"rgba(223,230,234,.5)":"rgba(31,42,40,.35)","--dx":(S.dust.dir*14)+"px",animation:"pb-dust .6s ease-out forwards",filter:"blur(1px)"}}):null;
+    const sw=46+Math.abs(dir)*34;
+    const shadow=R("div",{style:{position:"absolute",left:px-sw/2+dir*30,top:py-3,width:sw,height:5,borderRadius:"50%",background:"#1f2a28",opacity:isNight?.14:.24,filter:"blur(2px)",transition:`left ${S.moveDur||400}ms cubic-bezier(.25,.6,.3,1)`}});
+    const box=R("div",{onClick:(e)=>{ e.stopPropagation();
+        if(!asleep){ this.setState({caption:"찔렸다 — 움찔(눈 크게, !), 그리고 2초 삐침(점 눈으로 딴 데 봄)."}); this.play("squash",420,()=>this.sulk(2200)); }
+        else if(S.mode==="nap"){ this.setState({mode:"idle",awayFrom:null,caption:"화들짝 — 낮잠 깸. 눈이 커지고 나뭇잎이 떨어진다. 아무 일 없었던 척 곧 평상시."}); this.play("squash",420); }
+        else { this.setState({caption:"자는데 건드림 — 한쪽 눈만 뜨고 째려본다. 1.5초 뒤 다시 감는다."}); this.peek(1500); } },
+      style:{position:"absolute",left:px-20,top:py-34,width:40,height:34,cursor:"pointer",transition:`left ${S.moveDur||400}ms ${S.moveKind==="roll"?"cubic-bezier(.4,0,.25,1)":S.moveKind==="scoot"?`steps(${S.hops||3}, end)`:"cubic-bezier(.25,.6,.3,1)"}`,filter:`drop-shadow(${(dir*7).toFixed(1)}px 5px 3px rgba(31,42,40,${isNight?.3:.42}))`}},leanLayer,zzz,sparks,note);
+    const pebble=R("div",{style:{position:"absolute",inset:0,zIndex:5,pointerEvents:"none"}},shadow,dust,R("div",{style:{position:"absolute",inset:0,pointerEvents:"auto"}},box));
+    // ---- controls ----
+    const btn=(label,active,go)=>({label, go, style:`height:28px;padding:0 12px;border-radius:14px;display:grid;place-items:center;font-size:12px;cursor:pointer;user-select:none;border:1px solid ${active?"#3f6f69":"rgba(31,42,40,.18)"};background:${active?"#3f6f69":"#f5f8f4"};color:${active?"#f2f6f3":"#1f2a28"};box-shadow:${active?"2px 3px 6px rgba(31,42,40,.25)":"1px 1px 2px rgba(31,42,40,.1)"}`});
+    const m=S.mode;
+    const buttons=[
+      btn("평상시",m==="idle",()=>{ this.setState({mode:"idle",now:600,done:"2,3",ghost:null,lookUp:false,awayFrom:null,sulk:false,caption:"평상시 — 5~13초마다 무작위로 하나: 무게 옮기기(살짝 기울기) · 꿈틀 · 주위 둘러보기 · 두세 걸음 옆으로 총총 · 한숨·하품·기지개. 같은 행동은 연속으로 안 함. 눈은 해만 보지 않고 가끔 딴 데를 본다."}); this.go(this.clampX(470+this.rnd(-60,60)),"auto"); }),
+      btn("10분 뒤 다음 업무",m==="next",()=>{ this.setState({mode:"next",now:625,done:"2,3",ghost:null,awayFrom:null,caption:"10:25 — 10:35 업무가 코앞. 먼저 한숨(숨 구름), 그다음 굴러간다. 도착하면 눈 크게 뜨고 땀방울 흘리며 올려다본다. 게으른 애가 굴러왔다는 게 곧 '이거 진짜야'라는 뜻."}); this.go(this.beadX(635),"roll",()=>{ this.setState({lookUp:true}); this.play("pant",1500); }); }),
+      btn("업무 완료 ✓",m==="done",()=>{ const combo=Date.now()-(this._lastDone||0)<6000; this._lastDone=Date.now();
+        this.setState({mode:"done",now:640,done:"2,3,4",ghost:null,lookUp:false,awayFrom:null,sparks:true,caption:combo?"연속 완료! — 너무 신나서 팔짝이 과했다. 한 바퀴 뒤집혀 거꾸로 잠깐(눈 크게), 다시 바로 선다.":"체크 — 팔짝, 눈이 ^ ^ 활 모양. 종이 조각이 튄다. 6초 안에 또 완료하면?"});
+        this.play(combo?"topple":"hop",combo?1400:720,()=>this.setState({sparks:false})); }),
+      btn("지난 업무 있음",m==="over",()=>{ this.setState({mode:"over",now:660,done:"2,3",ghost:null,lookUp:false,caption:"10:35 업무가 지났다 — 못 본 척. 그 구슬에서 살짝 떨어져 점 눈으로 반대쪽을 보며 ♪. 잔소리 대신 코미디, 그리고 딱 한 번."}); const bx=this.beadX(635); this.go(bx+80,"auto",()=>{ this.setState({awayFrom:bx}); setTimeout(()=>this.setState({awayFrom:null}),3200); }); }),
+      btn("새 항목 시각 고르는 중",m==="ghost",()=>{ this.setState({mode:"ghost",now:600,done:"2,3",ghost:900,awayFrom:null,caption:"15:00을 고르는 중 — 점선 구슬 아래로 가서(가까우면 총총, 멀면 굴러) 같이 올려다본다. 머리 위에 ? 하나. 시각을 바꾸면 따라 움직인다."}); this.go(this.beadX(900),"auto",()=>this.setState({lookUp:true})); }),
+      btn("한숨",S.anim==="sigh",()=>{ this.setState({caption:"한숨 — 부풀었다가 푹 꺼진다. 눈 감고 작은 숨 구름 하나. 움직이기 전엔 항상 이걸 먼저 한다."}); this.play("sigh",700); }),
+      btn("기지개",S.anim==="stretch",()=>{ this.setState({caption:"한가함 — 세로로 길게 늘어나며 눈을 감는다. 1.4초."}); this.play("stretch",1400); }),
+      btn("하품",S.anim==="yawn",()=>{ this.setState({caption:"한가함 — 눈 감고 부풀며 숨 구름. 5분 이상 입력 없으면 이걸 하고, 그래도 없으면 낮잠."}); this.play("yawn",1400); }),
+      btn("오래 비활성 → 낮잠",m==="nap",()=>{ this.setState({now:840,done:"2,3,4",ghost:null,lookUp:false,awayFrom:null,caption:"입력이 15분 없음 — 낮잠. 자리는 매번 조금 다르다(그 자리 그대로, 또는 몇 걸음 옆). 너무 오래 가만히 있어서 머리에 나뭇잎이 떨어졌다. 마우스가 돌아오면 화들짝 깬다(돌을 눌러 보세요)."}); const x=this.spot("nap"); Math.abs(x-S.x)<4 ? this.setState({mode:"nap"}) : this.moveTo(x,"scoot",()=>this.setState({mode:"nap"})); }),
+      btn("전부 완료",m==="all",()=>{ this.setState({mode:"all",now:1060,done:"1,2,3,4,5,6,7,8",ghost:null,lookUp:false,awayFrom:null,sparks:true,caption:"마지막 체크 — 팔짝, 그리고 ^ ^ 눈으로 일몰 자리까지 굴러가 파자마 모자를 쓰고 눕는다. 하늘이 밤으로 넘어간다(조건 a or b)."}); this.play("hop",720,()=>{ this.setState({sparks:false}); this.moveTo(this.spot("sleep"),"roll",()=>this.setState({mode:"sleep"})); }); }),
+      btn("밤",m==="sleep"&&S.now>=1200,()=>{ this.setState({now:1320,done:"1,2,3,4,5,6",ghost:null,lookUp:false,awayFrom:null,caption:"해가 진 뒤 — 잠자리를 고른다: 일몰 자리 · 왼쪽 구석 · 가운데 중 어제와 다른 곳. 파자마 모자 쓰고 잔다. 건드리면 한쪽 눈만 뜬다."}); this.go(this.spot("sleep"),"auto",()=>this.setState({mode:"sleep"})); }),
+    ];
+    const c="padding:7px 0;border-top:1px solid rgba(31,42,40,.1)";
+    const rows=[
+      {moment:"평상시",signal:"cursor · 시간 흐름",friend:"옆에서 같이 심심해한다",act:"눈이 커서를 따라옴, 깜빡, 가끔 한숨·하품. 커서가 너무 가까우면 실눈 뜨고 살짝 물러섬(개인 공간). 누르면 움찔(!) → 2초 삐침(점 눈)",weight:"아주 약함 · 항상"},
+      {moment:"다음 업무 10분 전",signal:"nextTaskMin − nowMin ≤ 10",friend:"시계를 슬쩍 보고 눈짓한다",act:"한숨 → 굴러감 → 도착해 헐떡이며 올려다봄. 게으른 애가 움직였다 = 진짜라는 신호",weight:"중간 · 하루 수 회"},
+      {moment:"업무 완료",signal:"justCompleted",friend:"하이파이브",act:"팔짝 + 활짝 + 종이 조각. 6초 안에 연속 완료면 너무 신나서 한 바퀴 뒤집힘",weight:"중간 · 체크마다"},
+      {moment:"전부 완료",signal:"allDone",friend:"'오늘 끝!' 하고 같이 눕는다",act:"팔짝 → ^ ^ 눈으로 일몰 자리까지 굴러가 파자마 모자 쓰고 잠. 하늘은 밤으로",weight:"강함 · 하루 1회"},
+      {moment:"업무 지남",signal:"overdueCount > 0",friend:"못 본 척 해준다",act:"구슬에서 살짝 떨어져 반대쪽 보며 휘파람(♪). 3초, 딱 한 번. 절대 반복·잔소리 없음",weight:"약함 · 지남당 1회"},
+      {moment:"새 항목 시각 고르기",signal:"ghostMin ≠ null",friend:"'거기?' 하며 같이 본다",act:"점선 구슬 아래로 가서(가까우면 총총, 멀면 굴러) 올려다봄. 시각이 바뀌면 따라감",weight:"약함 · 입력 중"},
+      {moment:"한가함",signal:"idleSec > 300",friend:"기지개, 하품",act:"기지개 또는 하품 1회. 5분 더 지나면 낮잠",weight:"약함 · 드묾"},
+      {moment:"사용자 복귀",signal:"idle → cursor 움직임",friend:"화들짝",act:"자다가 움찔, 눈이 커짐, 0.4초 뒤 평상시",weight:"약함 · 복귀 시"},
+      {moment:"밤",signal:"isNight (a or b)",friend:"잔다",act:"파자마 모자, 눈 감고 느리게 부풀기, z 세 개. 커서를 따라가지 않음. 건드리면 한쪽 눈만 뜬 뒤 다시 잠",weight:"약함 · 밤 내내"},
+    ].map(r=>({...r,c}));
+    return { pebble, buttons, rows, now:S.now, nowText:fmt(S.now), done:S.done, ghost:S.ghost, dusk, night, lightT, caption:S.caption, inkColor:isNight?"#e8ece9":"#1f2a28", stageRef:this.stageRef,
+      onMove:(e)=>{ if(asleep) return; const r=this._stage.getBoundingClientRect(); this.setState({cursor:{x:e.clientX-r.left,y:e.clientY-r.top}}); }, onLeave:()=>this.setState({cursor:null}) };
+  }
+}
+</script>
+</body>
+</html>

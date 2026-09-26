@@ -6,6 +6,7 @@ import paths
 
 BASE = paths.RES_DIR
 _icon = None
+_title = None                   # 아이콘이 생기기 전에 받은 제목 (생기면 바로 얹는다)
 
 
 def _tray_size():
@@ -58,13 +59,19 @@ def start(on_open, on_test, on_quit, subtitle=lambda: paths.APP_NAME):
     실패를 조용히 넘기면 안 된다. 아이콘이 없으면 창을 닫았을 때 프로그램이
     살아 있다는 표시가 아무것도 남지 않아서 "그냥 꺼졌다" 로 보인다.
     """
+    # 아이콘을 짓는 일(pystray · PIL 을 처음 불러오고 app.ico 를 푸는 데 0.2초)도
+    # 트레이 스레드에서 한다. 예전에는 메인 스레드에서 해서 그만큼 앱 창이 늦게 떴다.
+    threading.Thread(target=_run, args=(on_open, on_test, on_quit), daemon=True).start()
+
+
+def _run(on_open, on_test, on_quit):
     global _icon
     try:
         import pystray
         from pystray import MenuItem as Item
     except Exception:
         paths.log("tray: pystray 임포트 실패" + chr(10) + traceback.format_exc())
-        return None
+        return
 
     menu = pystray.Menu(
         Item("열기", lambda: on_open(), default=True),
@@ -74,25 +81,16 @@ def start(on_open, on_test, on_quit, subtitle=lambda: paths.APP_NAME):
         Item("완전히 종료", lambda: _quit(on_quit)),
     )
     try:
-        _icon = pystray.Icon("lazyscheduler", _image(), paths.APP_NAME, menu)
+        icon = pystray.Icon("lazyscheduler", _image(), _title or paths.APP_NAME, menu)
     except Exception:
         paths.log("tray: 아이콘 생성 실패" + chr(10) + traceback.format_exc())
-        return None
-
-    def _run():
-        try:
-            _icon.run()
-        except Exception:
-            # 스레드에서 터지면 빌드본은 stderr 가 없어 흔적도 없이 사라진다
-            paths.log("tray: run 실패" + chr(10) + traceback.format_exc())
-
-    threading.Thread(target=_run, daemon=True).start()
-    return _icon
-
-
-def available():
-    """알림영역 아이콘이 실제로 올라왔는지."""
-    return _icon is not None
+        return
+    _icon = icon
+    try:
+        icon.run()
+    except Exception:
+        # 스레드에서 터지면 빌드본은 stderr 가 없어 흔적도 없이 사라진다
+        paths.log("tray: run 실패" + chr(10) + traceback.format_exc())
 
 
 _base_image = None
@@ -137,6 +135,8 @@ def set_badge(n):
 
 
 def set_title(text):
+    global _title
+    _title = text
     if _icon is not None:
         try:
             _icon.title = text

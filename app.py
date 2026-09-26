@@ -149,11 +149,10 @@ def _hint_hidden():
     if _hinted:
         return
     _hinted = True
-    where = ("알림은 계속 동작합니다. 작업표시줄 알림영역(^ 안쪽)의 체크 아이콘이나 "
-             "바탕화면 아이콘으로 다시 열 수 있어요."
-             if tray.available()
-             else "알림은 계속 동작합니다. 바탕화면 아이콘으로 다시 열 수 있어요.")
-    toast.notify("창만 닫았습니다", where, accent="#85bdb3", key="hint:hidden")
+    # 한 줄이면 된다. 긴 설명은 창을 닫자마자 읽게 할 것이 아니고, 어차피 읽지도 않는다.
+    # 스쳐 지나가는 안내라 1.6초 뒤 저절로 사라지고, 눌러도 창이 다시 열리지 않는다.
+    toast.notify("창만 닫았습니다", "알림은 계속 동작합니다", accent="#85bdb3",
+                 key="hint:hidden", can_open=False, extra={"life": 1.6})
 
 
 def close_ui():
@@ -261,6 +260,11 @@ class Handler(BaseHTTPRequestHandler):
         if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
             raise ApiError(403, "인증되지 않은 요청입니다")
 
+    def _overview(self):
+        o = store.overview()
+        o["settings"] = dict(o["settings"], autostart=autostart.is_enabled())
+        return o
+
     def _query(self, name):
         q = parse_qs(urlparse(self.path).query).get(name)
         return q[0] if q else None
@@ -355,9 +359,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._static(p)
         self._guard(api=True)
         if p == "/api/overview":
-            o = store.overview()
-            o["settings"] = dict(o["settings"], autostart=autostart.is_enabled())
-            return self._send(200, o)
+            return self._send(200, self._overview())
         if p == "/api/notify-plan":
             return self._send(200, notify_plan())
         if p == "/api/suggest":
@@ -427,10 +429,20 @@ class Handler(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         self._guard(api=True)
         body = self._body()
+        if p == "/api/task" or p.startswith("/api/task/") or p == "/api/settings":
+            out = self._change(p, body)
+            _WAKE.set()
+            # ?ov=1 이면 바뀐 뒤의 개요를 함께 싣는다. 창은 무언가 누를 때마다 "바꿔 줘" 를
+            # 보내고 곧이어 개요를 또 물었다 - 왕복 두 번이 한 번이 된다.
+            if self._query("ov"):
+                out = dict(out, overview=self._overview())
+            return self._send(200, out)
+        self._command(p, body)
+
+    def _change(self, p, body):
+        """일정 · 설정을 바꾸는 요청. 보낼 본문을 돌려준다 (보내는 것은 _post)."""
         if p == "/api/task":
-            return self._send(200, store.add(body))
-        if p == "/api/preview":
-            return self._send(200, preview(body.get("rule")))
+            return store.add(body)
         if p.startswith("/api/task/"):
             parts = p.split("/")                 # ['', 'api', 'task', <id>, <동작>]
             if len(parts) > 5:
@@ -438,16 +450,16 @@ class Handler(BaseHTTPRequestHandler):
             tid = unquote(parts[3])
             act = parts[4] if len(parts) == 5 else ""
             if act == "":
-                return self._send(200, store.update(tid, body))
+                return store.update(tid, body)
             if act == "done":
-                return self._send(200, store.set_done(tid, body.get("date"), body.get("done", True)))
+                return store.set_done(tid, body.get("date"), body.get("done", True))
             if act == "skip":
-                return self._send(200, store.skip(tid, body.get("date")))
+                return store.skip(tid, body.get("date"))
             if act == "unskip":
-                return self._send(200, store.unskip(tid, body.get("date")))
+                return store.unskip(tid, body.get("date"))
             if act == "delete":
                 store.remove(tid)
-                return self._send(200, {"ok": True})
+                return {"ok": True}
             raise ApiError(404, "없는 경로입니다")
         if p == "/api/settings":
             auto = body.pop("autostart", None)
@@ -456,7 +468,13 @@ class Handler(BaseHTTPRequestHandler):
             st = store.update_settings(body)     # 확인이 끝난 뒤에만 레지스트리를 건드린다
             if auto is not None:
                 autostart.set_enabled(auto)
-            return self._send(200, dict(st, autostart=autostart.is_enabled()))
+            return dict(st, autostart=autostart.is_enabled())
+        raise ApiError(404, "없는 경로입니다")
+
+    def _command(self, p, body):
+        """그 밖의 요청: 미리보기 · 동기화 · 창 · 종료."""
+        if p == "/api/preview":
+            return self._send(200, preview(body.get("rule")))
         if p == "/api/sync/signin":
             # 브라우저가 열리고, 사람이 로그인을 마칠 때까지 뒤에서 기다린다.
             # 화면은 GET /api/sync 로 진행을 본다.
@@ -522,6 +540,10 @@ def preview(rule):
 
 
 # ---------------- 알림 스케줄러 ----------------
+# 창에서 무언가 바꾸면 다음 분을 기다리지 않고 한 번 돈다 (트레이의 "N건 남음" 이 곧바로 맞게)
+_WAKE = threading.Event()
+
+
 def scheduler():
     fails = 0
     while True:
@@ -530,11 +552,14 @@ def scheduler():
             fails = 0
         except Exception:
             # 예전에는 여기서 그냥 넘어갔다. 알림이 왜 안 뜨는지 알 방법이 없었다.
-            # 같은 오류가 20초마다 로그를 채우지 않게 처음 몇 번과 이후 한 시간에 한 번만 남긴다.
+            # 같은 오류가 1분마다 로그를 채우지 않게 처음 몇 번과 이후 한 시간에 한 번만 남긴다.
             fails += 1
-            if fails <= 3 or fails % 180 == 0:
+            if fails <= 3 or fails % 60 == 0:
                 log("scheduler tick 실패 (%d회째)" % fails + chr(10) + traceback.format_exc())
-        time.sleep(20)
+        # 알림 시각은 분 단위다. 예전처럼 20초마다 돌면 세 번에 두 번은 할 일이 없고,
+        # 그러면서도 최대 20초 늦게 떴다. 분이 바뀐 직후에 한 번씩 돌면 덜 깨고 더 정확하다.
+        _WAKE.wait(60.5 - time.time() % 60)
+        _WAKE.clear()
 
 
 def _plus(hhmm, minutes):
@@ -547,12 +572,23 @@ def _plus(hhmm, minutes):
     return "23:59" if total >= 24 * 60 else "%02d:%02d" % (total // 60, total % 60)
 
 
+def nudge_ui():
+    """창이 떠 있으면 지금 다시 읽으라고 한다. 창이 없으면 조용히 넘어간다.
+
+    부르는 쪽은 알림 창의 메시지 루프다 - 거기서 소켓을 기다리면 그동안 카드가
+    멈춘다. 따로 돌린다.
+    """
+    threading.Thread(target=lambda: ipc.post(ipc.UI_PORT, "/reload", timeout=0.5),
+                     daemon=True).start()
+
+
 def _complete(tid, day):
     """알림 카드의 [완료]. 이미 완료했으면 그대로, 그 사이 지워졌으면 조용히 넘어간다."""
     try:
         store.set_done(tid, day, True)
     except store.NotFoundError:
-        pass
+        return
+    nudge_ui()
 
 
 SNOOZE_MIN = 10
@@ -589,7 +625,7 @@ def _snooze(i):
 def tick(now=None):
     now = now or datetime.now()
     hm = now.strftime("%H:%M")
-    d = store.load()
+    d, rev = store.snapshot()
     st = store.settings(d)
     default_lead = timedelta(minutes=st["notify_min"])
     # 발표 중 알림을 미룰지는 설정에서 바꿀 수 있다. 매 틱 반영한다.
@@ -598,7 +634,7 @@ def tick(now=None):
     first_tick = not getattr(tick, "_ran", False)
     tick._ran = True
 
-    o = store.overview(data=d, now=now)
+    o = store.overview(data=d, now=now, rev=rev)      # 파일이 그대로면 지난번 계산을 다시 쓴다
     left = o["stats"]["left"]
     tray.set_title(f"{paths.APP_NAME} · {left}건 남음" if left
                    else f"{paths.APP_NAME} · 급한 일 없음")

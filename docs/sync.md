@@ -64,7 +64,7 @@ A deleted item keeps only `id`, `deleted: true`, `updated`, `schema`
 
 | Shared (`meta/settings`) | Stays on each device |
 |---|---|
-| `notify_min`, `brief_time`, `business_only`, `holidays` (extra dates) | `hold_when_busy`, autostart, `show_weekend`, `show_routines`, fired-alert records (`state.json`) |
+| `notify_min`, `brief_time`, `business_only`, `holidays` (extra dates) | `hold_when_busy`, autostart, `show_weekend`, `show_routines`, `theme`, fired-alert records (`state.json`) |
 
 View preferences stay local because a phone calendar and a PC calendar are
 laid out differently.

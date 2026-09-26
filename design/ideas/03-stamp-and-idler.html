@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시제품 · 결재 도장과 게으름뱅이</title>
+<style>
+@font-face{font-family:"Paperlogy"; font-weight:300; font-display:swap;
+  src:url(../../web/fonts/paperlogy-300.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:400; font-display:swap;
+  src:url(../../web/fonts/paperlogy-400.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:500; font-display:swap;
+  src:url(../../web/fonts/paperlogy-500.woff2) format("woff2")}
+
+:root{
+  --bg:#eef1f0;
+  --card:#eef1f0;
+  --dark:#c6cccb;
+  --light:#ffffff;
+  --pale:#dde2e1;
+  --wash-hi:#f5f7f6;
+  --wash-lo:#e8eceb;
+  --sheet2:#dee4e3;
+  --sheet3:#d5dcdb;
+  --desk:#c7d6d1;
+  --desk-hi:#d4e0dc;
+  --desk-lo:#b8cac4;
+  --desk-dark:#9fb5ae;
+  --tab-off:#b0c4be;
+  --ink2:#2b2620;
+  --body:#3a332b;
+  --muted:#453d33;
+  --faint:#5c5346;
+  --dim:#8b8175;
+  --mint:#85bdb3;
+  --mid:#4d7572;
+  --mid-ink:#466a68;
+  --warm:#8f5e2c;
+  --hol:#9d4038;
+  --danger:#9d4038;
+  --deep:#08202b;
+  --deep-hi:#123140;
+  --onmid:#eef3f1;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --paper:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .19 0 0 0 0 .14 0 0 0 .3 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background-color:var(--desk); color:var(--body);
+  background-image:radial-gradient(120% 90% at 50% 0, var(--desk-hi), transparent 60%);
+  font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:400;
+  -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1;
+  display:flex; flex-direction:column; align-items:center; padding:28px 24px 48px}
+
+h1{margin:0 0 6px; font-size:24px; letter-spacing:-.02em; font-weight:500; color:var(--ink2)}
+.sub{margin:0 0 26px; font-size:13px; color:var(--faint); max-width:700px; line-height:1.7; text-align:center}
+.sub b{color:var(--mid-ink); font-weight:500}
+
+/* ───────── 책상 ───────── */
+.scene{position:relative; flex:0 0 auto; width:700px; height:400px}
+.s3,.s2,.sheet{position:absolute; border-radius:16px; left:0; top:0; width:452px; height:100%}
+.s3{background-color:var(--sheet3); transform:translate(10px,10px) rotate(.3deg);
+  box-shadow:2px 3px 8px rgba(43,38,32,.14); opacity:0; transition:opacity .5s var(--ease)}
+.s2{background-color:var(--sheet2); transform:translate(5px,5px) rotate(-.18deg);
+  box-shadow:2px 3px 7px rgba(43,38,32,.12); opacity:0; transition:opacity .5s var(--ease)}
+.scene.load2 .s2,.scene.load3 .s2,.scene.load3 .s3{opacity:1}
+.sheet{z-index:2; background-color:var(--card); background-image:var(--paper);
+  background-size:200px 200px; background-blend-mode:multiply;
+  box-shadow:4px 5px 14px rgba(43,38,32,.16), -2px -2px 8px rgba(255,255,255,.55);
+  padding:22px 24px; display:flex; flex-direction:column}
+
+.hd{display:flex; align-items:baseline; gap:10px; padding-bottom:10px;
+  border-bottom:1px solid rgba(139,129,117,.22)}
+.hd b{font-size:15px; font-weight:500; color:var(--ink2)}
+.hd span{font-size:11.5px; color:var(--faint)}
+.hd .hint{margin-left:auto; font-size:11px; color:var(--dim)}
+
+.rows{margin-top:4px}
+.row{position:relative; display:flex; align-items:center; gap:11px; min-height:54px;
+  padding:8px 6px 8px 2px; cursor:pointer; border-radius:8px;
+  transition:box-shadow .09s linear, background-color .18s var(--ease)}
+.row + .row{box-shadow:inset 0 1px 0 rgba(139,129,117,.16)}
+.row:hover{background-color:rgba(255,255,255,.34)}
+.row.press{box-shadow:inset 2px 2px 6px var(--dark), inset -2px -2px 6px var(--light)}
+.row i.bar{flex:0 0 auto; width:3px; height:16px; border-radius:2px; background-color:var(--mid)}
+.row.rt i.bar{background-color:var(--mint)}
+.row .t{flex:1; min-width:0}
+.row .t b{display:block; font-size:13px; font-weight:500; color:var(--ink2); letter-spacing:.01em}
+.row .t small{display:block; margin-top:3px; font-size:11.5px; color:var(--faint)}
+.row .tm{flex:0 0 auto; font-size:12px; color:var(--mid-ink); padding-right:56px}
+.row.on .t b, .row.on .t small, .row.on .tm{color:var(--dim)}
+
+/* ───────── 도장 ───────── */
+.stamp{position:absolute; right:6px; top:50%; width:58px; height:58px;
+  margin-top:-29px; pointer-events:none; color:var(--hol);
+  mix-blend-mode:multiply; opacity:0;
+  transform:translateY(-16px) scale(1.55) rotate(var(--rot,0deg));
+  transition:opacity .13s linear, transform .13s cubic-bezier(.2,.95,.3,1)}
+.stamp .bleed{position:absolute; inset:0; filter:blur(2.6px); opacity:0;
+  transition:opacity .42s var(--ease) .08s, transform .42s var(--ease) .08s;
+  transform:scale(.9)}
+.row.on .stamp{opacity:var(--ink,.86); transform:translateY(0) scale(1) rotate(var(--rot,0deg))}
+.row.on .stamp .bleed{opacity:calc(var(--ink,.86) * .34); transform:scale(1.08)}
+.row.hit .stamp{transform:translateY(0) scale(1.04,.93) rotate(var(--rot,0deg))}
+.stamp svg{width:100%; height:100%; display:block}
+.stamp .speck{opacity:0; transition:opacity .3s var(--ease) .1s}
+.row.wet .stamp .speck{opacity:.55}
+.stamp text{font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:500;
+  text-anchor:middle; fill:currentColor}
+
+/* ───────── 게으름뱅이 ───────── */
+.idler{position:absolute; left:500px; bottom:30px; width:170px; height:150px;
+  display:flex; align-items:flex-end; justify-content:center}
+.guy{position:relative; width:58px; height:52px; transform-origin:50% 100%;
+  transition:transform .55s var(--ease)}
+.guy .body{position:absolute; left:0; bottom:0; width:58px; height:50px;
+  background-color:var(--deep);
+  border-radius:52% 52% 44% 44% / 62% 62% 38% 38%;
+  box-shadow:0 5px 12px rgba(8,32,43,.28), inset -5px -6px 12px rgba(0,0,0,.18),
+             inset 4px 4px 10px rgba(133,189,179,.16);
+  transition:width .6s var(--ease), height .6s var(--ease), border-radius .6s var(--ease),
+             background-color .6s var(--ease);
+  animation:breathe 3.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scaleY(1) scaleX(1)} 50%{transform:scaleY(.965) scaleX(1.02)}}
+.guy .foot{position:absolute; bottom:-2px; width:13px; height:7px; background-color:var(--deep);
+  border-radius:50% 50% 45% 45%; transition:all .6s var(--ease)}
+.guy .foot.l{left:6px} .guy .foot.r{right:6px}
+.eyes{position:absolute; left:0; right:0; top:15px; display:flex; justify-content:center; gap:11px;
+  transition:top .6s var(--ease), opacity .3s linear}
+.eye{position:relative; width:9px; height:10px; border-radius:50%; background-color:var(--onmid);
+  transition:height .1s linear, transform .12s linear}
+.eye .pupil{position:absolute; left:2.2px; top:2.4px; width:4.6px; height:5.2px;
+  border-radius:50%; background-color:var(--deep); transition:transform .18s var(--ease)}
+.guy.blink .eye{height:1.8px}
+.guy.blink .pupil{opacity:0}
+
+/* 자는 중 - 웅덩이가 된다 */
+.guy.s-sleep .body{width:86px; height:17px; border-radius:50% 50% 46% 46% / 72% 72% 28% 28%}
+.guy.s-sleep{width:86px}
+.guy.s-sleep .foot{width:16px; height:5px}
+.guy.s-sleep .foot.l{left:-4px} .guy.s-sleep .foot.r{right:-4px}
+.guy.s-sleep .eyes{top:40px; gap:15px}
+.guy.s-sleep .eye{height:2px; border-radius:2px; width:8px}
+.guy.s-sleep .pupil{opacity:0}
+.guy.s-sleep .body{animation-duration:6.5s}
+
+/* 빼꼼 - 조금 눌렸다 */
+.guy.s-peek .body{width:60px; height:40px}
+.guy.s-peek .eyes{top:22px}
+
+/* 깔림 - 납작하게 눌리고 눈만 */
+.guy.s-buried .body{width:66px; height:26px; border-radius:48% 48% 44% 44% / 66% 66% 34% 34%}
+.guy.s-buried .eyes{top:33px}
+.guy.s-buried .body{animation-duration:5.2s}
+
+/* 지난 마감이 있을 때 - 숨도 안 쉬고 빤히 본다 */
+.guy.s-stare .body{animation:none}
+.guy.s-stare .eye{height:12px; width:10.5px}
+
+/* 돌아앉음 (세 번 찌르면) */
+.guy.away{transform:scaleX(-1) rotate(4deg)}
+
+/* 위에 쌓이는 종이 */
+.pile{position:absolute; left:0; right:0; bottom:0; height:150px; pointer-events:none}
+.pile i{position:absolute; display:block; background-color:var(--card);
+  background-image:var(--paper); background-size:200px 200px; background-blend-mode:multiply;
+  border-radius:1px; box-shadow:0 2px 4px rgba(43,38,32,.20), inset 0 -1px 0 rgba(139,129,117,.25);
+  opacity:0; transform:translateY(-14px) rotate(0deg);
+  transition:opacity .45s var(--ease), transform .45s var(--ease)}
+.pile i:nth-child(1){left:44px; bottom:36px; width:82px; height:15px}
+.pile i:nth-child(2){left:36px; bottom:47px; width:94px; height:14px}
+.pile i:nth-child(3){left:50px; bottom:57px; width:76px; height:13px}
+.idler.p1 .pile i:nth-child(1){opacity:1; transform:translateY(0) rotate(-7deg)}
+.idler.p3 .pile i:nth-child(1){opacity:1; transform:translateY(0) rotate(-7deg)}
+.idler.p3 .pile i:nth-child(2){opacity:1; transform:translateY(0) rotate(5deg)}
+.idler.p3 .pile i:nth-child(3){opacity:1; transform:translateY(0) rotate(-3deg)}
+
+.shadow{position:absolute; left:50%; bottom:-4px; width:74px; height:10px; margin-left:-37px;
+  border-radius:50%; background-color:rgba(8,32,43,.16); filter:blur(4px);
+  transition:width .6s var(--ease), margin-left .6s var(--ease)}
+.idler.sleeping .shadow{width:98px; margin-left:-49px}
+
+.tag{position:absolute; left:0; right:0; bottom:-26px; text-align:center;
+  font-size:11px; color:var(--faint); letter-spacing:.02em}
+
+/* ───────── 조작 ───────── */
+.panel{flex:0 0 auto; margin-top:34px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:700px}
+.panel button{height:34px; padding:0 14px; border:0; border-radius:17px; cursor:pointer;
+  font-family:inherit; font-size:12px; font-weight:400; color:var(--muted);
+  background-color:var(--card); box-shadow:2px 2px 6px var(--desk-dark), -2px -2px 6px var(--desk-hi);
+  transition:box-shadow .12s var(--ease), color .12s var(--ease)}
+.panel button:hover{color:var(--ink2)}
+.panel button:active,.panel button.on{color:var(--ink2);
+  box-shadow:inset 2px 2px 5px var(--desk-dark), inset -2px -2px 5px var(--desk-hi)}
+.panel .sep{width:1px; height:24px; align-self:center; background-color:var(--desk-dark); margin:0 6px}
+
+.notes{flex:0 0 auto; margin-top:40px; max-width:700px; display:grid; grid-template-columns:1fr 1fr; gap:28px}
+.notes h3{margin:0 0 8px; font-size:14px; font-weight:500; color:var(--ink2)}
+.notes p{margin:0 0 10px; font-size:12.5px; line-height:1.75; color:var(--faint)}
+.notes b{color:var(--mid-ink); font-weight:500}
+.notes em{font-style:normal; color:var(--hol)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="rag1"><feTurbulence type="fractalNoise" baseFrequency="0.075" numOctaves="3" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="3.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="rag2"><feTurbulence type="fractalNoise" baseFrequency="0.10" numOctaves="3" seed="23" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="4.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="rag3"><feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="41" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+</defs></svg>
+
+<h1>시제품 · 결재 도장과 게으름뱅이</h1>
+<p class="sub">줄을 <b>눌러서</b> 도장을 찍어 보세요. <b>꾹 누르고 있으면 잉크가 진해집니다.</b>
+다시 누르면 지워집니다. 오른쪽 녀석은 남은 일에 따라 알아서 반응합니다 &mdash;
+<b>커서를 따라 봅니다.</b> 찔러 보셔도 됩니다.</p>
+
+<div class="scene" id="scene">
+  <div class="s3"></div><div class="s2"></div>
+  <div class="sheet">
+    <div class="hd"><b>오늘</b><span id="cnt">5</span><span class="hint">줄을 눌러 결재</span></div>
+    <div class="rows" id="rows"></div>
+  </div>
+
+  <div class="idler" id="idler">
+    <div class="guy" id="guy">
+      <div class="body"></div>
+      <i class="foot l"></i><i class="foot r"></i>
+      <div class="eyes"><div class="eye"><i class="pupil"></i></div><div class="eye"><i class="pupil"></i></div></div>
+    </div>
+    <div class="shadow"></div>
+    <div class="pile"><i></i><i></i><i></i></div>
+    <div class="tag" id="tag">&nbsp;</div>
+  </div>
+</div>
+
+<div class="panel">
+  <button data-pin="buried">깔림 (9건 이상)</button>
+  <button data-pin="peek">빼꼼 (4~8건)</button>
+  <button data-pin="sit">앉음 (1~3건)</button>
+  <button data-pin="sleep">잠 (0건)</button>
+  <button data-pin="stare">지난 마감 있음</button>
+  <span class="sep"></span>
+  <button data-pin="" class="on">실제 남은 일 따라가기</button>
+  <button id="reset">도장 전부 지우기</button>
+</div>
+
+<div class="notes">
+  <div>
+    <h3>결재 도장</h3>
+    <p>컴플라이언스 업무를 끝내는 것은 곧 <b>결재</b>입니다. 그래서 체크 대신 도장을 씁니다 &mdash;
+    동작이 실제 벌어지는 일과 같습니다.</p>
+    <p>귀여운 곳은 <b>삐뚤어짐</b>입니다. 각도가 매번 &plusmn;6&deg; 안에서 달라지고, 가장자리가
+    난류(feTurbulence)로 우글거려 찍을 때마다 모양이 다릅니다. 하루치를 다 끝내면
+    손으로 찍은 종이처럼 보입니다.</p>
+    <p>찍히는 순간 <b>종이가 눌립니다</b> (90ms). 앱이 이미 쓰는 눌림 그림자 그대로입니다.
+    그리고 번짐이 0.4초에 걸쳐 퍼집니다.</p>
+    <p><em>쓸모없지만 반드시 시험해 보게 되는 것:</em> 오래 누르고 있을수록 잉크가 진해집니다.</p>
+  </div>
+  <div>
+    <h3>게으름뱅이</h3>
+    <p>앱 이름이 <b>Lazy</b>Scheduler인데 지금 게으른 것이 하나도 없습니다. 종이 바깥 빈 책상에
+    작은 녀석을 둡니다. 성격은 하나뿐입니다 &mdash; <b>게으릅니다.</b></p>
+    <p>할 일이 쌓이면 종이에 <b>깔려서</b> 납작해지고, 줄어들면 일어나 앉습니다.
+    다 끝내면 축하하지 않습니다. <b>웅덩이가 되어 잡니다.</b></p>
+    <p>지난 마감이 있으면 잔소리하지 않습니다. <b>숨도 안 쉬고 빤히 봅니다.</b></p>
+    <p>세 번 찌르면 <b>돌아앉습니다.</b> 잠시 뒤에 잊고 돌아옵니다.</p>
+    <p><em>지키는 선:</em> 절대 말을 걸지 않습니다. 말풍선이 뜨는 순간 업무 도구가 아니게 됩니다.</p>
+  </div>
+</div>
+
+<script>
+var DATA = [
+  {t:"아침 운용현황 출력", s:"루틴 \u00b7 매 영업일", m:"08:30", rt:1},
+  {t:"교보생명 컴플 체크리스트", s:"루틴 \u00b7 매 영업일", m:"08:40", rt:1},
+  {t:"리스크 한도 점검표 회신", s:"마감 \u00b7 오늘", m:"11:30", rt:0},
+  {t:"이사회 자료 최종 검수", s:"마감 \u00b7 오늘", m:"14:00", rt:0},
+  {t:"월말 보고서 제출", s:"마감 \u00b7 오늘", m:"17:00", rt:0}
+];
+var SVG = '<span class="stamp"><span class="bleed">__S__</span>__S__</span>';
+function stampSvg(f){
+  return '<svg viewBox="0 0 64 64"><g filter="url(#rag' + f + ')">' +
+    '<circle cx="32" cy="32" r="28.5" fill="none" stroke="currentColor" stroke-width="3.2"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="currentColor" stroke-width="1.1"/>' +
+    '<text x="32" y="30" font-size="17">확</text>' +
+    '<text x="32" y="48" font-size="17">인</text></g>' +
+    '<g class="speck" fill="currentColor"><circle cx="8" cy="18" r="1.6"/>' +
+    '<circle cx="56" cy="24" r="1.1"/><circle cx="14" cy="52" r="1.3"/>' +
+    '<circle cx="51" cy="55" r="0.9"/><circle cx="34" cy="4" r="1.2"/></g></svg>';
+}
+
+var rowsEl = document.getElementById("rows");
+DATA.forEach(function(d, i){
+  var f = 1 + (i % 3);
+  var el = document.createElement("div");
+  el.className = "row" + (d.rt ? " rt" : "");
+  el.innerHTML = '<i class="bar"></i><div class="t"><b>' + d.t + '</b><small>' + d.s +
+    '</small></div><div class="tm">' + d.m + '</div>' +
+    SVG.split("__S__").join(stampSvg(f));
+  rowsEl.appendChild(el);
+});
+
+var rows = [].slice.call(rowsEl.children), t0 = 0, pressed = null;
+
+rows.forEach(function(el){
+  el.addEventListener("mousedown", function(){
+    if(el.classList.contains("on")) return;
+    t0 = Date.now(); pressed = el; el.classList.add("press");
+  });
+  el.addEventListener("mouseleave", function(){ el.classList.remove("press"); });
+  el.addEventListener("click", function(){
+    el.classList.remove("press");
+    if(el.classList.contains("on")){ el.classList.remove("on", "wet"); tally(); return; }
+    /* 오래 누를수록 잉크가 진해진다 */
+    var held = pressed === el ? Math.min(700, Date.now() - t0) : 0;
+    var ink = 0.68 + held / 700 * 0.32;
+    el.style.setProperty("--ink", ink.toFixed(2));
+    /* 2.5~8도. 0도 가까이 나오면 기계로 찍은 것처럼 보여서 재미가 없다 */
+    var r = (2.5 + Math.random() * 5.5) * (Math.random() < .5 ? -1 : 1);
+    el.style.setProperty("--rot", r.toFixed(1) + "deg");
+    el.classList.toggle("wet", ink > 0.88);        /* 꾹 눌렀으면 잉크가 튄다 */
+    el.classList.add("on");
+    /* 찍히는 순간 종이가 눌리고 도장이 살짝 찌그러진다 */
+    el.classList.add("hit");
+    setTimeout(function(){ el.classList.remove("hit"); }, 90);
+    tally();
+  });
+});
+document.getElementById("reset").onclick = function(){
+  rows.forEach(function(el){ el.classList.remove("on", "wet"); });
+  tally();
+};
+
+/* ───────── 게으름뱅이 ───────── */
+var guy = document.getElementById("guy"), idler = document.getElementById("idler"),
+    scene = document.getElementById("scene"), tag = document.getElementById("tag"),
+    PIN = "", pokes = 0, pokeT = 0;
+var NAME = {buried:"깔림", peek:"빼꼼", sit:"앉음", sleep:"잠", stare:"지난 마감을 보는 중"};
+
+function mood(){
+  if(PIN) return PIN;
+  var left = rows.filter(function(el){ return !el.classList.contains("on"); }).length;
+  if(left === 0) return "sleep";
+  if(left <= 3) return "sit";
+  return "peek";
+}
+function tally(){
+  var left = rows.filter(function(el){ return !el.classList.contains("on"); }).length;
+  document.getElementById("cnt").textContent = left + "건 남음";
+  paint();
+}
+function paint(){
+  var m = mood();
+  guy.className = "guy" + (m === "sit" ? "" : " s-" + m) + (guy.classList.contains("away") ? " away" : "");
+  idler.className = "idler" + (m === "buried" ? " p3" : m === "peek" ? " p1" : "") +
+                    (m === "sleep" ? " sleeping" : "");
+  scene.className = "scene " + (m === "buried" ? "load3" : m === "peek" ? "load2" : "load1");
+  tag.textContent = NAME[m] || "앉음";
+}
+
+/* 눈이 커서를 따라간다 - 자거나 깔려 있으면 따라가지 않는다 (귀찮다) */
+var pupils = guy.querySelectorAll(".pupil");
+document.addEventListener("mousemove", function(e){
+  var m = mood();
+  if(m === "sleep" || m === "buried"){
+    pupils[0].style.transform = pupils[1].style.transform = "";
+    return;
+  }
+  var r = guy.getBoundingClientRect(),
+      dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + 18),
+      d = Math.max(1, Math.sqrt(dx * dx + dy * dy)), k = Math.min(2.6, d / 34);
+  var tf = "translate(" + (dx / d * k).toFixed(2) + "px," + (dy / d * k * .7).toFixed(2) + "px)";
+  pupils[0].style.transform = pupils[1].style.transform = tf;
+});
+
+/* 깜빡임 - 자는 중이나 빤히 볼 때는 안 한다 */
+(function blink(){
+  var m = mood();
+  if(m !== "sleep" && m !== "stare"){
+    guy.classList.add("blink");
+    setTimeout(function(){ guy.classList.remove("blink"); }, 110);
+  }
+  setTimeout(blink, 2600 + Math.random() * 4200);
+})();
+
+/* 찌르면 - 세 번째에 돌아앉는다 */
+guy.parentElement.addEventListener("click", function(){
+  clearTimeout(pokeT);
+  pokes++;
+  if(pokes >= 3){
+    guy.classList.add("away");
+    tag.textContent = "돌아앉음";
+    pokeT = setTimeout(function(){ guy.classList.remove("away"); pokes = 0; paint(); }, 4200);
+    return;
+  }
+  guy.classList.add("blink");                       /* 느리게 한 번 깜빡이고 만다 */
+  setTimeout(function(){ guy.classList.remove("blink"); }, 320);
+  pokeT = setTimeout(function(){ pokes = 0; }, 2600);
+});
+
+[].forEach.call(document.querySelectorAll("[data-pin]"), function(b){
+  b.onclick = function(){
+    [].forEach.call(document.querySelectorAll("[data-pin]"), function(x){ x.classList.remove("on"); });
+    b.classList.add("on");
+    PIN = b.getAttribute("data-pin");
+    paint();
+  };
+});
+
+tally();
+</script>
+</body>
+</html>

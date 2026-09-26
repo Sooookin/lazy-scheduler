@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시제품 · 게으름뱅이의 자리</title>
+<style>
+@font-face{font-family:"Paperlogy"; font-weight:300; font-display:swap;
+  src:url(../../web/fonts/paperlogy-300.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:400; font-display:swap;
+  src:url(../../web/fonts/paperlogy-400.woff2) format("woff2")}
+@font-face{font-family:"Paperlogy"; font-weight:500; font-display:swap;
+  src:url(../../web/fonts/paperlogy-500.woff2) format("woff2")}
+:root{
+  --bg:#eef1f0;
+  --card:#eef1f0;
+  --dark:#c6cccb;
+  --light:#ffffff;
+  --pale:#dde2e1;
+  --wash-hi:#f5f7f6;
+  --wash-lo:#e8eceb;
+  --sheet2:#dee4e3;
+  --sheet3:#d5dcdb;
+  --desk:#c7d6d1;
+  --desk-hi:#d4e0dc;
+  --desk-lo:#b8cac4;
+  --desk-dark:#9fb5ae;
+  --tab-off:#b0c4be;
+  --ink2:#2b2620;
+  --body:#3a332b;
+  --muted:#453d33;
+  --faint:#5c5346;
+  --dim:#8b8175;
+  --mint:#85bdb3;
+  --mid:#4d7572;
+  --mid-ink:#466a68;
+  --warm:#8f5e2c;
+  --hol:#9d4038;
+  --danger:#9d4038;
+  --deep:#08202b;
+  --deep-hi:#123140;
+  --onmid:#eef3f1;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --paper:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .19 0 0 0 0 .14 0 0 0 .3 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background-color:#dfe6e4; color:var(--body);
+  font-family:"Paperlogy","Malgun Gothic",sans-serif; font-weight:400;
+  -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1;
+  display:flex; flex-direction:column; align-items:center; padding:24px 20px 56px}
+h1{margin:0 0 6px; font-size:22px; font-weight:500; letter-spacing:-.02em; color:var(--ink2)}
+.sub{margin:0 0 22px; font-size:12.5px; color:var(--faint); max-width:680px; line-height:1.7; text-align:center}
+.sub b{color:var(--mid-ink); font-weight:500}
+
+/* ───────── 창 ───────── */
+.win{position:relative; flex:0 0 auto; width:900px; height:600px; border-radius:10px; overflow:hidden;
+  background-color:var(--desk);
+  background-image:radial-gradient(110% 80% at 50% 0, var(--desk-hi), transparent 62%);
+  box-shadow:0 18px 44px rgba(43,38,32,.26)}
+.tb{height:30px; display:flex; align-items:center; justify-content:flex-end; gap:16px;
+  padding:0 14px; font-size:11px; color:var(--dim)}
+.app{position:absolute; left:0; right:0; top:30px; bottom:0; padding:2px 24px 12px;
+  display:flex; flex-direction:column}
+
+.top{display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center;
+  gap:24px; flex:0 0 72px}
+.lh{display:flex; align-items:center; gap:34px; padding-left:32px}
+.d-day{font-size:20px; font-weight:500; color:var(--ink2); letter-spacing:-.02em}
+.clock{font-size:34px; font-weight:300; color:var(--deep); letter-spacing:-.03em; line-height:1}
+.ring{position:relative; width:58px; height:58px; border-radius:50%; display:grid; place-items:center;
+  box-shadow:3px 3px 8px var(--desk-dark), -3px -3px 8px var(--desk-hi)}
+.ring b{font-size:20px; color:var(--deep); font-weight:500}
+.ring i{position:absolute; bottom:10px; font-size:9px; font-style:normal; color:var(--faint)}
+.acts{display:flex; align-items:center; gap:20px; justify-self:end; padding-right:44px}
+.pill{height:32px; padding:0 14px; border-radius:12px; background-color:var(--mid); color:var(--onmid);
+  font-size:12px; display:grid; place-items:center; box-shadow:3px 3px 9px rgba(77,117,114,.34)}
+.gear{width:32px; height:32px; border-radius:12px; background-color:var(--card); display:grid;
+  place-items:center; color:var(--muted); font-size:14px;
+  box-shadow:3px 3px 8px var(--desk-dark), -3px -3px 8px var(--desk-hi)}
+
+.desk{position:relative; flex:1 1 auto; min-height:0; margin:34px 12px 0 0;
+  transition:margin-bottom .5s var(--ease)}
+.s3,.s2,.sheet{position:absolute; inset:0; border-radius:16px}
+.s3{background-color:var(--sheet3); transform:translate(10px,10px) rotate(.3deg); box-shadow:2px 3px 8px rgba(43,38,32,.14)}
+.s2{background-color:var(--sheet2); transform:translate(5px,5px) rotate(-.18deg); box-shadow:2px 3px 7px rgba(43,38,32,.12)}
+.sheet{z-index:2; background-color:var(--card); background-image:var(--paper); background-size:200px 200px;
+  background-blend-mode:multiply; padding:18px 32px;
+  box-shadow:4px 5px 14px rgba(43,38,32,.16), -2px -2px 8px rgba(255,255,255,.55)}
+.dtabs{position:absolute; left:32px; top:-32px; display:flex; gap:12px; z-index:1}
+.dtab{height:32px; padding:0 20px; border-radius:12px 12px 0 0; display:grid; place-items:center;
+  font-size:12px; color:var(--muted); background-color:var(--tab-off)}
+.dtab.on{z-index:3; color:var(--ink2); background-color:var(--card); background-image:var(--paper);
+  background-size:200px 200px; background-blend-mode:multiply}
+.lst h2{margin:0 0 8px; font-size:13px; font-weight:500; color:var(--ink2)}
+.lst .r{display:flex; align-items:center; gap:10px; padding:9px 2px; font-size:12.5px; color:var(--ink2)}
+.lst .r + .r{box-shadow:inset 0 1px 0 rgba(139,129,117,.16)}
+.lst .r i{width:3px; height:14px; border-radius:2px; background-color:var(--mid); flex:0 0 auto}
+.lst .r .g{margin-left:auto; color:var(--mid-ink); font-size:11.5px}
+.lst .r.gone{display:none}
+
+/* ───────── 바닥 선반 ───────── */
+.shelf{position:relative; flex:0 0 0px; height:0; overflow:visible;
+  transition:flex-basis .5s var(--ease), height .5s var(--ease)}
+.on-shelf .shelf{flex:0 0 96px; height:96px}
+.shelf .lip{position:absolute; left:0; right:12px; top:0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.55) 12%, rgba(255,255,255,.55) 88%, transparent);
+  opacity:0; transition:opacity .5s var(--ease)}
+.on-shelf .shelf .lip{opacity:1}
+.foot{position:absolute; left:32px; bottom:8px; display:flex; gap:14px; font-size:10.5px; color:var(--muted);
+  transition:bottom .5s var(--ease)}
+.on-shelf .foot{bottom:10px}
+
+/* ───────── 게으름뱅이 ───────── */
+.idler{position:absolute; left:300px; bottom:12px; width:120px; height:78px;
+  opacity:0; pointer-events:none; transition:opacity .4s var(--ease);
+  display:flex; align-items:flex-end; justify-content:center; touch-action:none}
+.on-shelf .idler{opacity:1; pointer-events:auto}
+.idler.grab{cursor:grabbing}
+.idler:not(.grab){cursor:grab}
+.guy{position:relative; width:54px; height:48px;
+  transform:translateY(var(--hop,0px)) rotate(var(--tilt,0deg)) scaleX(var(--face,1));
+  transition:transform .45s var(--ease)}
+.guy .body{position:absolute; left:0; bottom:0; width:54px; height:46px; background-color:var(--deep);
+  border-radius:52% 52% 44% 44% / 62% 62% 38% 38%;
+  box-shadow:0 5px 12px rgba(8,32,43,.26), inset -5px -6px 12px rgba(0,0,0,.18),
+             inset 4px 4px 10px rgba(133,189,179,.16);
+  transform-origin:50% 100%;
+  transition:width .6s var(--ease), height .6s var(--ease), border-radius .6s var(--ease);
+  animation:breathe 3.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1,1)} 50%{transform:scale(1.02,.965)}}
+.guy .foot{position:absolute; bottom:-2px; width:12px; height:6px; background-color:var(--deep);
+  border-radius:50% 50% 45% 45%; transition:all .6s var(--ease)}
+.guy .foot.l{left:5px} .guy .foot.r{right:5px}
+.eyes{position:absolute; left:0; right:0; top:13px; display:flex; justify-content:center; gap:10px;
+  transition:top .6s var(--ease)}
+.eye{position:relative; width:8.5px; height:9.5px; border-radius:50%; background-color:var(--onmid);
+  transition:height .1s linear, width .2s var(--ease)}
+.eye .pupil{position:absolute; left:2px; top:2.2px; width:4.4px; height:5px; border-radius:50%;
+  background-color:var(--deep); transition:transform .18s var(--ease), opacity .1s linear}
+.guy.shut .eye{height:1.8px}
+.guy.shut .pupil{opacity:0}
+.guy.half .eye{height:4.5px}
+.guy.wide .eye{height:12px; width:10px}
+
+.guy.s-sleep .body{width:80px; height:16px; border-radius:50% 50% 46% 46% / 72% 72% 28% 28%; animation-duration:6.5s}
+.guy.s-sleep{width:80px}
+.guy.s-sleep .foot{width:15px; height:5px}
+.guy.s-sleep .foot.l{left:-4px} .guy.s-sleep .foot.r{right:-4px}
+.guy.s-sleep .eyes{top:38px; gap:14px}
+.guy.s-sleep .eye{height:2px; width:7px; border-radius:2px}
+.guy.s-sleep .pupil{opacity:0}
+.guy.s-peek .body{width:56px; height:37px}
+.guy.s-peek .eyes{top:21px}
+.guy.s-buried .body{width:62px; height:24px; border-radius:48% 48% 44% 44% / 66% 66% 34% 34%; animation-duration:5.2s}
+.guy.s-buried .eyes{top:31px}
+.guy.s-stare .body{animation:none}
+.guy.s-stare .eye{height:11.5px; width:10px}
+
+.shadow{position:absolute; left:50%; bottom:-2px; width:66px; height:9px; margin-left:-33px;
+  border-radius:50%; background-color:rgba(8,32,43,.18); filter:blur(4px);
+  transition:width .5s var(--ease), margin-left .5s var(--ease), opacity .2s linear}
+.pile{position:absolute; left:0; right:0; bottom:0; height:96px; pointer-events:none}
+.pile i{position:absolute; display:block; background-color:var(--card); background-image:var(--paper);
+  background-size:200px 200px; background-blend-mode:multiply; border-radius:1px;
+  box-shadow:0 2px 4px rgba(43,38,32,.20), inset 0 -1px 0 rgba(139,129,117,.25);
+  opacity:0; transform:translateY(-14px); transition:opacity .45s var(--ease), transform .45s var(--ease)}
+.pile i:nth-child(1){left:20px; bottom:34px; width:78px; height:14px}
+.pile i:nth-child(2){left:13px; bottom:44px; width:90px; height:13px}
+.pile i:nth-child(3){left:26px; bottom:53px; width:72px; height:12px}
+.idler.p1 .pile i:nth-child(1){opacity:1; transform:rotate(-7deg)}
+.idler.p3 .pile i:nth-child(1){opacity:1; transform:rotate(-7deg)}
+.idler.p3 .pile i:nth-child(2){opacity:1; transform:rotate(5deg)}
+.idler.p3 .pile i:nth-child(3){opacity:1; transform:rotate(-3deg)}
+
+/* 날아오는 종이 (새 항목) */
+.fly{position:absolute; width:52px; height:12px; border-radius:1px; background-color:var(--card);
+  background-image:var(--paper); background-size:200px 200px; background-blend-mode:multiply;
+  box-shadow:0 3px 7px rgba(43,38,32,.24); opacity:0; pointer-events:none; z-index:6}
+
+/* ───────── 조작 ───────── */
+.panel{flex:0 0 auto; margin-top:22px; max-width:900px; display:flex; flex-direction:column; gap:10px; align-items:center}
+.grp{display:flex; flex-wrap:wrap; gap:7px; justify-content:center; align-items:center}
+.grp span.lb{font-size:11px; color:var(--faint); margin-right:4px; min-width:62px; text-align:right}
+button{height:31px; padding:0 13px; border:0; border-radius:16px; cursor:pointer; font-family:inherit;
+  font-size:11.5px; color:var(--muted); background-color:var(--card);
+  box-shadow:2px 2px 5px rgba(43,38,32,.14), -2px -2px 5px rgba(255,255,255,.75);
+  transition:box-shadow .12s var(--ease), color .12s var(--ease)}
+button:hover{color:var(--ink2)}
+button:active,button.on{color:var(--ink2); box-shadow:inset 2px 2px 5px rgba(43,38,32,.16), inset -2px -2px 5px rgba(255,255,255,.7)}
+button.key{background-color:var(--mid); color:var(--onmid); box-shadow:0 3px 9px rgba(77,117,114,.32)}
+
+.notes{flex:0 0 auto; margin-top:34px; max-width:900px; display:grid; grid-template-columns:1fr 1fr; gap:26px}
+.notes h3{margin:0 0 8px; font-size:13.5px; font-weight:500; color:var(--ink2)}
+.notes p{margin:0 0 9px; font-size:12px; line-height:1.75; color:var(--faint)}
+.notes b{color:var(--mid-ink); font-weight:500}
+.notes em{font-style:normal; color:var(--hol)}
+.notes ul{margin:0 0 9px; padding-left:16px}
+.notes li{font-size:12px; line-height:1.9; color:var(--faint)}
+</style>
+</head>
+<body>
+
+<h1>시제품 · 게으름뱅이의 자리</h1>
+<p class="sub"><b>바닥 선반</b>을 껐다 켜 보세요 &mdash; 자리가 생기는 대신 목록이 얼마나 줄어드는지 보실 수 있습니다.
+녀석은 <b>끌어서 옮길 수 있고</b>, <b>꾹 누르면 늘어나고</b>, <b>세 번 찌르면 돌아앉습니다.</b></p>
+
+<div class="win on-shelf" id="win">
+  <div class="tb">&minus;&nbsp;&nbsp;&square;&nbsp;&nbsp;&times;</div>
+  <div class="app" id="app">
+
+    <div class="top">
+      <div class="lh"><span class="d-day">9월 23일 수요일</span><span class="clock">09:14</span></div>
+      <div class="ring"><b id="ringn">5</b><i>남음</i></div>
+      <div class="acts"><div class="pill">+ 새 항목</div><div class="gear">&#9881;</div></div>
+    </div>
+
+    <div class="desk">
+      <div class="s3"></div><div class="s2"></div>
+      <div class="dtabs"><div class="dtab on">오늘</div><div class="dtab">달력</div></div>
+      <div class="sheet">
+        <div class="lst" id="lst">
+          <h2>오늘</h2>
+          <div class="r"><i></i>아침 운용현황 출력<span class="g">08:30</span></div>
+          <div class="r"><i></i>교보생명 컴플 체크리스트<span class="g">08:40</span></div>
+          <div class="r"><i></i>리스크 한도 점검표 회신<span class="g">11:30</span></div>
+          <div class="r"><i></i>이사회 자료 최종 검수<span class="g">14:00</span></div>
+          <div class="r"><i></i>월말 보고서 제출<span class="g">17:00</span></div>
+          <div class="r"><i></i>분기 리스크 한도 재산정<span class="g">18:00</span></div>
+          <div class="r"><i></i>감사 대응 자료 정리<span class="g">&mdash;</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="shelf" id="shelf">
+      <div class="lip"></div>
+      <div class="foot"><span>전체 항목 관리</span><span>&middot;</span><span>연결됨</span></div>
+      <div class="idler" id="idler">
+        <div class="guy" id="guy">
+          <div class="body"></div><i class="foot l"></i><i class="foot r"></i>
+          <div class="eyes"><div class="eye"><i class="pupil"></i></div><div class="eye"><i class="pupil"></i></div></div>
+        </div>
+        <div class="shadow"></div>
+        <div class="pile"><i></i><i></i><i></i></div>
+      </div>
+      <div class="fly" id="fly"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="panel">
+  <div class="grp">
+    <button id="toggle" class="key">바닥 선반 끄기</button>
+    <span class="lb" style="min-width:0">&nbsp;</span>
+    <span class="lb">형편</span>
+    <button data-pin="buried">깔림</button><button data-pin="peek">빼꼼</button>
+    <button data-pin="sit" class="on">앉음</button><button data-pin="sleep">잠</button>
+    <button data-pin="stare">지난 마감</button>
+  </div>
+  <div class="grp">
+    <span class="lb">움직임</span>
+    <button data-act="stretch">기지개</button><button data-act="yawn">하품</button>
+    <button data-act="doze">졺</button><button data-act="hiccup">딸꾹</button>
+    <button data-act="startle">놀람</button><button data-act="roll">굴러가기</button>
+  </div>
+  <div class="grp">
+    <span class="lb">사건</span>
+    <button data-act="done">완료했을 때</button><button data-act="bonk">새 항목이 날아옴</button>
+    <button data-act="lean">종이에 기대기</button><button data-act="idle">5분 안 건드림</button>
+  </div>
+</div>
+
+<div class="notes">
+  <div>
+    <h3>자리 &mdash; 왜 바닥인가</h3>
+    <p>지금 창에서 빈 책상은 <b>종이 위 56px · 오른쪽 36px · 아래 50px</b> 뿐입니다. 어디에도
+    46px 짜리 녀석이 설 자리가 없습니다.</p>
+    <p>제일 큰 빈 곳은 <b>머리줄 오른쪽 341&times;84px</b> 인데, 거기는 시계와 고리가 있는
+    <em>눈이 제일 먼저 가는 자리</em>입니다. 게으른 녀석을 거기 두면 게으르지 않게 됩니다.</p>
+    <p>그래서 <b>아래를 96px 로 넓혀 선반을 만듭니다.</b> 목록은 46px 줄어듭니다 &mdash; 줄 하나쯤입니다.</p>
+    <p>덤이 하나 있습니다. 지금 이 앱은 &ldquo;책상 위의 종이&rdquo; 라고 말하면서 책상이 거의 안 보입니다.
+    선반이 생기면 <b>종이가 놓인 바닥이 실제로 보이고</b>, 바닥줄(전체 항목 관리)도 떠 있지 않고
+    그 위에 얹힙니다.</p>
+    <p>그리고 이 자리라야 녀석이 <b>할 수 있는 일이 많아집니다</b> &mdash; 걸어 다닐 바닥,
+    기댈 벽(종이 아래 모서리), 위에서 떨어질 종이가 전부 여기 있습니다.</p>
+  </div>
+  <div>
+    <h3>움직임 &mdash; 무엇을 넣었나</h3>
+    <p><b>형편</b> (스스로 바뀜)</p>
+    <ul>
+      <li>깔림 &middot; 빼꼼 &middot; 앉음 &middot; 잠 &middot; 지난 마감을 빤히 봄</li>
+    </ul>
+    <p><b>때에 따라</b></p>
+    <ul>
+      <li>아침 첫 실행 &mdash; 기지개</li>
+      <li>늦은 밤 &mdash; 하품</li>
+      <li>점심 무렵 &mdash; 졸다가 흠칫 깸</li>
+    </ul>
+    <p><b>사건에 반응</b></p>
+    <ul>
+      <li>완료하면 그 줄 쪽을 홱 본다</li>
+      <li>새 항목을 넣으면 종이가 날아와 머리에 맞는다</li>
+      <li>알림이 뜨면 놀란다</li>
+      <li>5분 안 건드리면 옆으로 쓰러져 잔다 (마우스를 움직이면 부스스 일어남)</li>
+      <li>가끔 스스로 종이 쪽으로 굴러가 기댄다</li>
+    </ul>
+    <p><b>직접 건드릴 때</b></p>
+    <ul>
+      <li>커서를 따라 눈이 움직인다 (자거나 깔렸으면 안 따라옴)</li>
+      <li><b>끌어서 옮긴다</b> &mdash; 놓으면 통통 떨어지고, 그 자리를 기억한다</li>
+      <li><b>꾹 누르면 엿가락처럼 늘어난다</b> &mdash; 놓으면 탱 하고 돌아온다</li>
+      <li>더블클릭하면 딸꾹질한다</li>
+      <li>세 번 찌르면 돌아앉는다</li>
+    </ul>
+    <p><em>지키는 선:</em> 말풍선 없음 &middot; 소리 없음 &middot; 절대 길을 막지 않음.</p>
+  </div>
+</div>
+
+<script>
+var win = document.getElementById("win"), idler = document.getElementById("idler"),
+    guy = document.getElementById("guy"), body = guy.querySelector(".body"),
+    pupils = guy.querySelectorAll(".pupil"), shadow = idler.querySelector(".shadow"),
+    fly = document.getElementById("fly"), shelf = document.getElementById("shelf"),
+    rows = [].slice.call(document.querySelectorAll("#lst .r"));
+var PIN = "sit", pokes = 0, pokeT = 0, busy = 0, homeX = 300;
+
+function cls(n, ms){ guy.classList.add(n); setTimeout(function(){ guy.classList.remove(n); }, ms); }
+function anim(kf, opt){ return body.animate(kf, opt); }
+function sc(x, y){ return "scale(" + x + "," + y + ")"; }
+
+var ACT = {
+  /* 기지개 - 아침 첫 실행 */
+  stretch: function(){
+    cls("shut", 760);
+    anim([{transform:sc(1,1)}, {transform:sc(.86,1.30), offset:.34},
+          {transform:sc(1.14,.90), offset:.60}, {transform:sc(.98,1.03), offset:.8},
+          {transform:sc(1,1)}], {duration:1000, easing:"cubic-bezier(.3,.8,.3,1)"});
+  },
+  /* 하품 - 늦은 밤. 느리게 부풀었다 툭 꺼진다 */
+  yawn: function(){
+    cls("shut", 1150);
+    anim([{transform:sc(1,1)}, {transform:sc(.92,1.22), offset:.55},
+          {transform:sc(.9,1.24), offset:.7}, {transform:sc(1.12,.88), offset:.85},
+          {transform:sc(1,1)}], {duration:1500, easing:"cubic-bezier(.4,.1,.3,1)"});
+  },
+  /* 졺 - 두 번 꾸벅하고 흠칫 깬다 */
+  doze: function(){
+    guy.classList.add("half");
+    var seq = [[16, 900], [0, 180], [20, 900], [0, 160]], t = 0;
+    seq.forEach(function(s, i){
+      t += s[1];
+      setTimeout(function(){
+        guy.style.setProperty("--tilt", s[0] + "deg");
+        if(i === seq.length - 1){ guy.classList.remove("half"); cls("wide", 500); }
+      }, t - s[1]);
+    });
+    setTimeout(function(){ guy.style.setProperty("--tilt", "0deg"); guy.classList.remove("half"); }, t + 200);
+  },
+  /* 딸꾹 */
+  hiccup: function(){
+    guy.animate([{transform:"translateY(0)"}, {transform:"translateY(-11px)", offset:.4},
+                 {transform:"translateY(0)"}], {duration:380, easing:"cubic-bezier(.3,.9,.4,1)"});
+    anim([{transform:sc(1,1)}, {transform:sc(1.16,.84), offset:.16},
+          {transform:sc(.9,1.12), offset:.45}, {transform:sc(1,1)}],
+         {duration:420, easing:"cubic-bezier(.3,.9,.3,1)"});
+  },
+  /* 놀람 - 알림이 떴을 때 */
+  startle: function(){
+    cls("wide", 900);
+    anim([{transform:sc(1,1)}, {transform:sc(1.18,1.14), offset:.12},
+          {transform:sc(.94,.98), offset:.4}, {transform:sc(1.04,1.02), offset:.68},
+          {transform:sc(1,1)}], {duration:720, easing:"cubic-bezier(.2,.9,.3,1)"});
+  },
+  /* 완료했을 때 - 그 줄 쪽을 홱 본다 */
+  done: function(){
+    var live = rows.filter(function(r){ return !r.classList.contains("gone"); });
+    if(!live.length){ return; }
+    var r = live[0];
+    r.style.transition = "opacity .5s, transform .5s";
+    r.style.opacity = 0; r.style.transform = "translateY(-10px)";
+    setTimeout(function(){ r.classList.add("gone"); tally(); }, 500);
+    look(-1, 1100);
+    document.getElementById("ringn").textContent = live.length - 1;
+  },
+  /* 새 항목 - 종이가 날아와 머리에 맞는다 */
+  bonk: function(){
+    var ib = idler.getBoundingClientRect(), sb = shelf.getBoundingClientRect();
+    var ex = ib.left - sb.left + ib.width / 2 - 26, ey = sb.bottom - ib.bottom + 52;
+    fly.style.left = "300px"; fly.style.bottom = "150px";
+    fly.animate([{opacity:0, transform:"translate(0,-40px) rotate(-25deg)"},
+                 {opacity:1, transform:"translate(0,-20px) rotate(-12deg)", offset:.25},
+                 {opacity:1, transform:"translate(" + (ex - 300) + "px," + (86 - ey) + "px) rotate(6deg)", offset:.72},
+                 {opacity:1, transform:"translate(" + (ex - 300) + "px," + (96 - ey) + "px) rotate(9deg)"}],
+                {duration:760, easing:"cubic-bezier(.35,.05,.4,1)", fill:"forwards"});
+    setTimeout(function(){
+      anim([{transform:sc(1,1)}, {transform:sc(1.26,.72), offset:.12},
+            {transform:sc(.92,1.1), offset:.42}, {transform:sc(1.03,.97), offset:.7},
+            {transform:sc(1,1)}], {duration:640, easing:"cubic-bezier(.2,.9,.3,1)"});
+      cls("shut", 190);
+    }, 540);
+    setTimeout(function(){
+      fly.animate([{opacity:1}, {opacity:0}], {duration:400, fill:"forwards"});
+    }, 1500);
+  },
+  /* 종이에 기대기 - 가끔 스스로 */
+  lean: function(){
+    idler.style.transition = "left 1.2s cubic-bezier(.4,0,.3,1)";
+    idler.style.left = "44px";
+    setTimeout(function(){ guy.style.setProperty("--tilt", "-11deg"); }, 1150);
+    setTimeout(function(){
+      guy.style.setProperty("--tilt", "0deg");
+      idler.style.left = homeX + "px";
+      setTimeout(function(){ idler.style.transition = ""; }, 1300);
+    }, 3600);
+  },
+  /* 굴러가기 */
+  roll: function(){
+    var to = homeX > 430 ? homeX - 150 : homeX + 150;
+    idler.style.transition = "left .95s cubic-bezier(.35,0,.35,1)";
+    idler.style.left = to + "px";
+    guy.animate([{transform:"rotate(0)"}, {transform:"rotate(" + (to > homeX ? 360 : -360) + "deg)"}],
+                {duration:950, easing:"cubic-bezier(.35,0,.35,1)"});
+    homeX = to;
+    setTimeout(function(){ idler.style.transition = ""; }, 1000);
+  },
+  /* 5분 안 건드림 - 옆으로 쓰러져 잔다 */
+  idle: function(){
+    guy.style.setProperty("--tilt", "-78deg");
+    guy.classList.add("shut");
+    var wake = function(){
+      guy.style.setProperty("--tilt", "0deg");
+      guy.classList.remove("shut");
+      cls("half", 600);
+      document.removeEventListener("mousemove", wake);
+    };
+    setTimeout(function(){ document.addEventListener("mousemove", wake); }, 700);
+  }
+};
+
+function look(dir, ms){
+  pupils[0].style.transform = pupils[1].style.transform = "translate(" + (dir * 2.6) + "px,-1px)";
+  TRACK = 0;
+  setTimeout(function(){ TRACK = 1; }, ms);
+}
+
+/* ───────── 형편 ───────── */
+function tally(){
+  var n = rows.filter(function(r){ return !r.classList.contains("gone"); }).length;
+  document.getElementById("ringn").textContent = n;
+}
+function paint(){
+  guy.className = "guy" + (PIN === "sit" ? "" : " s-" + PIN);
+  idler.className = "idler" + (PIN === "buried" ? " p3" : PIN === "peek" ? " p1" : "");
+  shadow.style.width = PIN === "sleep" ? "88px" : "66px";
+  shadow.style.marginLeft = PIN === "sleep" ? "-44px" : "-33px";
+}
+[].forEach.call(document.querySelectorAll("[data-pin]"), function(b){
+  b.onclick = function(){
+    [].forEach.call(document.querySelectorAll("[data-pin]"), function(x){ x.classList.remove("on"); });
+    b.classList.add("on"); PIN = b.getAttribute("data-pin"); paint();
+  };
+});
+[].forEach.call(document.querySelectorAll("[data-act]"), function(b){
+  b.onclick = function(){ ACT[b.getAttribute("data-act")](); };
+});
+
+/* ───────── 선반 껐다 켜기 ───────── */
+document.getElementById("toggle").onclick = function(){
+  win.classList.toggle("on-shelf");
+  this.textContent = win.classList.contains("on-shelf") ? "바닥 선반 끄기" : "바닥 선반 켜기";
+};
+
+/* ───────── 눈이 커서를 따라간다 ───────── */
+var TRACK = 1;
+document.addEventListener("mousemove", function(e){
+  if(!TRACK || PIN === "sleep" || PIN === "buried"){ return; }
+  var r = guy.getBoundingClientRect(),
+      dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + 16),
+      d = Math.max(1, Math.sqrt(dx * dx + dy * dy)), k = Math.min(2.6, d / 32);
+  var tf = "translate(" + (dx / d * k).toFixed(2) + "px," + (dy / d * k * .7).toFixed(2) + "px)";
+  pupils[0].style.transform = pupils[1].style.transform = tf;
+});
+
+/* ───────── 깜빡임 ───────── */
+(function blink(){
+  if(PIN !== "sleep" && PIN !== "stare" && !guy.classList.contains("shut")){ cls("shut", 110); }
+  setTimeout(blink, 2600 + Math.random() * 4200);
+})();
+
+/* ───────── 끌기 · 꾹 누르기 · 찌르기 ───────── */
+var dragging = 0, moved = 0, sx = 0, sl = 0, holdT = 0, held = 0, downT = 0, lastClick = 0;
+idler.addEventListener("pointerdown", function(e){
+  dragging = 1; moved = 0; held = 0; downT = Date.now();
+  sx = e.clientX; sl = parseFloat(idler.style.left || homeX);
+  idler.setPointerCapture(e.pointerId);
+  /* 가만히 누르고 있으면 엿가락처럼 늘어난다 */
+  holdT = setTimeout(function(){
+    if(moved) return;
+    held = 1;
+    body.style.transition = "transform 1.1s cubic-bezier(.25,.6,.3,1)";
+    body.style.transform = "scale(.82,1.42)";
+  }, 260);
+});
+idler.addEventListener("pointermove", function(e){
+  if(!dragging) return;
+  var d = e.clientX - sx;
+  if(Math.abs(d) > 4){
+    moved = 1; clearTimeout(holdT);
+    if(held){ held = 0; body.style.transition = ""; body.style.transform = ""; }
+    idler.classList.add("grab");
+    var nx = Math.max(150, Math.min(shelf.clientWidth - 130, sl + d));
+    idler.style.left = nx + "px";
+    guy.style.setProperty("--face", d > 0 ? 1 : -1);
+    guy.style.setProperty("--tilt", (Math.max(-9, Math.min(9, d * .06))) + "deg");
+  }
+});
+function release(){
+  if(!dragging) return;
+  dragging = 0; clearTimeout(holdT);
+  idler.classList.remove("grab");
+  guy.style.setProperty("--tilt", "0deg");
+  if(held){
+    /* 놓으면 탱 하고 돌아온다 */
+    held = 0; body.style.transition = "";
+    body.style.transform = "";
+    anim([{transform:sc(.82,1.42)}, {transform:sc(1.22,.80), offset:.28},
+          {transform:sc(.93,1.09), offset:.56}, {transform:sc(1.04,.97), offset:.8},
+          {transform:sc(1,1)}], {duration:760, easing:"cubic-bezier(.2,.9,.3,1)"});
+    return;
+  }
+  if(moved){
+    homeX = parseFloat(idler.style.left);
+    guy.style.setProperty("--face", 1);
+    /* 통통 떨어진다 */
+    guy.animate([{transform:"translateY(-9px)"}, {transform:"translateY(0)", offset:.35},
+                 {transform:"translateY(-4px)", offset:.6}, {transform:"translateY(0)"}],
+                {duration:520, easing:"cubic-bezier(.3,.9,.4,1)"});
+    return;
+  }
+  /* 안 움직였으면 찌른 것이다 */
+  if(Date.now() - lastClick < 320){ ACT.hiccup(); lastClick = 0; pokes = 0; return; }
+  lastClick = Date.now();
+  clearTimeout(pokeT); pokes++;
+  if(pokes >= 3){
+    guy.style.setProperty("--face", -1);
+    pokeT = setTimeout(function(){ guy.style.setProperty("--face", 1); pokes = 0; }, 4200);
+    return;
+  }
+  cls("shut", 300);
+  pokeT = setTimeout(function(){ pokes = 0; }, 2600);
+}
+idler.addEventListener("pointerup", release);
+idler.addEventListener("pointercancel", release);
+
+idler.style.left = homeX + "px";
+paint(); tally();
+</script>
+</body>
+</html>

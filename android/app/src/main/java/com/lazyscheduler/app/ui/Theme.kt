@@ -17,30 +17,32 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.lazyscheduler.app.R
 
 /** Colours from tokens.py (the PC app's single source of design values) - grain C. */
 object Ink {
-    val bg = Color(0xFFEEF1F0)
-    val card = Color(0xFFEEF1F0)
-    val dark = Color(0xFFC6CCCB)
+    val bg = Color(0xFFE4E9E3)
+    val card = Color(0xFFEEF2EC)
+    val dark = Color(0xFFC8D0CB)
     val light = Color(0xFFFFFFFF)
-    val pale = Color(0xFFDDE2E1)
-    val sheet2 = Color(0xFFE6EBEA)      // the sheets stacked behind, and the tabs at the back
-    val sheet3 = Color(0xFFDEE4E3)
-    val ink2 = Color(0xFF2B2620)
-    val body = Color(0xFF3A332B)
-    val muted = Color(0xFF453D33)
-    val faint = Color(0xFF5C5346)
-    val dim = Color(0xFF8B8175)
-    val mint = Color(0xFF85BDB3)
-    val mid = Color(0xFF4D7572)
-    val midInk = Color(0xFF466A68)
-    val deep = Color(0xFF08202B)
-    val onMid = Color(0xFFEEF3F1)
-    val danger = Color(0xFF9A3B2E)
-    val hol = Color(0xFF9D4038)         // 달력의 공휴일 · 일요일 (tokens.py 의 hol)
+    val pale = Color(0xFFDBE3DD)
+    val sheet2 = Color(0xFFDFE4DE)
+    val sheet3 = Color(0xFFD6DCD6)
+    val ink2 = Color(0xFF1F2A28)
+    val body = Color(0xFF2F3B38)
+    val muted = Color(0xFF46514E)
+    val faint = Color(0xFF5D6A67)
+    val dim = Color(0xFF8A9491)
+    val mint = Color(0xFF8FC2B9)
+    val mid = Color(0xFF3F6F69)
+    val midInk = Color(0xFF35605A)
+    val deep = Color(0xFF16211F)
+    val onMid = Color(0xFFF2F6F3)
+    val danger = Color(0xFFB0573F)
+    val hol = Color(0xFFB0573F)             // 공휴일 · 일요일 · 지난 것 (tokens.py 의 hol)
+    val warm = Color(0xFFA9682F)            // 임박 (알림 카드에서만)
     val rule = Color(56, 46, 32, (0.085f * 255).toInt())
     val rule2 = Color(56, 46, 32, (0.17f * 255).toInt())
     val hover = Color(56, 46, 32, (0.085f * 255).toInt())
@@ -53,25 +55,44 @@ val Paperlogy = FontFamily(
     Font(R.font.paperlogy_medium, FontWeight.Medium),
 )
 
-// 자간. 한글은 자소가 네모 칸을 꽉 채워서 0 보다 아주 조금 벌려야 읽힌다.
-// PC 의 --track (tokens.py 의 track) 과 같은 값이다. 큰 글자는 여기서 좁힌다.
-private val TRACK = 0.1.sp
-private val TRACK_BIG = (-0.2).sp
+/**
+ * 글자 스케일 - tokens.py 의 TYPE 과 같은 일곱 단이다.
+ *
+ * 예전에는 22 · 16 · 15 · 14 · 13 · 12.5 · 12 · 11 여덟 가지가 어디서 온 값인지 없이
+ * 흩어져 있었고, PC 와도 따로 놀았다. 자간은 크기에 딸린 값이라 여기서 짝으로 둔다:
+ * sp 로 적으면 크기가 바뀔 때마다 또 어긋나므로 em 을 sp 로 환산해 둔다
+ * (Compose 의 letterSpacing 은 .em 을 받는다).
+ */
+private object Size {
+    val title = 20.sp       // 화면 제목
+    val head = 15.sp        // 창 제목
+    val lead = 13.sp        // 줄 제목 · 단추
+    val body = 12.5.sp      // 본문
+    val label = 11.sp       // 라벨 · 부제
+}
+
+private object Track {
+    val title = (-0.02).em
+    val head = (-0.01).em
+    val lead = 0.em
+    val body = 0.01.em
+    val label = 0.02.em
+}
 
 private val type = Typography(
-    headlineMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = 22.sp, color = Ink.ink2,
-        letterSpacing = TRACK_BIG),
-    titleMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = Ink.ink2,
-        letterSpacing = TRACK),
-    bodyLarge = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = Ink.body,
-        letterSpacing = TRACK),
-    bodyMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Normal, fontSize = 13.sp, color = Ink.faint,
-        letterSpacing = TRACK),
-    bodySmall = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Normal, fontSize = 12.sp, color = Ink.faint,
-        letterSpacing = TRACK),
-    labelLarge = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = TRACK),
-    labelMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = 12.5.sp, letterSpacing = TRACK),
-    labelSmall = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = TRACK),
+    headlineMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = Size.title, color = Ink.ink2,
+        letterSpacing = Track.title),
+    titleMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = Size.head, color = Ink.ink2,
+        letterSpacing = Track.head),
+    bodyLarge = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = Size.lead, color = Ink.body,
+        letterSpacing = Track.lead),
+    bodyMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Normal, fontSize = Size.body, color = Ink.faint,
+        letterSpacing = Track.body),
+    bodySmall = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Normal, fontSize = Size.label, color = Ink.faint,
+        letterSpacing = Track.label),
+    labelLarge = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = Size.lead, letterSpacing = Track.lead),
+    labelMedium = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = Size.body, letterSpacing = Track.body),
+    labelSmall = TextStyle(fontFamily = Paperlogy, fontWeight = FontWeight.Medium, fontSize = Size.label, letterSpacing = Track.label),
 )
 
 @Composable

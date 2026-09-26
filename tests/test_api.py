@@ -192,3 +192,17 @@ def test_window_ipc_requires_token(ui_server):
 def test_service_can_focus_the_window(ui_server):
     port, focused, _ = ui_server
     assert app.focus_ui() is True and focused == [1]
+
+
+def test_a_change_brings_back_the_new_overview_when_asked(server):
+    """?ov=1 이면 바꾼 결과와 함께 새 개요를 싣는다 - 창이 곧이어 또 묻지 않게."""
+    status, t = call(server, "POST", "/api/task?ov=1", {"title": "메모 하나", "kind": "floating"})
+    assert status == 200 and t["id"]
+    assert [i["title"] for i in t["overview"]["floating"]] == ["메모 하나"]
+    assert "autostart" in t["overview"]["settings"], "GET /api/overview 와 같은 모양이어야 한다"
+
+    status, d = call(server, "POST", "/api/task/%s/done?ov=1" % t["id"], {"done": True})
+    assert status == 200 and d["overview"]["floating"] == []
+
+    status, plain = call(server, "POST", "/api/task/%s/done" % t["id"], {"done": False})
+    assert status == 200 and "overview" not in plain, "묻지 않으면 예전 그대로"

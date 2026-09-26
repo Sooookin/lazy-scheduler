@@ -40,12 +40,14 @@ BODY    = _C["body"]
 MUTED   = _C["muted"]
 FAINT   = _C["faint"]
 MID     = _C["mid"]
-MID_HI  = _C["mid-hi"]
 MID_INK = _C["mid-ink"]
 MINT    = _C["mint"]
 DEEP    = _C["deep"]
-DEEP_HI = _C["deep-hi"]
 ONMID   = _C["onmid"]
+
+# 예전 호출은 그때의 짙은 색(#08202b)을 글자로 적어 보냈다. 팔레트가 바뀌어도
+# 그 호출들은 여전히 "지난 알림" 을 뜻하므로, 옛 값도 같이 받아 준다.
+LEGACY_LATE = {DEEP, "#08202b"}
 
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(
@@ -178,13 +180,20 @@ def notify(title, sub="", accent=None, on_done=None, key=None, extra=None,
     if now - _seen.get(k, 0) < 60:
         return
     _seen[k] = now
-    if accent and accent.lower() == DEEP:
+    if accent and accent.lower() in LEGACY_LATE:
         late = True
     item = {"title": title, "sub": sub, "late": late, "on_done": on_done,
             "on_snooze": on_snooze, "can_open": can_open, "key": k,
             "info": accent is not None and accent.lower() == MINT}
     item.update(extra or {})
     _queue.put(item)
+    _wake()
+
+
+def _wake():
+    """쉬고 있는 메시지 루프를 깨운다. 어느 스레드에서 불러도 된다 (PostMessage)."""
+    if _ctrl:
+        U32.PostMessageW(_ctrl, WM_WAKE, 0, 0)
 
 
 def notify_list(label, title, rows, more=0, accent=None, key=None):
@@ -619,7 +628,6 @@ def _card_rgba(item, hover=None):
     return img, hits
 
 # ---------------- 레이어드 윈도우 (GDI) ----------------
-GWL_EXSTYLE = -20
 WS_EX_LAYERED = 0x00080000
 WS_EX_TOOLWINDOW = 0x00000080     # Alt+Tab · 작업표시줄에 안 잡히게
 ULW_ALPHA = 0x00000002
@@ -678,13 +686,13 @@ G32.DeleteDC.argtypes = [PVOID]
 # tcl/tk 가 6MB 들어갔다. 카드는 어차피 UpdateLayeredWindow 로 직접 그리므로
 # 창과 이벤트 루프도 Win32 로 직접 다룬다.
 WM_DESTROY, WM_TIMER = 0x0002, 0x0113
+WM_WAKE = 0x8000 + 1                 # WM_APP + 1: 새 알림이 왔다
 WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_MOUSELEAVE = 0x0200, 0x0201, 0x02A3
 WM_SETCURSOR = 0x0020
 WS_POPUP = 0x80000000
 WS_EX_TOPMOST, WS_EX_NOACTIVATE = 0x00000008, 0x08000000
 SW_SHOWNOACTIVATE, SW_HIDE = 4, 0
 SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER = 0x0010, 0x0001, 0x0004
-HWND_TOPMOST = -1
 IDC_ARROW, IDC_HAND = 32512, 32649
 TME_LEAVE = 0x00000002
 
@@ -725,6 +733,7 @@ U32.SetWindowPos.argtypes = [PVOID, PVOID, ctypes.c_int, ctypes.c_int,
 U32.SetTimer.restype = PVOID
 U32.SetTimer.argtypes = [PVOID, PVOID, wintypes.UINT, PVOID]
 U32.KillTimer.argtypes = [PVOID, PVOID]
+U32.PostMessageW.argtypes = [PVOID, ctypes.c_uint, WPARAM, LPARAM]
 U32.DestroyWindow.argtypes = [PVOID]
 U32.ShowWindow.argtypes = [PVOID, ctypes.c_int]
 U32.LoadCursorW.restype = PVOID
@@ -872,6 +881,25 @@ def _open_app():
         threading.Thread(target=lambda: _safe(fn, "open"), daemon=True).start()
 
 
+def _click_plan(item, target):
+    """누른 자리 → (부를 콜백, 앱을 열지).
+
+    카드는 어디를 눌러도 닫힌다. 그 밖에 무엇이 더 일어나는지는 누른 자리가 정한다.
+
+      단추 위          그 단추가 하는 일만 (완료 · 10분 뒤)
+      ✕                닫기만
+      그 밖의 아무 데   앱 창을 연다 - 윈도우 알림과 같다. "이게 뭐였지" 싶어
+                       알림을 누르는 것은 그 일을 보러 가겠다는 뜻이다.
+
+    target 은 hits 의 이름이거나, 아무것도 맞지 않았으면 None 이다.
+    """
+    cb = {"done": item.get("on_done"), "snooze": item.get("on_snooze")}.get(target)
+    if target == "fold":
+        return cb, True
+    body = target is None or target == "open"
+    return cb, bool(body and item.get("can_open") and _open_handler is not None)
+
+
 class Card:
     """알림 카드 하나 = 레이어드 창 하나.
 
@@ -997,17 +1025,16 @@ class Card:
             self.frame(time.time(), _motion())
 
     def on_click(self, x, y):
+        """어디를 눌러도 닫는다. 그 밖의 판단은 _click_plan 이 한다."""
         t = self._hit(x, y)
-        cb = {"done": self.item.get("on_done"), "snooze": self.item.get("on_snooze")}.get(t)
+        cb, open_it = _click_plan(self.item, t)
         if cb:
-            _safe(cb, "toast " + t)
-        if t in ("open", "fold"):
+            _safe(cb, "toast " + str(t))
+        if open_it:
             _open_app()
-            if t == "fold":
-                del _pending[:]
-        # 버튼이 없는 카드(브리핑 · 안내)는 아무 데나 눌러도 닫힌다
-        if t is not None or not any(k in self.hits for k in ("done", "snooze", "open")):
-            self.close()
+        if t == "fold":
+            del _pending[:]
+        self.close()
 
     # --- 수명 ---
     def close(self):
@@ -1026,7 +1053,7 @@ class Card:
             pass
 
 def _wndproc(hwnd, msg, wp, lp):
-    if msg == WM_TIMER:
+    if msg == WM_TIMER or msg == WM_WAKE:
         if hwnd == _ctrl:
             _pump()
         return 0
@@ -1176,6 +1203,8 @@ LEAVE_GRACE_S = 5             # 마우스를 뗀 뒤 다시 셀 때까지의 여
 
 def _life(item):
     """이 알림이 저절로 닫히기까지의 초. None 이면 직접 닫을 때까지."""
+    if item.get("life") is not None:      # 부른 쪽이 정했다 (잠깐 스쳐 가는 안내)
+        return float(item["life"])
     if item.get("rows") is not None:
         return LIFE_LIST_S
     if item.get("late"):
@@ -1267,13 +1296,14 @@ def _layout(now):
 
 
 def _set_rate(ms):
-    """타이머 간격. 놀 때까지 틀 단위로 돌 이유가 없다."""
+    """타이머 간격. 놀 때까지 틀 단위로 돌 이유가 없다. 0 이면 타이머를 멈춘다."""
     global _rate
     if ms == _rate:
         return
     if _rate:
         U32.KillTimer(_ctrl, PVOID(1))
-    U32.SetTimer(_ctrl, PVOID(1), ms, None)
+    if ms:
+        U32.SetTimer(_ctrl, PVOID(1), ms, None)
     _rate = ms
 
 
@@ -1363,7 +1393,13 @@ def _pump():
         if gone:
             _layout(now)
             busy = True
-        _set_rate(FRAME_MS if busy else IDLE_MS)
+        # 떠 있는 카드도 기다리는 알림도 없으면 타이머를 아예 멈춘다. 예전에는 하루 종일
+        # 0.4초마다 깨어 할 일이 없는지 확인했다 (Windows 가 타이머를 묶어 CPU 를
+        # 재우는 것을 막는다). 새 알림은 notify() 가 WM_WAKE 로 깨운다.
+        # 보류해 둔 알림(_held)이 있으면 계속 돈다 - 발표가 끝났는지 봐야 한다.
+        idle = (not _live and _fold is None and not _pending and not _held
+                and _queue.empty())
+        _set_rate(FRAME_MS if busy else 0 if idle else IDLE_MS)
     except Exception:
         paths.log("toast: " + traceback.format_exc())
 

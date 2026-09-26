@@ -48,7 +48,8 @@ ipc.py           how the service and the window process reach each other
 paths.py         where every file lives (resources vs. user data)
 
 assets/          things the app ships with: app.ico, fonts/Paperlogy-*.ttf
-web/             the window itself: index.html, app.js, style.css, fonts/*.woff2
+web/             the window itself: index.html, app.js (lists · calendar · forms), sky.js (sun · light · orbit),
+                 pebble.js (the pebble's behaviour), style.css, fonts/*.woff2
 tools/           things you run while developing (see below)
 tests/           pytest; tests/vectors holds the recurrence cases (shared with the phone app)
 docs/            screenshots for this file; sync.md is the PC ↔ phone sync design
@@ -71,6 +72,9 @@ The window talks to the service only through the HTTP API, and any other client
   `{rev, items: [{id, date, time, done}]}`. Join with overview items by `id`.
 - `rev` is a fingerprint of `data.json`. It changes whenever the data changes and
   only then, so a client can keep what it fetched until `rev` moves.
+- Requests that change items or settings (`POST /api/task…`, `POST /api/settings`)
+  accept `?ov=1`; the reply then also carries `overview`, the same body as
+  `GET /api/overview` after the change, so a client doesn't have to ask again.
 
 ## Development
 
