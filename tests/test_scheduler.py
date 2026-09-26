@@ -3,7 +3,7 @@ from datetime import datetime
 
 from desktop import app
 from core import store
-from platforms.win import toast
+from desktop import toast
 
 
 def cards():

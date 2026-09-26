@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from platforms.win import toast
+from desktop import toast
 
 CARD = {"title": "보고서 제출", "sub": "20분 뒤 마감 · 10:20", "on_done": lambda: None,
         "on_snooze": lambda: None, "can_open": True}
@@ -88,13 +88,13 @@ def test_legacy_accent_maps_to_late(monkeypatch):
 def test_hold_switch_off_means_never_hold(monkeypatch):
     """설정을 끄면 전체 화면이든 아니든 묻지 않고 띄운다."""
     monkeypatch.setattr(toast, "HOLD_WHEN_BUSY", False)
-    monkeypatch.setattr(toast, "_foreground_is_fullscreen", lambda: True)
+    monkeypatch.setattr(toast.cards, "os_busy", lambda: True)
     assert toast._should_hold() is False
 
 
 def test_work_area_is_a_sane_rectangle():
     """모니터를 못 찾아도 화면 크기로 되돌아와야 한다 (0 넓이를 돌려주면 카드가 사라진다)."""
-    left, top, right, bottom = toast._work_area()
+    left, top, right, bottom = toast.cards.work_area()
     assert right > left and bottom > top
 
 

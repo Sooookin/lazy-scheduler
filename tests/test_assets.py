@@ -10,7 +10,7 @@ import os
 import pytest
 
 from desktop import paths
-from platforms.win import toast
+from desktop import toast
 from platforms.win import tray
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -111,9 +111,12 @@ def test_migration_brings_the_backups_and_state_too(tmp_path, monkeypatch):
 
 
 def test_the_window_is_named_and_looked_up_by_the_same_value():
-    """ui.py 가 창을 제목으로 찾는다. 짓는 쪽과 찾는 쪽이 어긋나면 창을 못 찾는다."""
-    src = io.open(os.path.join(ROOT, "desktop", "ui.py"), encoding="utf-8").read()
-    assert src.count("paths.APP_NAME") >= 2
+    """창을 제목으로 찾는다 (Windows). 짓는 쪽(ui.py)과 찾는 쪽(window.py)이 어긋나면 창을 못 찾는다."""
+    make = io.open(os.path.join(ROOT, "desktop", "ui.py"), encoding="utf-8").read()
+    find = io.open(os.path.join(ROOT, "platforms", "win", "window.py"), encoding="utf-8").read()
+    assert "paths.APP_NAME" in make.split("webview.create_window(")[1][:80]
+    assert "paths.APP_NAME" in find.split("def hwnd():")[1]
+    src = make + find
     assert '"To-Do Manager"' not in src
 
 

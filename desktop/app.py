@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 """LazyScheduler - 백그라운드 서비스: API 서버 + 알림 스케줄러 + 알림 카드 루프."""
-import ctypes, json, os, socket, subprocess, sys, threading, time, traceback, webbrowser
+import json, os, socket, sys, threading, time, traceback
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from platforms.win import autostart
 from desktop import cloudauth
 from desktop import cloudsync
 from desktop import ipc
 from desktop import paths
 from core import recur
 from core import store
-from platforms.win import toast
-from platforms.win import tray
+from desktop import toast
+from platforms import autostart, system, tray
 from desktop import updater
 import version
 
@@ -22,7 +21,6 @@ WEB = os.path.normpath(paths.WEB_DIR)
 HOST, PORT = ipc.HOST, ipc.SERVICE_PORT
 LATE_GRACE = 90                 # 마감이 지난 뒤에도 이 분 안에는 알린다
 URL = f"http://{HOST}:{PORT}/"
-NO_WINDOW = 0x08000000
 MAX_BODY = 256 * 1024           # 요청 본문 한도. 일정 한 건은 수 KB 를 넘지 않는다
 DRAIN_MAX = 64 * 1024           # 거절한 뒤 흘려 버릴 최대 바이트
 DRAIN_WAIT = 0.25               # 그때 기다릴 시간(초)
@@ -33,12 +31,6 @@ WEEK = "월화수목금토일"
 # 필드를 더하는 것은 깨는 변경이 아니다. 다른 화면(휴대폰 앱 등)은 /api/ping 으로 확인한다.
 API_VERSION = 1
 SPAN_MAX = 750                  # 한 번에 펼칠 수 있는 최대 기간(일)
-
-BROWSERS = [
-    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-]
-
 
 def log(msg):
     """빌드본은 콘솔이 없다. 문제를 파일로 남긴다."""
@@ -57,43 +49,6 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
 
 
-_lock_handle = None          # 핸들을 살려둬야 잠금이 유지된다
-
-
-def acquire_single_instance():
-    """이미 다른 인스턴스가 돌고 있으면 False."""
-    global _lock_handle
-    try:
-        # use_last_error 가 없으면 ctypes 가 중간에 오류 번호를 덮어써 판단이 흔들린다
-        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        k32.CreateMutexW.restype = ctypes.c_void_p
-        k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-        h = k32.CreateMutexW(None, False, r"Local\LazyScheduler.Service")
-        if h and ctypes.get_last_error() == 183:        # ERROR_ALREADY_EXISTS
-            return False
-        _lock_handle = h
-        return True
-    except Exception:
-        log("단일 실행 잠금 실패(무시): " + traceback.format_exc())
-        return True
-
-
-def _dpi_aware():
-    """화면 배율(125%·150%)에서 알림 카드가 흐리지 않게 한다.
-
-    DPI 를 모른다고 두면 Windows 가 100% 로 그린 카드를 늘려서 뿌옇게 보인다.
-    선언하고 나면 카드 크기는 toast.py 가 배율에 맞춰 직접 키워 그린다.
-    창을 하나라도 만들기 전에 불러야 한다.
-    """
-    try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)      # PROCESS_SYSTEM_DPI_AWARE
-    except Exception:
-        try:
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
-
-
 def focus_ui():
     """이미 떠 있는 창을 앞으로 불러온다. 창이 없으면 False.
 
@@ -106,20 +61,14 @@ def focus_ui():
 def _spawn_ui(*flags):
     """창 프로세스(main.py --ui)를 띄운다. 기다리지 않는다."""
     if paths.FROZEN:
-        # --windowed 빌드는 표준 입출력 핸들이 없다. 명시하지 않으면
-        # Popen 이 부모 핸들을 복제하려다 실패할 수 있다.
-        subprocess.Popen([sys.executable, "--ui", *flags], cwd=BASE,
-                         creationflags=NO_WINDOW,
-                         stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+        system.spawn([sys.executable, "--ui", *flags], cwd=BASE)
     else:
-        subprocess.Popen([paths.python_runner(), os.path.join(BASE, "main.py"), "--ui", *flags],
-                         cwd=BASE, creationflags=NO_WINDOW)
+        system.spawn([paths.python_runner(), os.path.join(BASE, "main.py"), "--ui", *flags],
+                     cwd=BASE, quiet=False)
 
 
 def open_window():
-    """앱 창을 새 프로세스로 띄운다. pywebview 를 못 쓰면 Edge 앱 창으로 폴백."""
+    """앱 창을 새 프로세스로 띄운다. pywebview 를 못 쓰면 브라우저로 폴백 (Windows 는 Edge 앱 창)."""
     if focus_ui():
         log("open_window: 이미 떠 있는 창을 앞으로 불러왔다")
         return
@@ -130,15 +79,8 @@ def open_window():
         log("open_window: 창 프로세스 생성 요청 완료")
         return
     except Exception:
-        log("네이티브 창 실패 -> Edge 폴백: " + traceback.format_exc())
-    profile = os.path.join(os.environ.get("LOCALAPPDATA", BASE), "LazyScheduler", "browser")
-    for exe in BROWSERS:
-        if os.path.exists(exe):
-            subprocess.Popen([exe, f"--app={URL}", f"--user-data-dir={profile}",
-                              "--window-size=1020,880", "--no-first-run"],
-                             creationflags=NO_WINDOW)
-            return
-    webbrowser.open(URL)
+        log("네이티브 창 실패 -> 브라우저 폴백: " + traceback.format_exc())
+    system.open_in_browser(URL)
 
 
 _hinted = False
@@ -863,11 +805,11 @@ def notify_plan():
 def main():
     paths.log("main: 시작 (frozen=%s)" % paths.FROZEN)
     silent = "--silent" in sys.argv
-    _dpi_aware()
+    system.prepare_service()        # 알림 카드 창을 하나라도 만들기 전에
 
     # 이미 백그라운드에 돌고 있으면 서비스를 또 띄우지 않는다.
     # 바탕화면 아이콘을 다시 눌렀을 때 기대하는 동작은 "그 창을 열어라" 이다.
-    if not acquire_single_instance():
+    if not system.single_instance():
         paths.log("main: 이미 실행 중 → 기존 창만 열고 종료")
         if not silent:
             open_window()

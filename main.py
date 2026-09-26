@@ -84,10 +84,8 @@ def selftest():
                  + ("%d개 파일에서 떼어냄" % n if n else "없음"))
     lines.append("  ssl         " + ("껍데기(용량 절약)" if getattr(
         sys.modules.get("ssl"), "__file__", None) is None else "정품"))
-    for mod in ("PIL", "PIL.Image", "PIL.ImageDraw", "PIL.ImageFilter",
-                "pystray", "pystray._win32", "clr", "clr_loader",
-                "bottle", "proxy_tools", "webview", "webview.guilib",
-                "webview.platforms.winforms", "webview.platforms.edgechromium"):
+    from platforms import system
+    for mod in ("PIL", "PIL.ImageFilter", "bottle", "proxy_tools", "webview.guilib")             + system.PROBE_MODULES:
         try:
             __import__(mod)
             lines.append(f"  OK    {mod}")
@@ -145,7 +143,7 @@ def selftest():
         f.write("\n".join(lines) + "\n")
 
     try:                                    # 결과를 바로 볼 수 있게 열어준다
-        os.startfile(out)
+        system.open_file(out)
     except Exception:
         pass
 

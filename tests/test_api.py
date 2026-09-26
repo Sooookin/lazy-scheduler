@@ -8,7 +8,7 @@ import types
 import pytest
 
 from desktop import app
-from platforms.win import autostart
+from platforms import autostart
 from desktop import ipc
 from desktop import paths
 from core import store

@@ -2,7 +2,8 @@
 """파일 위치를 한 곳에서 정한다.
 
 - 프로그램 파일(web/, app.ico)은 실행 파일 옆 또는 PyInstaller 임시 폴더
-- 내 일정(data.json)은 %APPDATA%\\오늘  ← 프로그램 폴더와 분리해야
+- 내 일정(data.json)은 %APPDATA%/LazyScheduler (macOS 는 ~/Library/Application Support/LazyScheduler)
+  ← 프로그램 폴더와 분리해야
   · 배포본에 남의 일정이 섞이지 않고
   · 읽기 전용 공유 폴더에서 실행해도 저장이 되고
   · 프로그램을 새 버전으로 덮어써도 일정이 유지된다
@@ -11,6 +12,7 @@ import os
 import sys
 
 FROZEN = getattr(sys, "frozen", False)
+MAC = sys.platform == "darwin"       # platforms.MAC 과 같다 (platforms 쪽이 이 파일을 부르므로 따로 본다)
 
 # 프로그램 자원(읽기 전용)
 if FROZEN:
@@ -29,17 +31,19 @@ def font_paths(name):
     """이 글꼴 파일을 찾아볼 자리들. 앞에서부터 있는 것을 쓴다.
 
     빌드본은 묶을 때 fonts/ 로 넣고, 소스로 돌릴 때는 assets/fonts/ 에 있다.
-    마지막은 맑은 고딕 - 글꼴이 없다고 알림이 아예 안 뜨면 안 된다.
+    마지막은 시스템 한글 글꼴 - 글꼴이 없다고 알림이 아예 안 뜨면 안 된다.
 
     (예전에는 toast.py 와 tray.py 가 이 목록을 각자 적어 뒀다. 글꼴을 옮기면
      한쪽만 고쳐져 트레이 숫자만 시스템 글꼴로 나오는 식이 된다.)
     """
     return [os.path.join(RES_DIR, "fonts", name),
             os.path.join(APP_DIR, "assets", "fonts", name),
-            r"C:\Windows\Fonts\malgun.ttf"]
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc" if MAC else r"C:\Windows\Fonts\malgun.ttf"]
 
-# 사용자 데이터(쓰기 가능)
-_base = os.environ.get("APPDATA") or os.path.expanduser("~")
+# 사용자 데이터(쓰기 가능). APPDATA 가 있으면 그것을 먼저 본다 - 테스트 · 도구가 macOS 에서도
+# 같은 방법(APPDATA 를 임시 폴더로)으로 진짜 일정을 비켜 간다.
+_base = (os.environ.get("APPDATA")
+         or (os.path.expanduser("~/Library/Application Support") if MAC else os.path.expanduser("~")))
 APP_NAME = "LazyScheduler"           # 창 제목 · 트레이 · 바로가기에 그대로 쓰인다
 DATA_DIR = os.path.join(_base, APP_NAME)
 # 예전 이름들. 가까운 것부터. 이름을 또 바꾸면 여기 앞에 끼워 넣는다.
@@ -76,7 +80,7 @@ def unblock():
     우리가 시작할 때 직접 뗀다. 꼬리표는 부속 스트림이라 파일 내용은 그대로다.
     """
     global UNBLOCKED
-    if not FROZEN:
+    if not FROZEN or MAC:                 # macOS 의 격리 표시는 앱 전체에 붙는다 - 여기서 뗄 일이 아니다
         UNBLOCKED = 0
         return 0
     import ctypes
@@ -166,6 +170,8 @@ def log(msg, name="app.log"):
 def python_runner():
     """소스로 돌릴 때 쓸 파이썬. 콘솔 창이 뜨지 않게 pythonw 를 먼저 찾는다."""
     exe = sys.executable or "python.exe"
+    if MAC:
+        return exe
     pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
     return pyw if os.path.exists(pyw) else exe
 

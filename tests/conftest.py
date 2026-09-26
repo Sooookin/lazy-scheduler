@@ -39,7 +39,7 @@ def fresh_data():
     """테스트마다 빈 데이터 폴더와 초기 상태에서 시작한다."""
     from desktop import app
     from core import store
-    from platforms.win import toast
+    from desktop import toast
 
     shutil.rmtree(paths.DATA_DIR, ignore_errors=True)
     os.makedirs(paths.DATA_DIR)

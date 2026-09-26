@@ -15,7 +15,7 @@ import sys
 
 import pytest
 
-from platforms.win import toast
+from desktop import toast
 from core import tokens
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,7 +66,7 @@ def test_no_stray_hex_colours_in_python():
     나중에 붙을 앱이 같은 값을 본다.
     """
     allowed = {v.lower() for v in tokens.COLOR.values()}
-    for name in ("platforms/win/toast.py", "platforms/win/tray.py", "desktop/app.py"):
+    for name in ("desktop/toast.py", "platforms/win/tray.py", "desktop/app.py"):
         src = io.open(os.path.join(ROOT, name), encoding="utf-8").read()
         src = re.sub(r"#.*", "", src)                     # 주석 안의 설명은 센다고 치고
         found = {m.lower() for m in re.findall(r"[\"'](#[0-9a-fA-F]{6})[\"']", src)}

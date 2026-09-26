@@ -102,13 +102,13 @@ _cache = {"token": None, "until": 0.0, "uid": None}
 
 
 def _protect(data):
-    from platforms.win import win32  # Windows 에만 있다 (휴대폰은 자기 보관소를 쓴다)
-    return win32.protect(data)
+    from platforms import system    # 운영체제의 보관소 (Windows DPAPI · macOS 키체인. 휴대폰은 자기 것)
+    return system.protect(data)
 
 
 def _unprotect(blob):
-    from platforms.win import win32
-    return win32.unprotect(blob)
+    from platforms import system
+    return system.unprotect(blob)
 
 
 def _load():

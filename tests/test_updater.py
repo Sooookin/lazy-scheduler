@@ -13,6 +13,15 @@ from desktop import updater
 import version
 
 
+def test_probe_modules_all_exist():
+    """새 버전을 켜 볼 때 불러오는 모듈이 실제로 있어야 한다. 모듈을 옮기고 이 목록을 잊으면
+    모든 설치본이 새 버전을 "켜 보지 못했다" 며 영영 받지 않는다 (폴더를 나눌 때 실제로 그럴 뻔했다)."""
+    import importlib
+    from platforms import system
+    for mod in updater.PROBE_MODULES + system.PROBE_MODULES:
+        importlib.import_module(mod)
+
+
 def test_versions_compare_as_numbers():
     assert updater.parse("v2.10.0") > updater.parse("v2.9.9")
     assert updater.parse("2.4") == (2, 4, 0)

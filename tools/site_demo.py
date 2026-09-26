@@ -117,7 +117,7 @@ def capture():
 
 def card():
     """알림 카드 한 장을 2배로 그린다 (홈페이지에서 반으로 줄여 보여 준다)."""
-    from platforms.win import toast
+    from desktop import toast
     toast.set_scale(2.0)
     img, _ = toast._card_rgba({"title": "주간 보고 제출", "when": "17:00", "rel": "30분 뒤",
                                "meta": "할 일", "on_done": toast._noop,

@@ -4,15 +4,15 @@
     확인      켠 지 2분 뒤, 그 뒤로 6시간마다 github.com/<저장소>/releases/latest 가 넘겨 주는 태그를 본다.
               GitHub API 는 쓰지 않는다 - 로그인 없는 API 는 IP 하나에 한 시간 60번이라, 회사처럼
               여럿이 한 주소를 쓰면 막힌다 (실제로 "rate limit exceeded" 로 확인이 실패했다)
-    받기      LazyScheduler.zip 과 LazyScheduler.zip.sha256, 바뀐 것 목록 LazyScheduler-notes.txt
-              (GitHub Actions 가 함께 올린다)
+    받기      LazyScheduler.zip(Windows) · LazyScheduler-mac.zip(macOS) 과 그 .sha256,
+              바뀐 것 목록 LazyScheduler-notes.txt (GitHub Actions 가 함께 올린다)
               크기와 SHA-256 이 맞아야 쓴다. 해시 파일이 없는 릴리스는 받지 않는다
-    풀기      %APPDATA%\\LazyScheduler\\update\\<버전>\\LazyScheduler
+    풀기      <데이터 폴더>/update/<버전>/files  (Windows 는 exe 가 든 폴더, macOS 는 LazyScheduler.app)
     켜 보기   풀어 둔 새 exe 를 --probe 로 한 번 켠다. 부품을 다 불러오지 못하면 쓰지 않는다
     바꾸기    조용할 때만 (창이 숨은 지 10분 · 떠 있으면 손대지 않은 지 30분, 앞뒤 10분 안에 알림이
               없고, 떠 있는 카드가 없을 때). 창이 떠 있었으면 바꾼 뒤 다시 연다.
               새 exe 가 --apply-update 로 뒤를 맡고 서비스는 내려간다. 새 exe 는 옛 서비스가
-              끝나기를 기다렸다가 앱 폴더를 <폴더>.old 로 비켜 두고 새 것을 그 자리에 놓은 뒤
+              끝나기를 기다렸다가 앱 폴더(macOS 는 .app)를 <폴더>.old 로 비켜 두고 새 것을 그 자리에 놓은 뒤
               다시 켠다. 새 서비스가 30초 안에 포트를 열지 않으면 .old 를 되돌리고 옛 것을 켠다
     알리기    다음에 창을 열 때 "새 버전으로 바꿨습니다" 창을 한 번 (닫으면 다시 뜨지 않는다)
     손으로    설정의 [업데이트 확인] 은 기다리지 않고 바로 확인 · 받기, 받아 두었으면 [지금 업데이트] 가
@@ -35,18 +35,17 @@ import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
-import zipfile
 
 from desktop import paths
+from platforms import system
 import version
 
 REPO = "Sooookin/lazy-scheduler"
 LATEST_URL = "https://github.com/%s/releases/latest" % REPO
 DOWNLOAD_URL = "https://github.com/%s/releases/download/%%s/%%s" % REPO
-ASSET = "LazyScheduler.zip"
+ASSET = system.ASSET                 # 운영체제마다 다른 zip (platforms/<os>/system.py)
 HASH_ASSET = ASSET + ".sha256"
 NOTES_ASSET = "LazyScheduler-notes.txt"
-EXE = "LazyScheduler.exe"
 
 FIRST_CHECK_S = 120             # 켜자마자 묻지 않는다 - 켜는 동안은 할 일이 많다
 CHECK_EVERY_S = 6 * 3600
@@ -187,18 +186,8 @@ def download(url, dest, size):
 
 
 def extract(zip_path, dest):
-    """풀고 exe 가 든 폴더를 돌려준다. 폴더 밖으로 나가는 이름이 하나라도 있으면 멈춘다."""
-    root = os.path.abspath(dest)
-    with zipfile.ZipFile(zip_path) as z:
-        for name in z.namelist():
-            out = os.path.abspath(os.path.join(root, name))
-            if os.path.commonpath([root, out]) != root:
-                raise ValueError("zip 안에 이상한 경로: %s" % name)
-        z.extractall(root)
-    for cand in (os.path.join(root, "LazyScheduler"), root):
-        if os.path.isfile(os.path.join(cand, EXE)):
-            return cand
-    raise ValueError("zip 안에 %s 가 없다" % EXE)
+    """풀고 바꿔 끼울 단위(exe 가 든 폴더 · .app)를 돌려준다. 폴더 밖으로 나가는 이름이 있으면 멈춘다."""
+    return system.extract(zip_path, dest)
 
 
 def probe(exe):
@@ -209,9 +198,7 @@ def probe(exe):
     except OSError:
         pass
     try:
-        subprocess.run([exe, "--probe", out], cwd=os.path.dirname(exe), timeout=PROBE_TIMEOUT_S,
-                       creationflags=0x08000000, stdin=subprocess.DEVNULL,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        system.run_quiet([exe, "--probe", out], cwd=os.path.dirname(exe), timeout=PROBE_TIMEOUT_S)
         with open(out, encoding="utf-8") as f:
             text = f.read()
     except (OSError, subprocess.SubprocessError) as e:
@@ -245,7 +232,7 @@ def prepare(rel):
         raise ValueError("해시가 다르다")
     staged = extract(zpath, os.path.join(base, "files"))
     os.remove(zpath)
-    ok, why = probe(os.path.join(staged, EXE))
+    ok, why = probe(system.exe_in(staged))
     if not ok:
         raise ValueError("새 버전을 켜 보지 못했다: " + why)
     _edit_state(lambda d: d.update(pending={"version": ver, "dir": staged, "notes": rel["notes"]}))
@@ -299,19 +286,6 @@ def rollback(target, old):
     os.rename(old, target)
 
 
-def _wait_pid(pid, timeout):
-    """옛 서비스가 끝나기를 기다린다."""
-    try:
-        import ctypes
-        k32 = ctypes.windll.kernel32
-        h = k32.OpenProcess(0x00100000, False, int(pid))          # SYNCHRONIZE
-        if h:
-            k32.WaitForSingleObject(h, int(timeout * 1000))
-            k32.CloseHandle(h)
-    except Exception:
-        time.sleep(3)
-
-
 def _port_open(timeout):
     from desktop import ipc
     end = time.time() + timeout
@@ -326,41 +300,36 @@ def _port_open(timeout):
 
 def _launch(exe, open_window=False):
     """다시 켠다. 손으로 [지금 업데이트] 를 눌렀으면 창까지 연다 (보던 사람이 있다)."""
-    subprocess.Popen([exe] if open_window else [exe, "--silent"], cwd=os.path.dirname(exe),
-                     creationflags=0x00000008 | 0x00000200,            # DETACHED · 새 프로세스 묶음
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     close_fds=True)
+    system.spawn([exe] if open_window else [exe, "--silent"], cwd=os.path.dirname(exe), detach=True)
 
 
 def apply_main(argv):
-    """main.py --apply-update <앱 폴더> <풀어 둔 폴더> <옛 서비스 pid> <옛 버전> [open]"""
+    """main.py --apply-update <앱 폴더 · .app> <풀어 둔 것> <옛 서비스 pid> <옛 버전> [open]"""
     try:
         target, staged, pid, was = argv[:4]
     except ValueError:
         return 2
     show = len(argv) > 4 and argv[4] == "open"
     log("바꾸기 시작: %s → %s (옛 %s)" % (staged, target, was))
-    _wait_pid(pid, 30)
+    system.wait_pid(pid, 30)
     try:
         old = swap(target, staged)
     except Exception:
         log("바꾸기 실패, 옛 것 그대로: " + traceback.format_exc())
         _edit_state(lambda d: d.update(failed=version.VERSION, pending=None))
-        _launch(os.path.join(target, EXE), show)
+        _launch(system.exe_in(target), show)
         return 1
-    _launch(os.path.join(target, EXE), show)
+    _launch(system.exe_in(target), show)
     if not _port_open(START_WAIT_S):
         log("새 버전이 뜨지 않아 되돌림")
         try:
-            subprocess.run(["taskkill", "/F", "/IM", EXE, "/FI", "PID ne %d" % os.getpid()],
-                           creationflags=0x08000000, timeout=15,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            system.kill_others()
             time.sleep(1)
             rollback(target, old)
         except Exception:
             log("되돌리기 실패: " + traceback.format_exc())
         _edit_state(lambda d: d.update(failed=version.VERSION, pending=None))
-        _launch(os.path.join(target, EXE), show)
+        _launch(system.exe_in(target), show)
         return 1
     _edit_state(lambda d: d.update(pending=None, failed=None, cleanup=old,
                                    just_updated={"from": was, "to": version.VERSION,
@@ -369,13 +338,17 @@ def apply_main(argv):
     return 0
 
 
+# 새 버전이 켜지려면 불러와야 하는 모듈. 모듈을 옮기면 여기도 따라 고친다 - 하나라도 못 찾으면
+# 새 버전을 쓰지 않는다 (tests/test_updater.py 가 이 목록을 실제로 불러 본다).
+PROBE_MODULES = ("core.store", "core.recur", "core.syncdoc", "core.tokens", "desktop.toast",
+                 "desktop.cloudsync", "desktop.app", "desktop.ui", "PIL.Image", "PIL.ImageDraw", "ssl")
+
+
 def probe_main(argv):
     """main.py --probe <결과 파일>: 새 버전이 제 부품을 다 불러오는지 (창 · 서버는 띄우지 않는다)."""
     out = argv[0] if argv else None
     try:
-        for mod in ("store", "recur", "syncdoc", "tokens", "toast", "tray", "cloudsync",
-                    "PIL.Image", "PIL.ImageDraw", "pystray._win32", "clr", "webview",
-                    "webview.platforms.edgechromium", "ssl", "app"):
+        for mod in PROBE_MODULES + system.PROBE_MODULES:
             __import__(mod)
         text = "ok %s" % version.VERSION
         code = 0
@@ -417,7 +390,7 @@ def cleanup():
     """바꾼 뒤 처음 켰을 때: 비켜 둔 옛 폴더 · 받아 둔 파일을 치운다."""
     d = load_state()
     old = d.get("cleanup")
-    if old and os.path.abspath(old) != os.path.abspath(paths.APP_DIR):
+    if old and os.path.abspath(old) != os.path.abspath(system.install_dir()):
         shutil.rmtree(old, ignore_errors=True)
     if not d.get("pending"):
         shutil.rmtree(UPDATE_DIR, ignore_errors=True)
@@ -477,16 +450,13 @@ def apply_pending(shutdown, open_window=False):
     """받아 둔 새 버전으로 바꾼다: 새 exe 에게 뒤를 맡기고 서비스를 내린다."""
     p = load_state().get("pending") or {}
     staged = p.get("dir")
-    exe = os.path.join(staged or "", EXE)
+    exe = system.exe_in(staged or "")
     if not staged or not os.path.isfile(exe):
         _edit_state(lambda d: d.update(pending=None))
         return False
     log("조용함 → %s 로 바꾸러 감" % p.get("version"))
-    subprocess.Popen([exe, "--apply-update", paths.APP_DIR, staged, str(os.getpid()), version.VERSION]
-                     + (["open"] if open_window else []),
-                     cwd=staged, creationflags=0x00000008 | 0x00000200 | 0x08000000,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     close_fds=True)
+    system.spawn([exe, "--apply-update", system.install_dir(), staged, str(os.getpid()), version.VERSION]
+                 + (["open"] if open_window else []), cwd=staged, detach=True)
     shutdown()
     return True
 

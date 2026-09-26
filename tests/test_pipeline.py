@@ -17,7 +17,7 @@ from PIL import ImageChops
 from desktop import app
 from desktop import ipc
 from core import store
-from platforms.win import toast
+from desktop import toast
 from test_api import call
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

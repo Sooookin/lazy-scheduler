@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """화면 오른쪽 아래에 뜨는 알림 카드 — A′ (점토 · 모조지 결 · Paperlogy).
 
-카드 전체를 Pillow 로 그린 뒤 Windows 레이어드 윈도우(UpdateLayeredWindow)로 띄운다.
-픽셀 단위 알파라 모서리와 그림자가 계단 없이 부드럽다. 창과 이벤트 루프도 Win32 로
-직접 다룬다 - tkinter 를 쓰면 배포본에 tcl/tk 6MB 가 따라 들어온다.
+카드 전체를 Pillow 로 그린 뒤, 운영체제의 투명 창에 그림 그대로 올린다 (cards: Windows 는
+레이어드 윈도우, macOS 는 투명 NSPanel). 픽셀 단위 알파라 모서리와 그림자가 계단 없이
+부드럽다. 그림 · 쌓기 · 수명 · 움직임은 여기서, 창 · 이벤트 루프 · 화면 정보는 cards 가 한다.
 
 선명도: 카드는 모니터 배율(SCALE)에 맞춘 실제 픽셀 크기로 새로 그린다. 작게 그려
 늘리지 않는다. 글꼴은 Paperlogy TTF, 선과 모서리는 4배로 그린 뒤 줄여 계단을 없앤다.
@@ -11,7 +11,6 @@
 220ms 동안 자리를 옮긴다. 곡선은 앱 화면과 같은 cubic-bezier(.2,.8,.2,1).
 그림은 바뀔 때만 다시 만들고, 움직이는 동안에는 위치와 투명도만 바꿔 준다.
 """
-import ctypes
 import functools
 import math
 import queue
@@ -21,8 +20,7 @@ import traceback
 
 from desktop import paths
 from core import tokens
-from platforms.win import win32
-from ctypes import wintypes
+from platforms import cards
 
 # ---------------- 색 ----------------
 # tokens.py 가 유일한 출처다. 카드는 창 화면의 밤 색(tokens.NIGHT)을 입는다 - 하늘 화면으로
@@ -198,9 +196,8 @@ def notify(title, sub="", accent=None, on_done=None, key=None, extra=None,
 
 
 def _wake():
-    """쉬고 있는 메시지 루프를 깨운다. 어느 스레드에서 불러도 된다 (PostMessage)."""
-    if _ctrl:
-        U32.PostMessageW(_ctrl, WM_WAKE, 0, 0)
+    """쉬고 있는 이벤트 루프를 깨운다. 어느 스레드에서 불러도 된다."""
+    cards.wake()
 
 
 def notify_list(label, title, rows, more=0, accent=None, key=None):
@@ -625,211 +622,11 @@ def _card_rgba(item, hover=None):
     img.alpha_composite(card, (PAD, PAD))
     return img, hits
 
-# ---------------- 레이어드 윈도우 (GDI) ----------------
-WS_EX_LAYERED = 0x00080000
-WS_EX_TOOLWINDOW = 0x00000080     # Alt+Tab · 작업표시줄에 안 잡히게
-ULW_ALPHA = 0x00000002
-AC_SRC_OVER, AC_SRC_ALPHA = 0x00, 0x01
-BI_RGB, DIB_RGB_COLORS = 0, 0
-PVOID = ctypes.c_void_p
-
-
-class BLENDFUNCTION(ctypes.Structure):
-    _fields_ = [("BlendOp", ctypes.c_byte), ("BlendFlags", ctypes.c_byte),
-                ("SourceConstantAlpha", ctypes.c_byte), ("AlphaFormat", ctypes.c_byte)]
-
-
-class BITMAPINFOHEADER(ctypes.Structure):
-    _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG),
-                ("biHeight", wintypes.LONG), ("biPlanes", wintypes.WORD),
-                ("biBitCount", wintypes.WORD), ("biCompression", wintypes.DWORD),
-                ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
-                ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD),
-                ("biClrImportant", wintypes.DWORD)]
-
-
-# 이 모듈 전용 핸들을 쓴다. ctypes.windll.user32 는 프로세스 전체가 같이 쓰는 객체라
-# 여기서 argtypes 를 바꾸면 pystray 같은 다른 코드의 호출까지 바뀐다.
-# use_last_error 를 켜야 ctypes.get_last_error() 가 실제 오류 번호를 돌려준다.
-U32 = ctypes.WinDLL("user32", use_last_error=True)
-G32 = ctypes.WinDLL("gdi32", use_last_error=True)
-
-# 핸들은 64비트다. restype 을 지정하지 않으면 c_long(32비트)으로 잘려서 실패한다.
-U32.GetDC.restype = PVOID
-U32.GetDC.argtypes = [PVOID]
-U32.ReleaseDC.argtypes = [PVOID, PVOID]
-U32.GetParent.restype = PVOID
-U32.GetParent.argtypes = [PVOID]
-U32.GetWindowLongW.restype = ctypes.c_long
-U32.GetWindowLongW.argtypes = [PVOID, ctypes.c_int]
-U32.SetWindowLongW.restype = ctypes.c_long
-U32.SetWindowLongW.argtypes = [PVOID, ctypes.c_int, ctypes.c_long]
-U32.UpdateLayeredWindow.restype = wintypes.BOOL
-U32.UpdateLayeredWindow.argtypes = [
-    PVOID, PVOID, ctypes.POINTER(wintypes.POINT), ctypes.POINTER(wintypes.SIZE),
-    PVOID, ctypes.POINTER(wintypes.POINT), wintypes.DWORD,
-    ctypes.POINTER(BLENDFUNCTION), wintypes.DWORD]
-G32.CreateCompatibleDC.restype = PVOID
-G32.CreateCompatibleDC.argtypes = [PVOID]
-G32.CreateDIBSection.restype = PVOID
-G32.CreateDIBSection.argtypes = [PVOID, PVOID, wintypes.UINT,
-                                 ctypes.POINTER(PVOID), PVOID, wintypes.DWORD]
-G32.SelectObject.restype = PVOID
-G32.SelectObject.argtypes = [PVOID, PVOID]
-G32.DeleteObject.argtypes = [PVOID]
-G32.DeleteDC.argtypes = [PVOID]
-
-# ---------------- 창 (순수 Win32) ----------------
-# 예전에는 tkinter 를 창 껍데기와 타이머로만 썼는데, 그 하나 때문에 배포본에
-# tcl/tk 가 6MB 들어갔다. 카드는 어차피 UpdateLayeredWindow 로 직접 그리므로
-# 창과 이벤트 루프도 Win32 로 직접 다룬다.
-WM_DESTROY, WM_TIMER = 0x0002, 0x0113
-WM_WAKE = 0x8000 + 1                 # WM_APP + 1: 새 알림이 왔다
-WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_MOUSELEAVE = 0x0200, 0x0201, 0x02A3
-WM_SETCURSOR = 0x0020
-WS_POPUP = 0x80000000
-WS_EX_TOPMOST, WS_EX_NOACTIVATE = 0x00000008, 0x08000000
-SW_SHOWNOACTIVATE, SW_HIDE = 4, 0
-SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER = 0x0010, 0x0001, 0x0004
-IDC_ARROW, IDC_HAND = 32512, 32649
-TME_LEAVE = 0x00000002
-
-LRESULT = ctypes.c_ssize_t
-WPARAM = ctypes.c_size_t
-LPARAM = ctypes.c_ssize_t
-WNDPROC = ctypes.WINFUNCTYPE(LRESULT, PVOID, ctypes.c_uint, WPARAM, LPARAM)
-
-
-class WNDCLASS(ctypes.Structure):
-    _fields_ = [("style", wintypes.UINT), ("lpfnWndProc", WNDPROC),
-                ("cbClsExtra", ctypes.c_int), ("cbWndExtra", ctypes.c_int),
-                ("hInstance", PVOID), ("hIcon", PVOID), ("hCursor", PVOID),
-                ("hbrBackground", PVOID), ("lpszMenuName", ctypes.c_wchar_p),
-                ("lpszClassName", ctypes.c_wchar_p)]
-
-
-class TRACKMOUSEEVENT(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
-                ("hwndTrack", PVOID), ("dwHoverTime", wintypes.DWORD)]
-
-
-class MSG(ctypes.Structure):
-    _fields_ = [("hwnd", PVOID), ("message", wintypes.UINT), ("wParam", WPARAM),
-                ("lParam", LPARAM), ("time", wintypes.DWORD),
-                ("pt_x", ctypes.c_long), ("pt_y", ctypes.c_long)]
-
-
-U32.DefWindowProcW.restype = LRESULT
-U32.DefWindowProcW.argtypes = [PVOID, ctypes.c_uint, WPARAM, LPARAM]
-U32.CreateWindowExW.restype = PVOID
-U32.CreateWindowExW.argtypes = [wintypes.DWORD, ctypes.c_wchar_p, ctypes.c_wchar_p,
-                                wintypes.DWORD, ctypes.c_int, ctypes.c_int,
-                                ctypes.c_int, ctypes.c_int, PVOID, PVOID, PVOID, PVOID]
-U32.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASS)]
-U32.SetWindowPos.argtypes = [PVOID, PVOID, ctypes.c_int, ctypes.c_int,
-                             ctypes.c_int, ctypes.c_int, wintypes.UINT]
-U32.SetTimer.restype = PVOID
-U32.SetTimer.argtypes = [PVOID, PVOID, wintypes.UINT, PVOID]
-U32.KillTimer.argtypes = [PVOID, PVOID]
-U32.PostMessageW.argtypes = [PVOID, ctypes.c_uint, WPARAM, LPARAM]
-U32.DestroyWindow.argtypes = [PVOID]
-U32.ShowWindow.argtypes = [PVOID, ctypes.c_int]
-U32.LoadCursorW.restype = PVOID
-U32.LoadCursorW.argtypes = [PVOID, ctypes.c_wchar_p]
-U32.SetCursor.restype = PVOID
-U32.SetCursor.argtypes = [PVOID]
-U32.GetMessageW.argtypes = [ctypes.POINTER(MSG), PVOID, wintypes.UINT, wintypes.UINT]
-U32.TranslateMessage.argtypes = [ctypes.POINTER(MSG)]
-U32.DispatchMessageW.argtypes = [ctypes.POINTER(MSG)]
-U32.TrackMouseEvent.argtypes = [ctypes.POINTER(TRACKMOUSEEVENT)]
-
-_cards = {}                     # hwnd -> Card
-_ctrl = None                    # 타이머만 받는 숨은 창
-_rate = 0                       # 지금 타이머 간격
-_cursors = {}
-
-
-def _cursor(which):
-    if which not in _cursors:
-        _cursors[which] = U32.LoadCursorW(None, ctypes.c_wchar_p(which))
-    return _cursors[which]
-
-
-def _lo(v):
-    v &= 0xFFFF
-    return v - 0x10000 if v > 0x7FFF else v
-
-def _premultiplied_bgra(img):
-    """PIL RGBA → 알파 미리곱한 BGRA 바이트."""
-    from PIL import Image, ImageChops
-    r, g, b, a = img.split()
-    r = ImageChops.multiply(r, a)
-    g = ImageChops.multiply(g, a)
-    b = ImageChops.multiply(b, a)
-    return Image.merge("RGBA", (b, g, r, a)).tobytes()
-
-
-class _Surface:
-    """카드 그림 한 장을 담아 두는 GDI 비트맵.
-
-    예전에는 틀마다 그림을 다시 곱하고 복사해서 넘겼다. 이제 그림은 바뀔 때(처음 ·
-    마우스 올림)만 올리고, 움직이는 동안에는 위치와 투명도만 넘긴다.
-    """
-
-    def __init__(self):
-        self.mem_dc = self.hbmp = self.old = None
-        self.size = (0, 0)
-
-    def load(self, img):
-        self.free()
-        screen = U32.GetDC(None)
-        try:
-            self.mem_dc = G32.CreateCompatibleDC(screen)
-            bi = BITMAPINFOHEADER()
-            bi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
-            bi.biWidth, bi.biHeight = img.width, -img.height        # 음수 = 위에서 아래로
-            bi.biPlanes, bi.biBitCount, bi.biCompression = 1, 32, BI_RGB
-            bits = PVOID()
-            self.hbmp = G32.CreateDIBSection(self.mem_dc, ctypes.byref(bi), DIB_RGB_COLORS,
-                                             ctypes.byref(bits), None, 0)
-            if not self.hbmp:
-                raise OSError("CreateDIBSection failed")
-            data = _premultiplied_bgra(img)
-            ctypes.memmove(bits, data, len(data))
-            self.old = G32.SelectObject(self.mem_dc, self.hbmp)
-            self.size = img.size
-        finally:
-            U32.ReleaseDC(None, screen)
-
-    def present(self, hwnd, x, y, alpha):
-        a = max(0, min(255, int(round(alpha))))
-        screen = U32.GetDC(None)
-        try:
-            pt = wintypes.POINT(int(round(x)), int(round(y)))
-            size = wintypes.SIZE(*self.size)
-            src = wintypes.POINT(0, 0)
-            blend = BLENDFUNCTION(AC_SRC_OVER, 0, a - 256 if a > 127 else a, AC_SRC_ALPHA)
-            if not U32.UpdateLayeredWindow(hwnd, screen, ctypes.byref(pt), ctypes.byref(size),
-                                           self.mem_dc, ctypes.byref(src), 0,
-                                           ctypes.byref(blend), ULW_ALPHA):
-                raise OSError("UpdateLayeredWindow failed (%d)" % ctypes.get_last_error())
-        finally:
-            U32.ReleaseDC(None, screen)
-
-    def free(self):
-        if self.mem_dc:
-            if self.old:
-                G32.SelectObject(self.mem_dc, self.old)
-            if self.hbmp:
-                G32.DeleteObject(self.hbmp)
-            G32.DeleteDC(self.mem_dc)
-        self.mem_dc = self.hbmp = self.old = None
-
-
 # ---------------- 움직임 ----------------
 ENTER_MS, EXIT_MS, MOVE_MS = 360, 220, 220
 SLIDE = 28                           # 등장할 때 오른쪽에서 미끄러지는 거리 (100% 기준)
 FRAME_MS, IDLE_MS = 15, 400          # 움직일 때만 빠르게 (Windows 타이머 해상도 ≈ 15.6ms)
+_cards = set()                       # 창이 있는 카드 (접힌 줄 포함)
 
 
 def _bezier(x1, y1, x2, y2):
@@ -914,17 +711,11 @@ class Card:
         self.grace_until = 0.0
         self.closing = False
         self.dead = False
-        self.surface = _Surface()
         self.img, self.hits = _card_rgba(item)
         self.w, self.h = self.img.size
-        self.hwnd = U32.CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
-            _CLASS_NAME, paths.APP_NAME + " 알림", WS_POPUP,
-            0, 0, self.w, self.h, None, None, None, None)
-        if not self.hwnd:
-            raise OSError("CreateWindowEx 실패 (%d)" % ctypes.get_last_error())
-        _cards[self.hwnd] = self
-        self.surface.load(self.img)
+        self.win = cards.Window(self, self.w, self.h)
+        _cards.add(self)
+        self.win.load(self.img)
         self.x = self.y = self.tx = self.ty = None
         self.from_xy = None
         self.move_t0 = self.enter_t0 = self.exit_t0 = None
@@ -935,7 +726,7 @@ class Card:
         if self.tx is None:                  # 처음 자리: 여기서 등장한다
             self.x, self.y, self.tx, self.ty = x, y, x, y
             self.enter_t0 = now
-            U32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
+            self.win.show()
         elif (x, y) != (self.tx, self.ty):   # 다른 카드가 사라지거나 들어와서 자리가 바뀜
             self.from_xy = (self.x, self.y)
             self.tx, self.ty = x, y
@@ -976,7 +767,7 @@ class Card:
         state = (round(self.x + slide), round(self.y), round(alpha))
         if state != self.shown:
             try:
-                self.surface.present(self.hwnd, *state)
+                self.win.present(*state)
                 self.shown = state
             except Exception:
                 paths.log("toast.present 실패: " + traceback.format_exc())
@@ -986,7 +777,7 @@ class Card:
         """마우스 올림 · 건수 변화처럼 그림이 바뀔 때만."""
         try:
             self.img, self.hits = _card_rgba(self.item, self.hover)
-            self.surface.load(self.img)
+            self.win.load(self.img)
             self.shown = None
         except Exception:
             paths.log("toast.redraw 실패: " + traceback.format_exc())
@@ -1004,10 +795,7 @@ class Card:
         return None
 
     def on_move(self, x, y):
-        if not self.over:
-            self.over = True
-            tme = TRACKMOUSEEVENT(ctypes.sizeof(TRACKMOUSEEVENT), TME_LEAVE, self.hwnd, 0)
-            U32.TrackMouseEvent(ctypes.byref(tme))
+        self.over = True
         t = self._hit(x, y)
         if t != self.hover:
             self.hover = t
@@ -1041,155 +829,23 @@ class Card:
             self.exit_t0 = time.time()
 
     def destroy(self):
-        _cards.pop(self.hwnd, None)
+        _cards.discard(self)
         if self in _live:
             _live.remove(self)
-        self.surface.free()
-        try:
-            U32.DestroyWindow(self.hwnd)
-        except Exception:
-            pass
+        self.win.destroy()
 
-def _wndproc(hwnd, msg, wp, lp):
-    if msg == WM_TIMER or msg == WM_WAKE:
-        if hwnd == _ctrl:
-            _pump()
-        return 0
-    card = _cards.get(hwnd)
-    if card is not None:
-        if msg == WM_MOUSEMOVE:
-            card.on_move(_lo(lp), _lo(lp >> 16))
-            return 0
-        if msg == WM_LBUTTONDOWN:
-            card.on_click(_lo(lp), _lo(lp >> 16))
-            return 0
-        if msg == WM_MOUSELEAVE:
-            card.on_leave()
-            return 0
-        if msg == WM_SETCURSOR:
-            U32.SetCursor(_cursor(IDC_HAND if card.hover else IDC_ARROW))
-            return 1
-        if msg == WM_DESTROY:
-            _cards.pop(hwnd, None)
-            return 0
-    return U32.DefWindowProcW(hwnd, msg, wp, lp)
-
-
-_WNDPROC_REF = WNDPROC(_wndproc)      # 살려 둬야 한다. 가비지가 되면 즉시 죽는다
-_CLASS_NAME = "LazySchedulerToast"
-
-
-def _register():
-    wc = WNDCLASS()
-    wc.style = 0x0020                  # CS_OWNDC 아님: CS_HREDRAW/VREDRAW 불필요
-    wc.lpfnWndProc = _WNDPROC_REF
-    wc.hInstance = None
-    wc.hCursor = _cursor(IDC_ARROW)
-    wc.lpszClassName = _CLASS_NAME
-    if not U32.RegisterClassW(ctypes.byref(wc)):
-        err = ctypes.get_last_error()
-        if err != 1410:                # ERROR_CLASS_ALREADY_EXISTS
-            raise OSError("RegisterClass 실패 (%d)" % err)
-
-
-# ---------------- 어느 화면에 · 지금 띄워도 되는가 ----------------
-
-MONITOR_DEFAULTTONEAREST = 2
-QUNS_ACCEPTS_NOTIFICATIONS = 5     # 이 값일 때만 "지금 알려도 된다"
-
-# 핸들을 돌려주는 함수는 restype 을 밝혀 둬야 한다.
-# 기본값(c_int)이면 64비트에서 핸들 위쪽 절반이 잘려 엉뚱한 값이 된다.
-try:
-    U32.GetForegroundWindow.restype = wintypes.HWND
-    U32.GetShellWindow.restype = wintypes.HWND
-    U32.MonitorFromWindow.restype = ctypes.c_void_p
-    U32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
-    U32.MonitorFromPoint.restype = ctypes.c_void_p
-except AttributeError:
-    pass
-
-
-_monitor_info = win32.monitor_info
-
-
-def _active_monitor():
-    """지금 보고 있는 화면. 앞에 있는 창의 모니터, 없으면 마우스가 있는 모니터."""
-    try:
-        h = U32.GetForegroundWindow()
-        if h:
-            return U32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST)
-        pt = wintypes.POINT()
-        if U32.GetCursorPos(ctypes.byref(pt)):
-            return U32.MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST)
-    except Exception:
-        pass
-    return None
-
-
-def _work_area():
-    """작업표시줄을 뺀 화면 영역. 화면 크기로 계산하면 카드가 작업표시줄에 가린다.
-
-    예전에는 SPI_GETWORKAREA 로 주 모니터만 봤다. 노트북에 외장 모니터를 붙이면
-    지금 보고 있는 화면이 아니라 늘 주 모니터에 카드가 떠서, 다른 화면을 보고
-    있으면 알림을 통째로 놓쳤다. 이제는 활성 창이 있는 모니터에 띄운다.
-    """
-    try:
-        mi = _monitor_info(_active_monitor())
-        if mi is not None:
-            w = mi.rcWork
-            if w.right > w.left and w.bottom > w.top:
-                return w.left, w.top, w.right, w.bottom
-    except Exception:
-        pass
-    try:
-        r = wintypes.RECT()
-        if U32.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0):   # SPI_GETWORKAREA
-            return r.left, r.top, r.right, r.bottom
-    except Exception:
-        pass
-    return 0, 0, U32.GetSystemMetrics(0), U32.GetSystemMetrics(1)
-
-
-def _foreground_is_fullscreen():
-    """앞에 있는 창이 모니터를 통째로 덮고 있는가 (발표 · 영상 · 게임)."""
-    try:
-        h = U32.GetForegroundWindow()
-        if not h or h == U32.GetShellWindow():
-            return False
-        cls = ctypes.create_unicode_buffer(64)
-        U32.GetClassNameW(h, cls, 64)
-        # 바탕화면 · 작업표시줄은 전체 화면이어도 방해가 아니다
-        if cls.value in ("Progman", "WorkerW", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow"):
-            return False
-        r = wintypes.RECT()
-        if not U32.GetWindowRect(h, ctypes.byref(r)):
-            return False
-        mi = _monitor_info(U32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST))
-        if mi is None:
-            return False
-        m = mi.rcMonitor
-        return (r.left <= m.left and r.top <= m.top
-                and r.right >= m.right and r.bottom >= m.bottom)
-    except Exception:
-        return False
-
+# ---------------- 지금 띄워도 되는가 ----------------
 
 def _should_hold():
     """지금 카드를 띄우면 안 되는 상황인가.
 
     발표 중에 개인 일정이 화면에 뜨는 것이 이 프로그램에서 가장 곤란한 사고다.
-    화면 공유 · 전체 화면 발표 · 집중 지원(방해 금지) · 잠금 화면이 모두 여기 걸린다.
-    Windows 가 알려주는 상태를 먼저 믿고, 그것이 없으면 직접 전체 화면을 본다.
+    화면 공유 · 전체 화면 발표 · 방해 금지 · 잠금 화면이 모두 여기 걸린다 (cards.os_busy).
     """
     if not HOLD_WHEN_BUSY:
         return False
-    try:
-        st = ctypes.c_int()
-        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(st)) == 0:
-            return st.value != QUNS_ACCEPTS_NOTIFICATIONS
-    except Exception:
-        pass
-    return _foreground_is_fullscreen()
+    return cards.os_busy()
+
 
 # ---------------- 쌓기 · 수명 · 보류 ----------------
 # 카드가 떠 있는 시간 (초). 11초였는데 "보기도 전에 사라진다" 는 말을 들었다.
@@ -1254,31 +910,15 @@ def held_count():
     return len(_held)
 
 
-def _system_scale():
-    """시스템 화면 배율. 프로세스가 DPI 를 안다고 선언했을 때만 실제 값이 나온다."""
-    try:
-        dpi = U32.GetDpiForSystem()               # Windows 10 1607+
-        if dpi:
-            return dpi / 96.0
-    except (AttributeError, OSError):
-        pass
-    return 1.0
-
-
 _motion_state = {"at": 0.0, "on": True}
 
 
 def _motion():
-    """Windows '애니메이션 효과' 설정. 끄면 카드는 미끄러지지 않고 곧바로 나타난다."""
+    """운영체제의 '애니메이션 효과' · '동작 줄이기' 설정. 끄면 카드는 미끄러지지 않고 곧바로 나타난다."""
     now = time.time()
     if now - _motion_state["at"] > 5:
         _motion_state["at"] = now
-        try:
-            v = wintypes.BOOL()
-            if U32.SystemParametersInfoW(0x1042, 0, ctypes.byref(v), 0):   # SPI_GETCLIENTAREAANIMATION
-                _motion_state["on"] = bool(v.value)
-        except Exception:
-            pass
+        _motion_state["on"] = cards.motion()
     return _motion_state["on"]
 
 
@@ -1287,7 +927,7 @@ def _layout(now):
 
     닫히는 카드는 자리에서 빼서, 남은 카드가 사라지는 카드와 함께 미끄러져 내려오게 한다.
     """
-    left, top, right, bottom = _work_area()
+    left, top, right, bottom = cards.work_area()
     y = bottom - s(12)
     stack = [c for c in reversed(_live) if not c.closing]
     if _fold is not None and not _fold.closing:
@@ -1300,14 +940,7 @@ def _layout(now):
 
 def _set_rate(ms):
     """타이머 간격. 놀 때까지 틀 단위로 돌 이유가 없다. 0 이면 타이머를 멈춘다."""
-    global _rate
-    if ms == _rate:
-        return
-    if _rate:
-        U32.KillTimer(_ctrl, PVOID(1))
-    if ms:
-        U32.SetTimer(_ctrl, PVOID(1), ms, None)
-    _rate = ms
+    cards.set_rate(ms)
 
 
 def _sync_fold():
@@ -1398,7 +1031,7 @@ def _pump():
             busy = True
         # 떠 있는 카드도 기다리는 알림도 없으면 타이머를 아예 멈춘다. 예전에는 하루 종일
         # 0.4초마다 깨어 할 일이 없는지 확인했다 (Windows 가 타이머를 묶어 CPU 를
-        # 재우는 것을 막는다). 새 알림은 notify() 가 WM_WAKE 로 깨운다.
+        # 재우는 것을 막는다). 새 알림은 notify() 가 cards.wake() 로 깨운다.
         # 보류해 둔 알림(_held)이 있으면 계속 돈다 - 발표가 끝났는지 봐야 한다.
         idle = (not _live and _fold is None and not _pending and not _held
                 and _queue.empty())
@@ -1436,23 +1069,10 @@ def _noop():
 
 
 def run_forever(on_ready=None):
-    """메인 스레드에서 호출. Win32 메시지 루프를 돈다."""
-    global _ctrl
-    set_scale(_system_scale())
-    paths.log("toast.run_forever: 창 클래스 등록 (배율 %.2f)" % SCALE)
-    _register()
-    _ctrl = U32.CreateWindowExW(0, _CLASS_NAME, paths.APP_NAME, WS_POPUP,
-                                0, 0, 0, 0, None, None, None, None)
-    if not _ctrl:
-        raise OSError("타이머용 창 생성 실패 (%d)" % ctypes.get_last_error())
-    _set_rate(IDLE_MS)
-    # 준비는 따로 돈다. 메시지 루프(트레이 · 창 열기)를 그만큼 늦추지 않는다.
+    """메인 스레드에서 호출. 운영체제의 이벤트 루프를 돈다 (돌아오지 않는다)."""
+    set_scale(cards.scale())
+    paths.log("toast.run_forever: 배율 %.2f" % SCALE)
+    # 준비는 따로 돈다. 이벤트 루프(트레이 · 창 열기)를 그만큼 늦추지 않는다.
     # 준비가 끝나기 전에 알림이 오더라도 그림은 같다 - 기억해 둔 것을 나눠 쓸 뿐이다.
     threading.Thread(target=lambda: _safe(prewarm, "prewarm"), daemon=True).start()
-    if on_ready:
-        _safe(on_ready, "on_ready")
-    paths.log("toast.run_forever: 메시지 루프 진입")
-    msg = MSG()
-    while U32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-        U32.TranslateMessage(ctypes.byref(msg))
-        U32.DispatchMessageW(ctypes.byref(msg))
+    cards.run(_pump, IDLE_MS, on_ready=on_ready)

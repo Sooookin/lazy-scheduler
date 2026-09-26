@@ -9,6 +9,7 @@
 데이터 형식(store.py)으로 만난다. 이 파일은 이 PC 안의 두 프로세스 사이 약속이다.
 """
 import json
+import os
 import socket
 
 from desktop import paths
@@ -16,6 +17,11 @@ from desktop import paths
 HOST = "127.0.0.1"
 SERVICE_PORT = 8777             # 서비스 (API + 화면 파일)
 UI_PORT = 8779                  # 앱 창 프로세스 (앞으로 부르기 · 닫기)
+# 점검용 (tools/smoke.py): 설치된 앱이 도는 PC 에서 소스 · 새 빌드를 다른 포트로 나란히 켠다.
+# 데이터 폴더(APPDATA)도 따로 주므로 서로의 일정 · 중복 실행 잠금을 건드리지 않는다.
+if os.environ.get("LS_PORT_BASE"):
+    SERVICE_PORT = int(os.environ["LS_PORT_BASE"])
+    UI_PORT = SERVICE_PORT + 2
 TOKEN_HEADER = "X-TM-Token"
 _CRLF = b"\r\n"
 
