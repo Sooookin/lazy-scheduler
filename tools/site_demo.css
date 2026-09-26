@@ -1,0 +1,3 @@
+/* docs/demo/demo.css - 체험판에서만 (tools/site_demo.py 가 베낀다).
+   창 단추(최소화 · 최대화 · 닫기)는 웹 페이지에서 할 일이 없어 숨긴다. */
+.wbtn{visibility:hidden}
