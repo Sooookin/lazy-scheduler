@@ -152,7 +152,27 @@ _SERVICE, _ACCOUNT = "LazyScheduler", "auth-key"
 _MAGIC = b"LSK1"
 
 
+def _sandbox_key():
+    """데이터 폴더를 APPDATA 로 옮겨 둔 때(테스트 · tools/smoke.py): 열쇠를 그 폴더의 파일에 둔다.
+    개발하는 Mac 의 진짜 로그인 키체인에 테스트가 흔적을 남기지 않게."""
+    p = os.path.join(paths.DATA_DIR, "auth.key")
+    try:
+        with open(p, "rb") as f:
+            k = f.read()
+        if len(k) == 32:
+            return k
+    except OSError:
+        pass
+    k = os.urandom(32)
+    paths.ensure_data_dir()
+    with open(p, "wb") as f:
+        f.write(k)
+    return k
+
+
 def _key():
+    if os.environ.get("APPDATA"):          # macOS 에는 원래 없는 값 - 누가 데이터 폴더를 옮겼다
+        return _sandbox_key()
     try:
         r = subprocess.run(["security", "find-generic-password", "-s", _SERVICE, "-a", _ACCOUNT, "-w"],
                            capture_output=True, text=True, timeout=15)

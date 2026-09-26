@@ -28,24 +28,28 @@ The design, including how edits from two devices are merged, is in
 
 ```
 main.py          entry point (--ui opens the window, --selftest checks a build)
+version.py       the app version (must match the release tag)
 
-  core — no Windows here; a phone app reuses these rules and this data format
-store.py         reading/writing data.json, backups, revision, the client payloads
-recur.py         recurrence rules, business days, Korean holidays
-syncdoc.py       how an item looks in the cloud, and which fields changed (docs/sync.md)
-tokens.py        colours, weights, metrics — the one place they are defined
+core/            no operating system here; the phone app reuses these rules and this data format
+  store.py       reading/writing data.json, backups, revision, the client payloads
+  recur.py       recurrence rules, business days, Korean holidays
+  syncdoc.py     how an item looks in the cloud, and which fields changed (docs/sync.md)
+  tokens.py      colours, weights, metrics — the one place they are defined
 
-  desktop — Windows only
-app.py           HTTP API (see "API contract"), scheduler, notification decisions
-ui.py            the native WebView2 window process
-toast.py         the notification cards (drawn with Pillow)
-tray.py          tray icon, badge, menu
-autostart.py     "run at login" and the desktop shortcut
-win32.py         shared Win32 structures (monitors), DPAPI for the saved sign-in
-cloudauth.py     Google sign-in on the PC → Firebase session (docs/sync.md §6)
-cloudsync.py     sends the outbox to Firestore and pulls changes (docs/sync.md §5)
-ipc.py           how the service and the window process reach each other
-paths.py         where every file lives (resources vs. user data)
+desktop/         the PC app, shared by Windows and macOS
+  app.py         HTTP API (see "API contract"), scheduler, notification decisions
+  ui.py          the window process (pywebview: WebView2 on Windows, WKWebView on macOS)
+  toast.py       the notification cards: drawing (Pillow), stacking, lifetime, motion
+  updater.py     auto-update from GitHub Releases
+  cloudauth.py   Google sign-in on the PC → Firebase session (docs/sync.md §6)
+  cloudsync.py   sends the outbox to Firestore and pulls changes (docs/sync.md §5)
+  ipc.py         how the service and the window process reach each other
+  paths.py       where every file lives (resources vs. user data)
+
+platforms/       what differs per OS; `from platforms import cards` loads the current one
+  win/           Win32 layered card windows, tray, registry autostart, DPAPI, window moving/zoom
+  mac/           NSPanel card windows, menu bar icon, LaunchAgent, keychain, window moving/zoom
+                 (each has system · cards · tray · window · autostart with the same functions)
 
 assets/          things the app ships with: app.ico, fonts/Paperlogy-*.ttf
 web/             the window itself: index.html, app.js (lists · calendar · forms), sky.js (sun · light · orbit),
@@ -57,7 +61,7 @@ firebase/        Firestore security rules and config (deploy with the Firebase C
 android/         the Android app (Kotlin, Compose, Firestore SDK)
 ```
 
-Your own schedule never lives here — it is in `%APPDATA%\LazyScheduler\`.
+Your own schedule never lives here — it is in `%APPDATA%\LazyScheduler\` (macOS: `~/Library/Application Support/LazyScheduler/`).
 
 ## API contract
 

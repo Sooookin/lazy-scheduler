@@ -272,7 +272,7 @@ def swap(target, staged, tries=60, wait=0.5):
                 raise
             time.sleep(wait)
     try:
-        shutil.copytree(staged, target)
+        shutil.copytree(staged, target, symlinks=True)     # .app 안의 링크는 링크로 (풀면 서명이 깨진다)
     except Exception:
         shutil.rmtree(target, ignore_errors=True)
         os.rename(old, target)

@@ -188,7 +188,7 @@ the account's items back into `local.json`, so the list stays.
    `POST securetoken.googleapis.com/v1/token` when needed.
 4. Sign-out deletes `auth.json`, `sync-outbox.json` and `sync-state.json`, and keeps `data.json`.
 
-*Implemented: `cloudauth.py`, `win32.protect/unprotect`, `/api/sync` endpoints, and the
+*Implemented: `cloudauth.py`, `platforms/<os>/system.protect/unprotect` (DPAPI · keychain), `/api/sync` endpoints, and the
 "동기화" section in Settings.*
 
 The Firebase web API key and the OAuth desktop client ID/secret are placed in the app
