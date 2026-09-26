@@ -165,9 +165,17 @@ counts as 1 read: about 1,440 reads a day, well below the free 50,000.
 - Both have items → join by `id`; for the same `id` the newer `updated` wins.
   Nothing is deleted without a tombstone.
 
+**Android without an account.** The phone works signed out too: items live in
+`files/local.json` (`data/Local.kt`), same document shape as Firestore, `updated` in
+local milliseconds, deletes kept as tombstones. On sign-in `Cloud.mergeFrom` joins them
+into the account (new id → upload; same id → the newer side's fields, `done_dates` /
+`skip_dates` unioned; a newer local tombstone deletes). If the account cannot be read
+from the server the merge waits and runs again when the app opens. Sign-out first copies
+the account's items back into `local.json`, so the list stays.
+
 ## 6. Sign-in
 
-**Android:** Firebase Auth with Google (Credential Manager).
+**Android:** Firebase Auth with Google (Credential Manager), from Settings. Optional.
 
 **PC** (a desktop app cannot use the Android SDK):
 

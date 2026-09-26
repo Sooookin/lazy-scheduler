@@ -25,6 +25,7 @@ python tools/site_demo.py                  rebuild docs/demo (homepage view-only
 
 cd android && ./gradlew test               Kotlin unit tests (incl. the shared recurrence vectors)
 cd android && ./gradlew installPerf        release-equivalent build on the phone (debug builds are laggy; judge speed on perf)
+cd android && ./gradlew testDebugUnitTest --tests '*ScreenShots'   phone screens rendered on the JVM (Robolectric) -> android/app/build/shots/
 ```
 
 - `tools/dev.py` only hot-reloads `web/`; after changing any `.py` file, rerun it.

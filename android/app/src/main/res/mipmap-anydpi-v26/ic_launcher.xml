@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘 (PC 와 같은 도안). 그림은 tools/gen_icon.py 가 만든다 - 판 없이 꽉 찬 한 장을
+     뒤 겹에 두고, 모양(원 · 둥근 사각형)은 휴대폰이 자른다. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_art" />
+    <foreground android:drawable="@android:color/transparent" />
+</adaptive-icon>

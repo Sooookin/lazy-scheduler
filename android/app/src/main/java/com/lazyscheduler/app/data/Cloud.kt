@@ -20,7 +20,9 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Source
+import com.google.firebase.Timestamp
 import com.lazyscheduler.app.BuildConfig
 import com.lazyscheduler.app.core.Instance
 import com.lazyscheduler.app.core.Task
@@ -33,7 +35,6 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 private const val TAG = "Cloud"
-private const val SCHEMA = 2L
 
 /**
  * Firebase for the phone: Google sign-in and the user's items in Firestore.
@@ -268,16 +269,73 @@ object Cloud {
             return
         }
         val id = UUID.randomUUID().toString().replace("-", "")
-        val doc = linkedMapOf<String, Any?>(
-            "id" to id, "title" to "", "note" to "", "tag" to "", "kind" to "deadline",
-            "due_date" to null, "due_time" to "", "notify_min" to null, "muted" to false, "pinned" to false,
-            "rule" to null, "created" to LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS).toString(),
-            "done" to false, "done_at" to null,
-            "done_dates" to emptyMap<String, Boolean>(), "skip_dates" to emptyMap<String, Boolean>(),
-            "schema" to SCHEMA,
-        )
-        doc.putAll(fields)
+        val doc = newDoc(id, fields)
         doc["updated"] = FieldValue.serverTimestamp()
         logged("add") { ref(uid, id).set(doc) }
     }
+
+    /** 함께 쓰는 설정(알림 · 브리핑 · 영업일)만. 다른 키는 건드리지 않는다. */
+    fun saveSettings(uid: String, patch: Map<String, Any?>) {
+        logged("settings") { settings(uid).set(patch, SetOptions.merge()) }
+    }
+
+    // ---------- 로그인 · 로그아웃할 때 휴대폰의 일정과 합치기 ----------
+
+    /** 계정의 문서 전부 (흔적 포함). updated 는 밀리초로 바꿔 둔다 - 휴대폰 파일에 그대로 쓴다. */
+    suspend fun rawDocs(uid: String, source: Source): Map<String, Map<String, Any?>>? = runCatching {
+        tasks(uid).get(source).await().documents.associate { doc ->
+            doc.id to (doc.data.orEmpty().mapValues { (_, v) -> if (v is Timestamp) v.toDate().time else v })
+        }
+    }.getOrNull()
+
+    suspend fun rawSettings(uid: String): Map<String, Any?>? = readSettings(uid, Source.SERVER)
+
+    /**
+     * 로그인하기 전에 이 휴대폰에 적어 둔 것을 계정에 합친다. 어느 쪽도 지우지 않는다 (PC 와 같다).
+     *   계정에 없는 항목      그대로 올린다
+     *   둘 다 있는 항목       나중에 고친 쪽의 내용 · 완료 날짜는 양쪽을 합친다
+     *   휴대폰에서 지운 항목  휴대폰에서 지운 것이 나중이면 계정에서도 지운다
+     * 계정을 서버에서 읽지 못하면 (인터넷이 없으면) 아무것도 하지 않고 false - 다음에 다시 한다.
+     */
+    suspend fun mergeFrom(uid: String, local: Map<String, Map<String, Any?>>, localSettings: Map<String, Any?>): Boolean {
+        val cloud = rawDocs(uid, Source.SERVER) ?: return false
+        for ((id, d) in local) {
+            val c = cloud[id]
+            val lu = (d["updated"] as? Number)?.toLong() ?: 0L
+            val cu = (c?.get("updated") as? Number)?.toLong() ?: 0L
+            val r = ref(uid, id)
+            when {
+                c == null -> if (d["deleted"] != true) logged("merge add") {
+                    r.set(LinkedHashMap(d).apply { put("schema", SCHEMA); put("updated", FieldValue.serverTimestamp()) })
+                }
+                c["deleted"] == true -> Unit
+                d["deleted"] == true -> if (lu > cu) delete(uid, Task(id = id, title = ""))
+                else -> {
+                    val paths = ArrayList<Pair<FieldPath, Any?>>()
+                    if (lu > cu) {
+                        for (k in listOf("title", "note", "kind", "due_date", "due_time", "notify_min", "muted", "rule", "done", "done_at"))
+                            if (canon(d[k]) != canon(c[k])) paths += FieldPath.of(k) to d[k]
+                    }
+                    for (k in listOf("done_dates", "skip_dates")) {
+                        val mine = (d[k] as? Map<*, *>).orEmpty().filterValues { it == true }.keys
+                        val theirs = (c[k] as? Map<*, *>).orEmpty().keys
+                        for (day in mine - theirs) paths += FieldPath.of(k, day.toString()) to true
+                    }
+                    if (paths.isNotEmpty()) {
+                        paths += FieldPath.of("updated") to FieldValue.serverTimestamp()
+                        val rest = paths.drop(1).flatMap { listOf(it.first, it.second) }.toTypedArray()
+                        logged("merge edit") { r.update(paths[0].first, paths[0].second, *rest) }
+                    }
+                }
+            }
+        }
+        // 계정에 아직 없는 함께 쓰는 설정만 올린다 - PC 에서 정해 둔 값을 휴대폰이 덮지 않게
+        val have = rawSettings(uid).orEmpty()
+        val up = localSettings.filterKeys { it in SHARED && it !in have }
+        if (up.isNotEmpty()) saveSettings(uid, up)
+        return true
+    }
 }
+
+/** syncdoc.SHARED_SETTINGS 와 같다. */
+internal val SHARED = setOf("notify_min", "brief_time", "business_only")

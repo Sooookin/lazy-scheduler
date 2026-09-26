@@ -73,7 +73,24 @@ def test_the_type_scale_is_the_shared_one():
     sizes = set(re.findall(r"val \w+ = ([\d.]+)\.sp", src))
     assert sizes <= steps, "스케일에 없는 크기: %s (눈금 %s)" % (sorted(sizes - steps), sorted(steps))
     # Typography 안에서 숫자를 바로 쓰면 스케일을 비켜 간 것이다
-    typo = re.search(r"private val type = Typography\((.*?)\n\)", src, re.S)
+    typo = re.search(r"private val type(?: = | by lazy \{ )Typography\((.*?)\n\)", src, re.S)
     assert typo, "Typography 를 찾지 못했다"
     raw = re.findall(r"fontSize = ([\d.]+)\.sp", typo.group(1))
     assert not raw, "Typography 에 숫자를 바로 적었다: %s" % raw
+
+
+def test_the_light_palette_is_tokens_light():
+    """하루의 빛을 섞는 재료(LitTokens)도 tokens.LIGHT 와 한 글자도 다르지 않다 (PC 의 sky.js 와 같은 빛)."""
+    if not os.path.exists(THEME):
+        pytest.skip("휴대폰 소스가 없다")
+    src = io.open(THEME, encoding="utf-8").read()
+    block = re.search(r"object LitTokens \{(.*?)\n\}", src, re.S)
+    assert block, "object LitTokens 를 찾지 못했다"
+    kt = {m.group(1): "#" + m.group(2).lower()
+          for m in re.finditer(r"val (\w+)\s*=\s*Color\(0xFF([0-9A-Fa-f]{6})\)", block.group(1))}
+
+    def camel(k):
+        p = k.split("-")
+        return p[0] + "".join(x[:1].upper() + x[1:] for x in p[1:])
+    want = {camel(k): v.lower() for k, v in tokens.LIGHT.items()}
+    assert kt == want, "어긋난 것: %s" % sorted(set(kt.items()) ^ set(want.items()))

@@ -1,15 +1,19 @@
 package com.lazyscheduler.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,236 +24,276 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 
 internal val WDS = listOf("월", "화", "수", "목", "금", "토", "일")
 /** 달력은 일요일이 맨 왼쪽이다. 규칙(weekdays)은 예전대로 월요일이 0 이므로 둘을 섞지 않는다. */
 internal val WDS_SUN = listOf("일", "월", "화", "수", "목", "금", "토")
 
+/** 누를 수 있는 것. 누르는 동안 살짝 줄어든다 (PC 의 :active 와 같다). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun Modifier.press(onLong: (() -> Unit)? = null, onClick: () -> Unit): Modifier {
+    val src = remember { MutableInteractionSource() }
+    val down by src.collectIsPressedAsState()
+    val s by animateFloatAsState(if (down) .96f else 1f, tween(if (down) 90 else 160), label = "press")
+    return this.scale(s).combinedClickable(interactionSource = src, indication = null, onLongClick = onLong, onClick = onClick)
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 internal fun Modifier.tap(onClick: () -> Unit): Modifier = this.combinedClickable(onClick = onClick)
 
 internal fun dateLabel(d: LocalDate, today: LocalDate): String {
-    val diff = java.time.temporal.ChronoUnit.DAYS.between(today, d)
+    val diff = ChronoUnit.DAYS.between(today, d)
     return when {
         diff == 0L -> "오늘"
         diff == 1L -> "내일"
         diff == 2L -> "모레"
         diff == -1L -> "어제"
-        diff < 0 -> "${-diff}일 지남"
-        else -> "${d.monthValue}/${d.dayOfMonth} (${WDS[d.dayOfWeek.value - 1]})"
+        else -> "${d.monthValue}/${d.dayOfMonth}"
     }
 }
 
-/** "오전 9:30" for a stored "09:30"; "" stays "". */
+internal fun dayName(d: LocalDate) = "${d.monthValue}월 ${d.dayOfMonth}일 ${WDS[d.dayOfWeek.value - 1]}요일"
+internal fun shortDay(d: LocalDate) = "${d.monthValue}/${d.dayOfMonth} ${WDS[d.dayOfWeek.value - 1]}"
+
+/** "오후 1:30" for a stored "13:30"; "" stays "". */
 internal fun timeLabel(t: String): String {
     val v = runCatching { LocalTime.parse(t) }.getOrNull() ?: return t
     val h12 = if (v.hour % 12 == 0) 12 else v.hour % 12
     return (if (v.hour < 12) "오전 " else "오후 ") + h12 + ":" + "%02d".format(v.minute)
 }
 
-/** A pressed-in well with raised choices, like the PC's segmented controls. */
+/** 빛이 오는 쪽으로 도드라진 면의 그림자 (돌출) - 번호 동그라미 · 고른 칩. */
+internal fun Modifier.raised(shape: androidx.compose.ui.graphics.Shape, pal: Pal, depth: Dp = 2.dp): Modifier =
+    if (pal.isNight) this else this.shadow(depth, shape, ambientColor = pal.shade.copy(alpha = .5f), spotColor = pal.shade.copy(alpha = .5f))
+
+/**
+ * 목록의 동그라미. 번호(아직) → 채운 청록에 체크(끝남). 지난 것은 벽돌빛 테.
+ * 아직 안 한 것은 도드라지고, 끝낸 것은 눌려 들어간다 (그림자로만 말한다).
+ */
 @Composable
-internal fun <T> Seg(options: List<Pair<T, String>>, selected: T, enabled: Boolean = true, onPick: (T) -> Unit) {
-    FlowRow(
-        Modifier.inset(12.dp).padding(3.dp).alpha(if (enabled) 1f else 0.45f),
-        horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp),
+internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 22.dp) {
+    val pal = LocalPal.current
+    val c = if (late && !done) pal.late else pal.teal
+    val bg by animateColorAsState(if (done) c else if (pal.isNight) Color.Transparent else pal.field, tween(180), label = "dot")
+    Box(
+        Modifier.size(size).then(if (!done) Modifier.raised(CircleShape, pal, 1.5.dp) else Modifier)
+            .clip(CircleShape).background(bg).border(1.5.dp, c, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (done) Check(if (pal.isNight) pal.surface else pal.onTeal, size * .5f)
+        else if (n != null) Text("$n", style = T.micro, color = c)
+    }
+}
+
+@Composable
+internal fun Check(color: Color, size: Dp) {
+    Canvas(Modifier.size(size)) {
+        val p = Path().apply {
+            moveTo(this@Canvas.size.width * .12f, this@Canvas.size.height * .55f)
+            lineTo(this@Canvas.size.width * .40f, this@Canvas.size.height * .80f)
+            lineTo(this@Canvas.size.width * .90f, this@Canvas.size.height * .22f)
+        }
+        drawPath(p, color, style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+/** 칩 (마감 날짜 · 알림 · 빠른 시각). 고르면 채운 청록. */
+@Composable
+internal fun Chip(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val pal = LocalPal.current
+    Box(
+        modifier.height(36.dp).then(if (on) Modifier.raised(RoundedCornerShape(10.dp), pal) else Modifier)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (on) pal.teal else pal.field)
+            .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(10.dp))
+            .press(onClick = onClick).padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, style = T.lead, color = if (on) pal.onTeal else pal.text, maxLines = 1) }
+}
+
+/** 둥근 틀 안의 고르기 (할 일 · 루틴 · 메모 / 단위 / 간격 / 필터). */
+@Composable
+internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modifier = Modifier, fill: Boolean = false, onPick: (V) -> Unit) {
+    val pal = LocalPal.current
+    Row(
+        modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).border(1.dp, pal.hair2, RoundedCornerShape(19.dp)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         for ((v, label) in options) {
             val on = v == selected
             Box(
-                (if (on) Modifier.raised(9.dp, 2.dp) else Modifier).clip(RoundedCornerShape(9.dp))
-                    .then(if (enabled) Modifier.tap { onPick(v) } else Modifier)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(label, style = MaterialTheme.typography.labelMedium, color = if (on) Ink.ink2 else Ink.faint)
-            }
+                (if (fill) Modifier.weight(1f) else Modifier).fillMaxHeight()
+                    .then(if (on) Modifier.raised(RoundedCornerShape(16.dp), pal, 1.5.dp) else Modifier)
+                    .clip(RoundedCornerShape(16.dp)).background(if (on) pal.teal else Color.Transparent)
+                    .tap { onPick(v) }.padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(label, style = T.body, color = if (on) pal.onTeal else pal.text2, maxLines = 1) }
         }
     }
 }
 
-/** A raised chip; chosen = filled teal. */
-@Composable
-internal fun Chip(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier.then(if (on) Modifier else Modifier.raised(14.dp, 2.dp)).clip(RoundedCornerShape(14.dp))
-            .background(if (on) Ink.mid else Color.Transparent)
-            .tap(onClick).padding(horizontal = 13.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = MaterialTheme.typography.labelMedium, color = if (on) Ink.onMid else Ink.muted) }
-}
-
-/** The one filled button on a screen. */
+/** 화면에 하나뿐인 채운 단추. */
 @Composable
 internal fun Primary(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    val pal = LocalPal.current
     Box(
-        modifier.clip(RoundedCornerShape(24.dp)).background(if (enabled) Ink.mid else Ink.pale)
-            .then(if (enabled) Modifier.tap(onClick) else Modifier).padding(horizontal = 22.dp, vertical = 13.dp),
+        modifier.height(48.dp).then(if (enabled) Modifier.raised(RoundedCornerShape(24.dp), pal, 3.dp) else Modifier)
+            .clip(RoundedCornerShape(24.dp)).background(if (enabled) pal.teal else pal.hair2)
+            .then(if (enabled) Modifier.press(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Ink.onMid else Ink.faint) }
+    ) { Text(text, style = T.leadM, color = if (enabled) pal.onTeal else pal.text2) }
 }
 
-/** A raised text button (secondary actions). */
+/** 테두리만 있는 단추 (취소 · 내일로 · 삭제). */
 @Composable
-internal fun Ghost(text: String, color: Color = Ink.muted, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun Ghost(text: String, modifier: Modifier = Modifier, color: Color? = null, onClick: () -> Unit) {
+    val pal = LocalPal.current
+    val c = color ?: pal.text2
     Box(
-        modifier.raised(20.dp, 2.5.dp).clip(RoundedCornerShape(20.dp)).tap(onClick)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+        modifier.height(48.dp).clip(RoundedCornerShape(24.dp))
+            .border(1.dp, if (color != null) color.copy(alpha = .55f) else pal.hair2, RoundedCornerShape(24.dp))
+            .press(onClick = onClick).padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = MaterialTheme.typography.labelMedium, color = color) }
+    ) { Text(text, style = T.lead, color = c) }
 }
 
-/**
- * The checkbox: a pressed-in circle with a teal rim (it is the thing to press) →
- * filled teal with a white tick when done. Only this completes; the row opens.
- */
+/** 동그란 닫기 단추. */
 @Composable
-internal fun CheckDot(done: Boolean, onClick: () -> Unit) {
-    Box(Modifier.size(44.dp).clip(CircleShape).tap(onClick), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier.size(24.dp).then(
-                if (done) Modifier.clip(CircleShape).background(Ink.mid)
-                else Modifier.inset(12.dp, 1.5.dp).border(1.2.dp, Ink.mid.copy(alpha = .55f), CircleShape)
-            ),
-            contentAlignment = Alignment.Center,
-        ) {
-            // 줄마다 하나씩 있다 - 길과 붓은 한 번만 만들고 그리기만 되풀이한다
-            if (done) Box(Modifier.size(12.dp).drawWithCache {
-                val p = Path().apply {
-                    moveTo(size.width * .12f, size.height * .55f)
-                    lineTo(size.width * .40f, size.height * .80f)
-                    lineTo(size.width * .90f, size.height * .22f)
-                }
-                val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                onDrawBehind { drawPath(p, Ink.onMid, style = stroke) }
-            })
+internal fun CloseX(onClick: () -> Unit) {
+    val pal = LocalPal.current
+    Box(Modifier.size(34.dp).clip(CircleShape).border(1.dp, pal.hair2, CircleShape).press(onClick = onClick), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(10.dp)) {
+            val w = 1.4.dp.toPx()
+            drawLine(pal.text2, Offset.Zero, Offset(size.width, size.height), w, StrokeCap.Round)
+            drawLine(pal.text2, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
         }
     }
 }
 
-/** A pressed-in single-line text field with a placeholder. */
+/** 입력칸. 늘 종이보다 한 겹 밝다 (여기가 쓰는 곳). 쓰는 중이면 청록 테. */
 @Composable
-internal fun InField(
-    value: String,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    singleLine: Boolean = true,
-    onChange: (String) -> Unit,
+internal fun Field(
+    value: String, placeholder: String, modifier: Modifier = Modifier, singleLine: Boolean = true,
+    focused: Boolean = false, onChange: (String) -> Unit,
 ) {
-    Box(modifier.fillMaxWidth().inset(12.dp).padding(horizontal = 14.dp, vertical = 13.dp)) {
-        if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = Ink.dim)
+    val pal = LocalPal.current
+    Box(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(pal.field)
+            .border(if (focused) 1.3.dp else 1.dp, if (focused) pal.teal else pal.hair2, RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        if (value.isEmpty()) Text(placeholder, style = T.lead, color = pal.text2.copy(alpha = .7f))
         BasicTextField(
             value = value, onValueChange = onChange, singleLine = singleLine,
             modifier = Modifier.fillMaxWidth().then(if (singleLine) Modifier else Modifier.fillMaxHeight()),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink.ink2), cursorBrush = SolidColor(Ink.mid),
+            textStyle = T.lead.copy(color = pal.text), cursorBrush = SolidColor(pal.teal),
         )
     }
 }
 
-/** The completion ring: teal arc on a pale track, "N 남음" inside. */
+/** 눌러서 여는 칸 (시각 · 날짜). 오른쪽에 작은 안내를 붙일 수 있다. */
 @Composable
-internal fun Ring(left: Int, done: Int, total: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val pct = if (total > 0) done.toFloat() / total else if (left > 0) 0f else 1f
-    Box(modifier.size(74.dp).raised(37.dp, 3.dp).clip(CircleShape).tap(onClick), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(60.dp)) {
-            val w = 5.dp.toPx()
-            val inset = w / 2
-            val s = androidx.compose.ui.geometry.Size(size.width - w, size.height - w)
-            drawArc(Ink.pale, 0f, 360f, false, Offset(inset, inset), s, style = Stroke(w))
-            drawArc(if (left > 0) Ink.mid else Ink.mint, -90f, 360f * pct, false, Offset(inset, inset), s,
-                style = Stroke(w, cap = StrokeCap.Round))
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$left", style = MaterialTheme.typography.titleMedium, color = Ink.ink2)
-            Text("남음", style = MaterialTheme.typography.labelSmall, color = Ink.faint)
-        }
-    }
-}
-
-/**
- * Time: no presets. A tap shows the hour grid (새벽 · 오전 · 오후 · 저녁), an hour shows the
- * minute grid (5-minute steps), a minute closes it. Any time is exactly two taps.
- */
-@Composable
-internal fun TimeDialog(current: String, allowNone: Boolean = true, onDismiss: () -> Unit, onPick: (String) -> Unit) {
-    val cur = runCatching { LocalTime.parse(current) }.getOrNull()
-    var hour by remember { mutableStateOf<Int?>(null) }
-    val nowH = LocalTime.now().hour
-    Dialog(onDismissRequest = onDismiss) {
-        Column(Modifier.clip(RoundedCornerShape(22.dp)).background(Ink.card).padding(18.dp)) {
-            val h = hour
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (h == null) (if (cur != null) timeLabel(current) else "시") else timeLabel("%02d:00".format(h)).substringBefore(":") + "시",
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-                Text(if (h == null) "  › 분" else "  : 분", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.weight(1f))
-                if (h != null) Text("‹ 시 다시", Modifier.clip(RoundedCornerShape(12.dp)).tap { hour = null }.padding(8.dp),
-                    style = MaterialTheme.typography.labelMedium, color = Ink.muted)
-                else if (allowNone) Text("시각 없음", Modifier.clip(RoundedCornerShape(12.dp)).tap { onPick("") }.padding(8.dp),
-                    style = MaterialTheme.typography.labelMedium, color = Ink.muted)
-            }
-            Spacer(Modifier.height(12.dp))
-            if (h == null) {
-                for ((label, from) in listOf("새벽" to 0, "오전" to 6, "오후" to 12, "저녁" to 18)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
-                        Text(label, Modifier.width(34.dp), style = MaterialTheme.typography.bodySmall)
-                        for (k in 0..5) {
-                            val v = from + k
-                            GridCell(if (v % 12 == 0) "12" else "${v % 12}", on = cur?.hour == v, now = v == nowH,
-                                dim = from == 0, modifier = Modifier.weight(1f)) { hour = v }
-                        }
-                    }
-                }
-                Text("민트 테두리 = 지금 시각", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall)
-            } else {
-                for (row in 0..1) Row(Modifier.padding(vertical = 3.dp)) {
-                    for (k in 0..5) {
-                        val m = (row * 6 + k) * 5
-                        GridCell("%02d".format(m), on = cur?.hour == h && cur.minute == m, now = false, dim = false,
-                            modifier = Modifier.weight(1f)) { onPick("%02d:%02d".format(h, m)) }
-                    }
-                }
-                Text("5분 단위", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
-
-@Composable
-private fun GridCell(label: String, on: Boolean, now: Boolean, dim: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier.padding(3.dp).height(46.dp)
-            .then(if (on) Modifier.clip(RoundedCornerShape(12.dp)).background(Ink.mid) else Modifier.raised(12.dp, 2.dp))
-            .then(if (now && !on) Modifier.border(1.5.dp, Ink.mint, RoundedCornerShape(12.dp)) else Modifier)
-            .clip(RoundedCornerShape(12.dp)).tap(onClick),
-        contentAlignment = Alignment.Center,
+internal fun Slot(text: String, hint: String?, modifier: Modifier = Modifier, dim: Boolean = false, onClick: () -> Unit) {
+    val pal = LocalPal.current
+    Row(
+        modifier.height(48.dp).clip(RoundedCornerShape(12.dp)).background(pal.field)
+            .border(1.dp, pal.hair2, RoundedCornerShape(12.dp)).press(onClick = onClick).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
-            color = if (on) Ink.onMid else if (dim) Ink.dim else Ink.body)
+        Text(text, Modifier.weight(1f), style = T.lead, color = if (dim) pal.text2 else pal.text)
+        if (hint != null) Text(hint, style = T.label, color = pal.teal)
     }
+}
+
+/** 켜고 끄기. */
+@Composable
+internal fun Toggle(on: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    val pal = LocalPal.current
+    val t by animateFloatAsState(if (on) 1f else 0f, tween(180), label = "toggle")
+    Box(
+        Modifier.size(44.dp, 26.dp).clip(RoundedCornerShape(13.dp))
+            .background(androidx.compose.ui.graphics.lerp(pal.hair2, pal.teal, t).copy(alpha = if (enabled) 1f else .4f))
+            .then(if (enabled) Modifier.tap { onChange(!on) } else Modifier),
+    ) {
+        Box(
+            Modifier.padding(3.dp).size(20.dp).drawBehind {
+                drawCircle(pal.onTeal, center = Offset(size.width / 2 + t * 18.dp.toPx(), size.height / 2))
+            },
+        )
+    }
+}
+
+/** 네모 체크 (설정). */
+@Composable
+internal fun CheckRow(on: Boolean, label: String, note: String? = null, onChange: (Boolean) -> Unit) {
+    val pal = LocalPal.current
+    Row(Modifier.fillMaxWidth().tap { onChange(!on) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(if (on) pal.teal else pal.field)
+                .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(5.dp)),
+            contentAlignment = Alignment.Center,
+        ) { if (on) Check(pal.onTeal, 11.dp) }
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = T.lead, color = pal.text)
+        if (note != null) { Spacer(Modifier.width(6.dp)); Text(note, style = T.label, color = pal.text2, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
+/** 칸 이름 (이름 · 마감 · 시각 · 알림 …). */
+@Composable
+internal fun Label(text: String, modifier: Modifier = Modifier) {
+    Text(text, modifier.padding(top = 16.dp, bottom = 8.dp), style = T.label, color = LocalPal.current.text2)
+}
+
+/** 가는 선. */
+@Composable
+internal fun Hair(modifier: Modifier = Modifier, strong: Boolean = false) {
+    val pal = LocalPal.current
+    Box(modifier.fillMaxWidth().height(1.dp).background(if (strong) pal.hair2 else pal.hair))
+}
+
+/** 무리의 이름 (오전 · 오후 · 저녁 · 아무 때나 · 지난 일): 글자 뒤로 선이 이어진다. */
+@Composable
+internal fun Band(text: String, color: Color? = null) {
+    val pal = LocalPal.current
+    Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = T.label, color = color ?: pal.text2)
+        Spacer(Modifier.width(10.dp))
+        Hair(Modifier.weight(1f))
+    }
+}
+
+@Composable
+internal fun RowScope.Chevron() {
+    Text("›", Modifier.padding(start = 8.dp), style = T.lead, color = LocalPal.current.text2.copy(alpha = .6f), textAlign = TextAlign.Center)
+}
+
+internal fun Modifier.roundedBg(color: Color, r: Dp) = this.drawBehind {
+    drawRoundRect(color, cornerRadius = CornerRadius(r.toPx()))
 }

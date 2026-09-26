@@ -24,8 +24,8 @@ android {
         applicationId = "com.lazyscheduler.app"
         minSdk = 26                      // java.time without desugaring
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         buildConfigField("String", "FIREBASE_PROJECT_ID", cloudString("project_id"))
         buildConfigField("String", "FIREBASE_API_KEY", cloudString("api_key"))
         buildConfigField("String", "FIREBASE_APP_ID", cloudString("app_id"))
@@ -60,7 +60,10 @@ android {
     }
 
     testOptions {
+        unitTests.isIncludeAndroidResources = true      // 화면 갈무리(ScreenShots)가 글꼴 · 색을 읽는다
         unitTests.all {
+            // 화면 갈무리는 app/build/shots/ 에 PNG 로 (./gradlew testDebugUnitTest --tests '*ScreenShots*')
+            it.systemProperty("roborazzi.test.record", "true")
             // The recurrence spec shared with the PC app (tests/vectors/recurrence.json)
             it.systemProperty("vectors", rootProject.file("../tests/vectors/recurrence.json").absolutePath)
             it.systemProperty("suggest", rootProject.file("../tests/vectors/suggest.json").absolutePath)
@@ -91,4 +94,10 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.code.gson:gson:2.14.0")
+    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.75.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.75.0")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.test:core:1.7.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

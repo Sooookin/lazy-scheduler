@@ -24,13 +24,12 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.google.firebase.auth.FirebaseAuth
 import com.lazyscheduler.app.MainActivity
 import com.lazyscheduler.app.R
 import com.lazyscheduler.app.core.Alarm
 import com.lazyscheduler.app.core.ReminderPlan
 import com.lazyscheduler.app.core.Task
-import com.lazyscheduler.app.data.Cloud
+import com.lazyscheduler.app.data.Repo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -142,9 +141,22 @@ object Reminders {
         Log.i(TAG, "scheduled ${want.size} reminder(s), brief=$brief")
     }
 
-    fun snooze(ctx: Context, extras: Bundle) {
+    /** "방해 금지 중에는 알림을 미룸" - 이 휴대폰에만 둔다. */
+    fun holdBusy(ctx: Context) = prefs(ctx).getBoolean("hold", false)
+    fun setHoldBusy(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("hold", on).apply()
+
+    fun holdNow(ctx: Context): Boolean {
+        if (!holdBusy(ctx)) return false
+        val f = ctx.getSystemService(NotificationManager::class.java).currentInterruptionFilter
+        return f != NotificationManager.INTERRUPTION_FILTER_ALL && f != NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+    }
+
+    fun snooze(ctx: Context, extras: Bundle, keepDetail: Boolean = false) {
         val key = "snooze:" + (extras.getString("key") ?: "") + ":" + System.currentTimeMillis()
-        val copy = Bundle(extras).apply { putString("key", key); putString("detail", "${SNOOZE_MIN}분 전에 미룬 알림") }
+        val copy = Bundle(extras).apply {
+            putString("key", key)
+            if (!keepDetail) putString("detail", "${SNOOZE_MIN}분 전에 미룬 알림")
+        }
         setAlarm(ctx, LocalDateTime.now().plusMinutes(SNOOZE_MIN), pending(ctx, ACTION_FIRE, key, copy))
     }
 
@@ -213,13 +225,14 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handle(ctx: Context, action: String?, key: String, extras: Bundle) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
         when (action) {
             Reminders.ACTION_FIRE -> {
                 if (Reminders.wasFired(ctx, key)) return
+                // 방해 금지 중이면 (설정에서 켰을 때) 10분 뒤에 다시 본다
+                if (Reminders.holdNow(ctx)) { Reminders.snooze(ctx, extras, keepDetail = true); return }
                 Reminders.markFired(ctx, key)
                 // Completed or deleted on another device since it was scheduled? Then stay quiet.
-                if (uid != null && Cloud.isClosed(uid, extras.getString("task").orEmpty(), extras.getString("date").orEmpty())) return
+                if (Repo.isClosed(extras.getString("task").orEmpty(), extras.getString("date").orEmpty())) return
                 val time = extras.getString("time").orEmpty()
                 val late = runCatching {
                     LocalDateTime.now().isAfter(LocalDateTime.of(LocalDate.parse(extras.getString("date")), java.time.LocalTime.parse(time)))
@@ -228,7 +241,7 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             Reminders.ACTION_DONE -> {
                 NotificationManagerCompat.from(ctx).cancel(key.hashCode())
-                if (uid != null) Cloud.completeFromCard(uid, extras.getString("task").orEmpty(),
+                Repo.completeFromCard(extras.getString("task").orEmpty(),
                     extras.getString("kind").orEmpty(), extras.getString("date").orEmpty())
             }
             Reminders.ACTION_SNOOZE -> {
@@ -237,11 +250,10 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             Reminders.ACTION_BRIEF -> {
                 val today = LocalDate.now()
-                if (uid == null || Reminders.wasFired(ctx, "brief:$today")) return
+                if (Reminders.wasFired(ctx, "brief:$today")) return
                 Reminders.markFired(ctx, "brief:$today")
-                Reminders.showBrief(ctx, ReminderPlan.briefLines(Cloud.cachedTasks(uid), today))
-                val settings = Cloud.cachedSettings(uid)
-                Reminders.reschedule(ctx, Cloud.cachedTasks(uid), settings)     // tomorrow's briefing
+                Reminders.showBrief(ctx, ReminderPlan.briefLines(Repo.cachedTasks(), today))
+                Reminders.reschedule(ctx, Repo.cachedTasks(), Repo.cachedSettings())     // tomorrow's briefing
             }
         }
     }
@@ -257,9 +269,10 @@ class BootReceiver : BroadcastReceiver() {
 /** Fetches the latest items (the PC may have changed them) and rebuilds the alarms. */
 class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return Result.success()
-        val tasks = Cloud.fetchTasks(uid) ?: return Result.retry()
-        Reminders.reschedule(applicationContext, tasks, Cloud.fetchSettings(uid))
+        Repo.init(applicationContext)
+        Repo.mergePending()
+        val tasks = Repo.fetchTasks() ?: return Result.retry()
+        Reminders.reschedule(applicationContext, tasks, Repo.fetchSettings())
         return Result.success()
     }
 

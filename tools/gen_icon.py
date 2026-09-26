@@ -14,6 +14,7 @@
 
 색은 tokens.ICON 에서 가져온다.
 결과: assets/app.ico (16~256 다중 해상도) · web/icon*.png (창 · 트레이용)
+      android/.../res/mipmap-*/ic_launcher_art.png (휴대폰 적응형 아이콘의 그림 - 판 없이 꽉 차게)
 """
 import os
 import re
@@ -131,15 +132,20 @@ def _land(line):
     return _path(line) + [(160, 160), (0, 160)]
 
 
-def draw(px):
+def draw(px, bleed=False):
+    """bleed: 휴대폰 적응형 아이콘용. 판(둥근 사각형)을 두지 않고 캔버스를 끝까지 채운다 -
+    모양은 휴대폰이 제 틀(원 · 둥근 사각형)로 자른다. 그 틀은 가운데 2/3 만 보이므로
+    도안을 가운데 70% 에 놓고, 둘레는 하늘 · 땅 색으로 이어 칠한다."""
     S = 8                                            # 수퍼샘플링 배수
     n = px * S
     tier = "small" if px <= 32 else "mid" if px <= 64 else "full"
     # 작업 표시줄 · 바탕화면에서 옆 아이콘과 크기가 맞게 판 둘레에 조금 여백을 둔다.
     # 작은 크기는 여백을 줄여야 실제로 커 보인다.
-    pad = round(n * (0.03 if px <= 24 else 0.05))
+    pad = round(n * (0.15 if bleed else 0.03 if px <= 24 else 0.05))
     box = (pad, pad, n - pad, n - pad)
     cv = Canvas(n, box)
+    if bleed:
+        ImageDraw.Draw(cv.im).rectangle((0, 0, n, n), fill=_rgb(C["sky"]))
     SH = None if tier == "small" else (5, 3.5, .55)         # 달 · 돌이 드리우는 그림자 (f-sh)
     PA = None if tier == "small" else (-6, 5, .6)           # 언덕이 뒤로 드리우는 그림자 (f-pa)
     edge = {"full": 1.4, "mid": 2.0}.get(tier)              # 언덕 윗날
@@ -154,12 +160,16 @@ def draw(px):
             cv.circle(MOON, 54, (255, 255, 255, 102), width=1.5)
         cv.stroke(_path(CHECK), _rgb(C["check"]), 11)
     for line, color, op in ((HILL1, "hill1", .5), (HILL2, "hill2", .45)):
-        cv.fill(_land(line), _rgb(C[color]), PA)
+        pts = _path(line)
+        if bleed:                                    # 언덕을 양옆 끝까지 평평하게 잇는다
+            pts = [(-60, pts[0][1])] + pts + [(220, pts[-1][1])]
+        cv.fill(pts + [(220, 220), (-60, 220)] if bleed else _land(line), _rgb(C[color]), PA)
         if edge:
-            cv.stroke(_path(line), (255, 255, 255, round(255 * op)), edge, caps=False)
-    cv.fill([(0, GROUND_Y), (160, GROUND_Y), (160, 160), (0, 160)], _rgb(C["ground"]), PA)
+            cv.stroke(pts, (255, 255, 255, round(255 * op)), edge, caps=False)
+    gx0, gx1 = (-60, 220) if bleed else (0, 160)     # bleed: 땅을 캔버스 끝까지
+    cv.fill([(gx0, GROUND_Y), (gx1, GROUND_Y), (gx1, 220 if bleed else 160), (gx0, 220 if bleed else 160)], _rgb(C["ground"]), PA)
     if edge:
-        cv.stroke([(0, GROUND_Y), (160, GROUND_Y)], (255, 255, 255, 115), edge, caps=False)
+        cv.stroke([(gx0, GROUND_Y), (gx1, GROUND_Y)], (255, 255, 255, 115), edge, caps=False)
     tiny = px <= 24
     if tier == "small":
         cv.fill(_path(STONE_S), _rgb(C["stone"]))
@@ -172,6 +182,8 @@ def draw(px):
             cv.circle((x, 119), 5, _rgb(C["white"]))
             cv.circle((x + .6, 118.4), 2.8, _rgb(C["eye"]))
 
+    if bleed:
+        return cv.im.resize((px, px), Image.LANCZOS)
     # 판: 22.5% 둥근 사각형 (도안의 마스크). 그 밖으로는 아무것도 나가지 않는다.
     mask = Image.new("L", (n, n), 0)
     side = box[2] - box[0]
@@ -208,6 +220,14 @@ def main():
                     sizes=[(s, s) for s in SIZES],
                     append_images=frames[:-1])
     print("app.ico:", ", ".join(str(s) for s in SIZES))
+    # 휴대폰: 적응형 아이콘의 한 겹(108dp)을 밀도마다
+    res = os.path.join(ROOT, "android", "app", "src", "main", "res")
+    if os.path.isdir(res):
+        for dens, k in (("mdpi", 1), ("hdpi", 1.5), ("xhdpi", 2), ("xxhdpi", 3), ("xxxhdpi", 4)):
+            d = os.path.join(res, "mipmap-" + dens)
+            os.makedirs(d, exist_ok=True)
+            draw(round(108 * k), bleed=True).convert("RGB").save(os.path.join(d, "ic_launcher_art.png"))
+        print("android mipmap-*/ic_launcher_art.png")
 
 
 def preview(path):
