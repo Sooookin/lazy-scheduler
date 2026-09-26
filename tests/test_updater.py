@@ -76,6 +76,8 @@ def test_zip_without_the_exe_is_refused(tmp_path):
 def test_quiet_only_when_nobody_needs_the_app():
     assert updater.quiet(3600, False, False) == (True, "")
     assert not updater.quiet(60, False, False)[0]           # 창을 쓰는 중
+    assert not updater.quiet(15 * 60, False, False, window_open=True)[0]   # 떠 있으면 더 오래 기다린다
+    assert updater.quiet(31 * 60, False, False, window_open=True)[0]
     assert not updater.quiet(3600, True, False)[0]          # 곧 알림
     assert not updater.quiet(3600, False, True)[0]          # 카드가 떠 있다
 
@@ -207,3 +209,28 @@ def test_apply_now_needs_a_staged_version(server):
     c.request("POST", "/api/update/apply", body="{}",
               headers={"X-TM-Token": paths.ipc_token(), "Content-Type": "application/json"})
     assert c.getresponse().status == 409
+
+
+def test_window_tells_when_it_is_used(server):
+    """목록을 다시 읽는 요청이 아니라, 창이 알려 준 입력 · 보임으로 판단한다."""
+    import http.client
+    import time
+    import app
+    import paths
+
+    def tell(body):
+        c = http.client.HTTPConnection("127.0.0.1", server, timeout=5)
+        c.request("POST", "/api/ui", body=json.dumps(body),
+                  headers={"X-TM-Token": paths.ipc_token(), "Content-Type": "application/json"})
+        assert c.getresponse().status == 200
+
+    tell({"visible": True, "input": True})
+    assert app._UI["visible"] and app.ui_idle_s() < 5
+    c = http.client.HTTPConnection("127.0.0.1", server, timeout=5)
+    c.request("GET", "/api/overview", headers={"X-TM-Token": paths.ipc_token()})
+    c.getresponse().read()
+    app._UI["input"] = time.time() - 3600                   # 한 시간 전에 마지막으로 만졌다
+    assert app.ui_idle_s() > 3000                            # 스스로 다시 읽은 요청은 세지 않는다
+    tell({"visible": False})
+    assert app.ui_idle_s() < 5                               # 숨긴 때부터 센다
+    app._UI.update(visible=False, changed=0.0, input=0.0)

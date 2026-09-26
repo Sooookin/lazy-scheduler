@@ -1802,17 +1802,52 @@ function updSeen(){
 }
 $('#up-ok').onclick = () => closeM('#m-update');
 
-/* 설정의 버전 한 줄: 지금 버전과 자동 업데이트가 어디까지 왔는지 */
-function paintUpdate(){
-  api('/api/update').then(u => {
-    const v = '버전 ' + u.version;
-    const tail = u.state === 'ready' ? u.latest + ' 받아 둠 · 조용할 때 바꿉니다'
+/* 서비스에게 사람이 창을 쓰는지 알린다 - 보이는지(창을 닫아 숨기거나 최소화하면 바뀐다)와 실제 입력.
+   목록을 스스로 다시 읽는 요청은 사람이 쓰는 것이 아니므로 따로 알려야 한다. 입력은 1분에 한 번만. */
+let _uiT = 0;
+const uiTell = b => api('/api/ui', Object.assign({visible: !document.hidden}, b)).catch(() => {});
+document.addEventListener('visibilitychange', () => uiTell({}));
+['mousedown', 'keydown', 'wheel'].forEach(t => document.addEventListener(t, () => {
+  if(Date.now() - _uiT < 60000) return;
+  _uiT = Date.now();
+  uiTell({input: true});
+}, {passive: true}));
+uiTell({input: !document.hidden});
+
+/* 설정의 버전 한 줄: 지금 버전과 자동 업데이트가 어디까지 왔는지.
+   [업데이트 확인] 은 바로 한 번 확인하고(받을 것이 있으면 받는다), 받아 둔 것이 있으면
+   [지금 업데이트] 로 바뀌어 조용한 때를 기다리지 않고 바꾼다 - 앱이 잠깐 꺼졌다 다시 열린다. */
+let _updT = 0;
+function paintUpdate(u){
+  const show = u => {
+    const busy = u.state === 'checking' || u.state === 'downloading';
+    const tail = u.state === 'ready' ? u.latest + ' 받아 둠'
                : u.state === 'downloading' ? u.latest + ' 받는 중'
-               : u.state === 'error' ? '새 버전을 확인하지 못했습니다'
-               : u.latest && u.latest === u.version ? '최신' : '';
-    $('#s-ver').textContent = v + (tail ? ' (' + tail + ')' : '');
-  }).catch(() => {});
+               : u.state === 'checking' ? '확인 중'
+               : u.state === 'available' ? u.latest + ' 있음 (소스로 도는 중이라 받지 않습니다)'
+               : u.state === 'error' ? '확인하지 못했습니다'
+               : u.checked && u.latest && u.latest === u.version ? '최신입니다' : '';
+    $('#s-ver').textContent = '버전 ' + u.version + (tail ? ' · ' + tail : '');
+    const b = $('#s-upd-btn');
+    b.textContent = u.state === 'ready' ? '지금 업데이트' : '업데이트 확인';
+    b.dataset.act = u.state === 'ready' ? 'apply' : 'check';
+    b.disabled = busy;
+    clearTimeout(_updT);
+    if(busy && $('#m-settings').classList.contains('on')) _updT = setTimeout(() => paintUpdate(), 1500);
+  };
+  if(u) return show(u);
+  api('/api/update').then(show).catch(() => {});
 }
+$('#s-upd-btn').onclick = e => {
+  const b = e.currentTarget;
+  if(b.dataset.act === 'apply'){
+    b.disabled = true;
+    $('#s-ver').textContent = '새 버전으로 바꾸는 중 · 곧 다시 열립니다';
+    api('/api/update/apply', {}).catch(err => { say(err.message); paintUpdate(); });
+    return;
+  }
+  api('/api/update/check', {}).then(paintUpdate).catch(err => say(err.message));
+};
 
 /* ══════════ 설정 ══════════ */
 /* 설정 창의 값은 창을 열 때 한 번만 채운다. 예전에는 45초마다 새로 읽을 때마다

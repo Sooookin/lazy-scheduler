@@ -261,8 +261,6 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(403, "허용되지 않은 출처입니다")
         if api and not paths.token_ok(self.headers.get(TOKEN_HEADER)):
             raise ApiError(403, "인증되지 않은 요청입니다")
-        if api:
-            _UI["last"] = time.time()             # 창을 쓰고 있다 (자동 업데이트가 이때는 바꾸지 않는다)
 
     def _overview(self):
         o = store.overview()
@@ -502,6 +500,14 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/update/seen":
             updater.mark_seen()
             return self._send(200, {"ok": True})
+        if p == "/api/ui":
+            if isinstance(body, dict):
+                now = time.time()
+                if isinstance(body.get("visible"), bool) and body["visible"] != _UI["visible"]:
+                    _UI.update(visible=body["visible"], changed=now)
+                if body.get("input") is True:
+                    _UI["input"] = now
+            return self._send(200, {"ok": True})
         if p == "/api/update/check":
             updater.check_now()
             return self._send(200, updater.status())
@@ -614,7 +620,16 @@ def _complete(tid, day):
 
 SNOOZE_MIN = 10
 _SNOOZED = set()                # 미뤄 둔 알림 (프로그램을 내리면 사라지므로 이때는 업데이트하지 않는다)
-_UI = {"last": 0.0}             # 창이 마지막으로 API 를 부른 때
+# 창이 알려 오는 사정 (POST /api/ui). 창은 떠 있는 동안 45초마다 스스로 목록을 다시 읽으므로 요청이
+# 왔다는 것만으로는 사람이 쓰는지 알 수 없다 - 실제 입력과 보이는지를 따로 받는다.
+_UI = {"visible": False, "changed": 0.0, "input": 0.0}
+
+
+def ui_idle_s(now=None):
+    """사람이 창에서 손을 뗀 지 몇 초. 숨어 있으면 숨은 때부터 센다."""
+    now = now or time.time()
+    last = _UI["input"] if _UI["visible"] else max(_UI["input"], _UI["changed"])
+    return now - last
 
 
 def _snooze(i):
@@ -809,7 +824,7 @@ def update_quiet():
     """지금 새 버전으로 바꿔 끼워도 되는지 (updater.quiet 에 이 서비스의 사정을 넘긴다)."""
     if _SNOOZED:
         return False, "미뤄 둔 알림이 있다"
-    return updater.quiet(time.time() - _UI["last"], alert_near(), toast.busy())
+    return updater.quiet(ui_idle_s(), alert_near(), toast.busy(), window_open=_UI["visible"])
 
 
 def notify_plan():
@@ -866,7 +881,7 @@ def main():
     cloudsync.start()                # 로그인하지 않았으면 조용히 기다린다
     # 새 버전은 알아서 받아 두었다가 조용할 때 바꿔 끼운다 (빌드본에서만)
     updater.start(enabled=lambda: store.settings(store.load()).get("auto_update", True),
-                  is_quiet=update_quiet, shutdown=shutdown)
+                  is_quiet=update_quiet, shutdown=shutdown, window_open=lambda: _UI["visible"])
     paths.log("main: 서버·스케줄러 시작, tray 진입")
     tray.start(on_open=open_window,
                on_test=_preview_toast,

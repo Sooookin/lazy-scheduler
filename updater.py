@@ -6,7 +6,8 @@
               크기와 SHA-256 이 맞아야 쓴다. 해시 파일이 없는 릴리스는 받지 않는다
     풀기      %APPDATA%\\LazyScheduler\\update\\<버전>\\LazyScheduler
     켜 보기   풀어 둔 새 exe 를 --probe 로 한 번 켠다. 부품을 다 불러오지 못하면 쓰지 않는다
-    바꾸기    조용할 때만 (창을 10분 넘게 안 썼고 · 앞뒤 10분 안에 알림이 없고 · 떠 있는 카드가 없을 때).
+    바꾸기    조용할 때만 (창이 숨은 지 10분 · 떠 있으면 손대지 않은 지 30분, 앞뒤 10분 안에 알림이
+              없고, 떠 있는 카드가 없을 때). 창이 떠 있었으면 바꾼 뒤 다시 연다.
               새 exe 가 --apply-update 로 뒤를 맡고 서비스는 내려간다. 새 exe 는 옛 서비스가
               끝나기를 기다렸다가 앱 폴더를 <폴더>.old 로 비켜 두고 새 것을 그 자리에 놓은 뒤
               다시 켠다. 새 서비스가 30초 안에 포트를 열지 않으면 .old 를 되돌리고 옛 것을 켠다
@@ -43,7 +44,8 @@ EXE = "LazyScheduler.exe"
 FIRST_CHECK_S = 120             # 켜자마자 묻지 않는다 - 켜는 동안은 할 일이 많다
 CHECK_EVERY_S = 6 * 3600
 QUIET_EVERY_S = 5 * 60          # 받아 둔 것이 있으면 이만큼마다 조용한지 본다
-QUIET_UI_S = 10 * 60            # 창을 이만큼 안 쓰면 비어 있다고 본다
+QUIET_UI_S = 10 * 60            # 창이 숨은 뒤 이만큼 지나면 비어 있다고 본다
+QUIET_UI_OPEN_S = 30 * 60       # 창이 떠 있으면 이만큼 손대지 않아야 (자리를 비운 것이다)
 QUIET_ALERT_MIN = 10            # 앞뒤 이 분 안에 알림이 있으면 미룬다
 HTTP_TIMEOUT_S = 30
 PROBE_TIMEOUT_S = 90
@@ -219,9 +221,9 @@ def prepare(rel):
 
 # ---------------- 조용한 때 ----------------
 
-def quiet(ui_idle_s, alert_near, cards_busy):
+def quiet(ui_idle_s, alert_near, cards_busy, window_open=False):
     """지금 바꿔 끼워도 되는지. (bool, 이유)"""
-    if ui_idle_s < QUIET_UI_S:
+    if ui_idle_s < (QUIET_UI_OPEN_S if window_open else QUIET_UI_S):
         return False, "창을 쓰는 중"
     if alert_near:
         return False, "곧 알림이 있다"
@@ -451,8 +453,9 @@ def apply_pending(shutdown, open_window=False):
     return True
 
 
-def start(enabled, is_quiet, shutdown):
-    """서비스가 켤 때 부른다. enabled() 는 설정의 '자동 업데이트', is_quiet() 는 (bool, 이유)."""
+def start(enabled, is_quiet, shutdown, window_open=lambda: False):
+    """서비스가 켤 때 부른다. enabled() 는 설정의 '자동 업데이트', is_quiet() 는 (bool, 이유),
+    window_open() 은 지금 창이 보이는지 (보였으면 바꾼 뒤 다시 연다)."""
     if not paths.FROZEN:
         return
 
@@ -475,7 +478,7 @@ def start(enabled, is_quiet, shutdown):
                             _checking.release()
                     if load_state().get("pending"):
                         ok, why = is_quiet()
-                        if ok and apply_pending(shutdown):
+                        if ok and apply_pending(shutdown, open_window=window_open()):
                             return
             except Exception:
                 log("업데이트 고리 오류: " + traceback.format_exc())

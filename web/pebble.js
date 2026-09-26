@@ -54,7 +54,7 @@ window.PB = (() => {
   /* ── 상태. 자리 x 는 도안의 자(900 폭) 단위다 - 창 폭이 바뀌어도 같은 자리에 있다 ── */
   const S = {
     x: 470 + rnd(-60, 60), rot: 0, lean: 0, gaze: null, mode: 'idle', move: null, moveDir: 0,
-    lookUp: false, cursor: null, anim: null, sulk: false, peek: false, away: null, dir: 0,
+    lookUp: false, cursor: null, ptr: null, anim: null, sulk: false, peek: false, away: null, dir: 0,
     drag: false, lift: 0, swing: 0,               /* 손에 들림 · 땅에서 뜬 높이(px) · 흔들림(°) */
   };
   let G = null;                                   /* 무대: {k, onArc, set, dir} (drawSky) */
@@ -223,9 +223,13 @@ window.PB = (() => {
     if(S.move){ gx = S.moveDir || gx; gy = -.2; }          /* 가는 쪽을 본다 */
     if(S.lookUp){ gx = 0; gy = -1; }
     let near = false;
-    if(S.cursor && !asleep() && G){
-      const dx = S.cursor.x - S.x * G.k, dy = S.cursor.y - (HZ_Y - 16), L = Math.hypot(dx, dy) || 1;
-      gx = dx / L; gy = dy / L; near = L < 46;
+    /* 눈은 창 어디에 있는 커서든 따라간다 (ptr). 하늘 안에 있을 때(cursor)만 가까우면 실눈을 뜨고,
+       다른 행동(딴짓 멈춤 · 몸 기울기)도 하늘 안의 커서에만 반응한다 - 목록을 쓰는 동안 돌이 매번
+       멈춰 서면 하늘이 죽는다. */
+    const pt = S.cursor || (!S.move && !S.lookUp ? S.ptr : null);   /* 가는 중 · 올려다보는 중에는 하던 쪽을 본다 */
+    if(pt && !asleep() && G){
+      const dx = pt.x - S.x * G.k, dy = pt.y - (HZ_Y - 16), L = Math.hypot(dx, dy) || 1;
+      gx = dx / L; gy = dy / L; near = !!S.cursor && L < 46;
     }
     if(S.sulk){ gx = -S.dir || .8; gy = .2; }              /* 등을 돌렸다 */
     if(S.drag){ gx = -S.swing / 30; gy = .8; near = false; }   /* 들렸다 - 발밑(땅)을 내려다본다 */
@@ -507,14 +511,16 @@ window.PB = (() => {
       if(!sky || !a) return;
       const b = sky.getBoundingClientRect(), r = a.getBoundingClientRect();
       const inside = _ev.clientX >= b.left && _ev.clientX <= b.right && _ev.clientY >= b.top && _ev.clientY <= b.bottom;
-      const c = inside ? {x: _ev.clientX - r.left, y: _ev.clientY - r.top} : null;
-      if(!!c !== !!S.cursor || c){ S.cursor = c; if(!asleep()) paint(); }
+      const p = {x: _ev.clientX - r.left, y: _ev.clientY - r.top};
+      S.ptr = p;
+      S.cursor = inside ? p : null;
+      if(!asleep()) paint();
       input();
     });
   }, {passive: true});
   ['mousedown', 'keydown', 'wheel'].forEach(t => document.addEventListener(t, input, {passive: true}));
   /* 커서가 창 밖으로 나가면 더는 보지 않는다 */
-  document.addEventListener('mouseout', e => { if(!e.relatedTarget && S.cursor){ S.cursor = null; paint(); } });
+  document.addEventListener('mouseout', e => { if(!e.relatedTarget && (S.cursor || S.ptr)){ S.cursor = S.ptr = null; paint(); } });
 
   /* 누르면: 깨어 있으면 움찔(!) → 2초 삐침 · 낮잠이면 화들짝 · 밤잠이면 한쪽 눈만 */
   function poke(){
