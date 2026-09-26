@@ -18,6 +18,12 @@ on:
 permissions:
   contents: write
 
+# 러너는 영어 윈도우(cp1252)라 한글을 찍는 도구(tools/gen_tokens.py 등)가 출력에서 멈춘다 - 늘 UTF-8 로.
+# 빌드용 패키지 판은 tools/requirements-build.txt 에 고정한다 (.venv-build 와 같은 판. 그 파일은
+# 한국어 윈도우의 pip 가 cp949 로 읽으므로 주석 없이 목록만 둔다).
+env:
+  PYTHONUTF8: "1"
+
 jobs:
   release:
     runs-on: windows-latest
@@ -25,13 +31,13 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 체크아웃은 태그를 가벼운 태그로만 가져온다 - 설명(릴리스 노트)을 읽으려면 다시 받는다
       - name: 태그 설명 받기
         run: git fetch --force origin "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
