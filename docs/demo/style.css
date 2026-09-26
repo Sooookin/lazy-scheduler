@@ -91,6 +91,12 @@ svg{display:block}
 .wbtn svg{width:8px; height:8px}
 .wbtn:hover{opacity:1; background-color:var(--hover-hi); color:var(--text)}
 .wbtn.close:hover{background-color:var(--hol); color:#fff}
+/* macOS: 창 단추는 왼쪽에 닫기 · 최소화 · 확대 차례로 (그 운영체제의 자리) */
+html[data-os="mac"] .titlebar{padding:0 14px 0 0}
+html[data-os="mac"] #w-close{order:1}
+html[data-os="mac"] #w-min{order:2}
+html[data-os="mac"] #w-max{order:3}
+html[data-os="mac"] .tb-gap{order:4}
 
 /* ---------- 배치 ----------
    창은 두 층이다: 위는 하늘(오늘 하루), 아래는 땅(할 일).
@@ -118,6 +124,8 @@ svg{display:block}
 .grip{position:fixed; z-index:9999; display:none; -webkit-app-region:no-drag}
 body.pv .grip{display:block}
 body.pv.maxed .grip{display:none}
+/* macOS 는 창 가장자리 크기 조절을 운영체제가 한다 (platforms/mac/window.py) */
+html[data-os="mac"] body.pv .grip{display:none}
 .g-t, .g-b{left:10px; right:10px; height:6px; cursor:ns-resize}
 .g-l, .g-r{top:10px; bottom:10px; width:6px; cursor:ew-resize}
 .g-t{top:0} .g-b{bottom:0} .g-l{left:0} .g-r{right:0}

@@ -98,8 +98,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r tools/requirements-build-mac.txt pytest pytest-github-actions-annotate-failures
 
+      # 실패하면 출력 끝부분을 annotation 으로 남긴다 (Mac 이 없어 로그 대신 이것을 본다)
       - name: 테스트
-        run: python -m pytest -q -p no:cacheprovider
+        run: python tools/ci_tail.py pytest -- python -m pytest -q -p no:cacheprovider
 
       - name: 동기화 설정
         env:
@@ -109,10 +110,10 @@ jobs:
           printf '%s' "$FIREBASE_CONFIG" > firebase/config.local.json
 
       - name: 빌드
-        run: python tools/build.py
+        run: python tools/ci_tail.py build -- python tools/build.py
 
       - name: 켜 보기
-        run: python tools/smoke.py --exe release/mac/LazyScheduler.app/Contents/MacOS/LazyScheduler --out smoke
+        run: python tools/ci_tail.py smoke -- python tools/smoke.py --exe release/mac/LazyScheduler.app/Contents/MacOS/LazyScheduler --out smoke
 
       - name: 해시 · 올리기
         env:
