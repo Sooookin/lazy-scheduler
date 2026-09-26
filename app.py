@@ -502,6 +502,16 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/update/seen":
             updater.mark_seen()
             return self._send(200, {"ok": True})
+        if p == "/api/update/check":
+            updater.check_now()
+            return self._send(200, updater.status())
+        if p == "/api/update/apply":
+            # 사람이 [지금 업데이트] 를 눌렀다 - 조용한 때를 기다리지 않는다. 바꾼 뒤 창을 다시 연다
+            if updater.status().get("state") != "ready":
+                raise ApiError(409, "받아 둔 새 버전이 없습니다")
+            threading.Thread(target=lambda: updater.apply_pending(shutdown, open_window=True),
+                             daemon=True).start()
+            return self._send(200, {"ok": True})
         if p == "/api/hidden":
             _hint_hidden()
             return self._send(200, {"ok": True})

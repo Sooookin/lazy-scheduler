@@ -183,3 +183,27 @@ def test_auto_update_setting_is_per_device():
     import syncdoc
     assert store.update_settings({"auto_update": False})["auto_update"] is False
     assert "auto_update" not in syncdoc.SHARED_SETTINGS
+
+
+def test_manual_check_reports_a_newer_release(monkeypatch):
+    """[업데이트 확인]: 소스로 돌 때는 받지 않고 새것이 있다는 것만 알린다."""
+    import time
+    monkeypatch.setattr(updater, "fetch_latest", lambda: release(tag="v99.0.0"))
+    updater.check_now()
+    for _ in range(50):
+        if updater.status()["state"] != "checking":
+            break
+        time.sleep(0.05)
+    s = updater.status()
+    assert s["state"] == "available" and s["latest"] == "99.0.0" and s["dev"] is True
+
+
+def test_apply_now_needs_a_staged_version(server):
+    import http.client
+    import paths
+    updater.save_state({})
+    updater._status.update(state="idle")
+    c = http.client.HTTPConnection("127.0.0.1", server, timeout=5)
+    c.request("POST", "/api/update/apply", body="{}",
+              headers={"X-TM-Token": paths.ipc_token(), "Content-Type": "application/json"})
+    assert c.getresponse().status == 409

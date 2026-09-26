@@ -30,3 +30,6 @@ android/app/build/
 android/local.properties
 android/firebase.local.properties
 android/.kotlin/
+
+# 내가 적는 피드백 목록 (이 PC 에만 둔다)
+feedback.md

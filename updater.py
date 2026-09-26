@@ -11,6 +11,8 @@
               끝나기를 기다렸다가 앱 폴더를 <폴더>.old 로 비켜 두고 새 것을 그 자리에 놓은 뒤
               다시 켠다. 새 서비스가 30초 안에 포트를 열지 않으면 .old 를 되돌리고 옛 것을 켠다
     알리기    다음에 창을 열 때 "새 버전으로 바꿨습니다" 창을 한 번 (닫으면 다시 뜨지 않는다)
+    손으로    설정의 [업데이트 확인] 은 기다리지 않고 바로 확인 · 받기, 받아 두었으면 [지금 업데이트] 가
+              조용한 때를 기다리지 않고 바꾼 뒤 창을 다시 연다
 
 일정(data.json)은 %APPDATA% 에 있어 앱 폴더를 통째로 바꿔도 그대로다. 바로가기 · 자동 실행도
 같은 경로의 exe 를 가리키므로 손댈 것이 없다. 소스로 돌 때(개발)는 아무것도 하지 않는다.
@@ -287,19 +289,21 @@ def _port_open(timeout):
     return False
 
 
-def _launch(exe):
-    subprocess.Popen([exe, "--silent"], cwd=os.path.dirname(exe),
+def _launch(exe, open_window=False):
+    """다시 켠다. 손으로 [지금 업데이트] 를 눌렀으면 창까지 연다 (보던 사람이 있다)."""
+    subprocess.Popen([exe] if open_window else [exe, "--silent"], cwd=os.path.dirname(exe),
                      creationflags=0x00000008 | 0x00000200,            # DETACHED · 새 프로세스 묶음
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      close_fds=True)
 
 
 def apply_main(argv):
-    """main.py --apply-update <앱 폴더> <풀어 둔 폴더> <옛 서비스 pid> <옛 버전>"""
+    """main.py --apply-update <앱 폴더> <풀어 둔 폴더> <옛 서비스 pid> <옛 버전> [open]"""
     try:
         target, staged, pid, was = argv[:4]
     except ValueError:
         return 2
+    show = len(argv) > 4 and argv[4] == "open"
     log("바꾸기 시작: %s → %s (옛 %s)" % (staged, target, was))
     _wait_pid(pid, 30)
     try:
@@ -307,9 +311,9 @@ def apply_main(argv):
     except Exception:
         log("바꾸기 실패, 옛 것 그대로: " + traceback.format_exc())
         _edit_state(lambda d: d.update(failed=version.VERSION, pending=None))
-        _launch(os.path.join(target, EXE))
+        _launch(os.path.join(target, EXE), show)
         return 1
-    _launch(os.path.join(target, EXE))
+    _launch(os.path.join(target, EXE), show)
     if not _port_open(START_WAIT_S):
         log("새 버전이 뜨지 않아 되돌림")
         try:
@@ -321,7 +325,7 @@ def apply_main(argv):
         except Exception:
             log("되돌리기 실패: " + traceback.format_exc())
         _edit_state(lambda d: d.update(failed=version.VERSION, pending=None))
-        _launch(os.path.join(target, EXE))
+        _launch(os.path.join(target, EXE), show)
         return 1
     _edit_state(lambda d: d.update(pending=None, failed=None, cleanup=old,
                                    just_updated={"from": was, "to": version.VERSION,
@@ -354,7 +358,7 @@ def probe_main(argv):
 def status():
     """설정 창에 보일 것."""
     d = load_state()
-    s = dict(_status, version=version.VERSION)
+    s = dict(_status, version=version.VERSION, dev=not paths.FROZEN)
     if d.get("pending"):
         s["state"] = "ready"
         s["latest"] = d["pending"].get("version", "")
@@ -403,6 +407,9 @@ def check_once():
         if (st.get("pending") or {}).get("version") == rel["version"]:
             _status.update(state="ready")
             return
+        if not paths.FROZEN:                     # 소스로 도는 중: 새것이 있다는 것만 알린다
+            _status.update(state="available")
+            return
         _status.update(state="downloading")
         prepare(rel)
         _status.update(state="ready")
@@ -411,7 +418,22 @@ def check_once():
         log("확인 · 받기 실패: " + traceback.format_exc())
 
 
-def apply_pending(shutdown):
+_checking = threading.Lock()
+
+
+def check_now():
+    """설정의 [업데이트 확인]. 뒤에서 한 번 돈다 (이미 도는 중이면 그대로). 화면은 status() 로 본다."""
+    def run():
+        if _checking.acquire(blocking=False):
+            try:
+                check_once()
+            finally:
+                _checking.release()
+    _status.update(state="checking", error="")
+    threading.Thread(target=run, daemon=True, name="update-check").start()
+
+
+def apply_pending(shutdown, open_window=False):
     """받아 둔 새 버전으로 바꾼다: 새 exe 에게 뒤를 맡기고 서비스를 내린다."""
     p = load_state().get("pending") or {}
     staged = p.get("dir")
@@ -420,7 +442,8 @@ def apply_pending(shutdown):
         _edit_state(lambda d: d.update(pending=None))
         return False
     log("조용함 → %s 로 바꾸러 감" % p.get("version"))
-    subprocess.Popen([exe, "--apply-update", paths.APP_DIR, staged, str(os.getpid()), version.VERSION],
+    subprocess.Popen([exe, "--apply-update", paths.APP_DIR, staged, str(os.getpid()), version.VERSION]
+                     + (["open"] if open_window else []),
                      cwd=staged, creationflags=0x00000008 | 0x00000200 | 0x08000000,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      close_fds=True)
@@ -444,9 +467,12 @@ def start(enabled, is_quiet, shutdown):
         while True:
             try:
                 if enabled():
-                    if time.time() - last >= CHECK_EVERY_S:
+                    if time.time() - last >= CHECK_EVERY_S and _checking.acquire(blocking=False):
                         last = time.time()
-                        check_once()
+                        try:
+                            check_once()
+                        finally:
+                            _checking.release()
                     if load_state().get("pending"):
                         ok, why = is_quiet()
                         if ok and apply_pending(shutdown):

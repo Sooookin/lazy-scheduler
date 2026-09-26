@@ -625,6 +625,10 @@ body.v-cal #btn-manage{display:none}
   transition:opacity var(--t-med) var(--ease), transform var(--t-slow) var(--ease)}
 .modal.wide{width:600px}
 .modal.narrow{width:400px}
+/* 설정의 버전 한 줄 + [업데이트 확인] */
+.quick.upd-row{align-items:center; flex-wrap:nowrap; gap:12px}
+.quick button:disabled{opacity:.5; cursor:default}
+.quick.upd-row .hint{margin:0; flex:1; min-width:0}
 /* 새 버전 창의 바뀐 것 목록 (릴리스 설명을 줄마다) */
 .up-notes{margin:12px 0 20px; padding:0; list-style:none}
 .up-notes li{display:flex; gap:8px; padding:4px 0; font-size:var(--fs-body); letter-spacing:var(--tr-body); color:var(--text)}
