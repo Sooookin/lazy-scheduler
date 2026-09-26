@@ -20,7 +20,7 @@ python tools/dev.py --stop                 stop the running service + window cle
 python tools/gen_tokens.py [--check]       regenerate the :root block in web/style.css from tokens.py
 python tools/build_fonts.py [--check]      assets/fonts/*.ttf -> web/fonts/*.woff2
 python tools/shots.py [home cal ...]       screenshot screens into design/shots/ using seeded temp data
-python tools/site_demo.py                  rebuild docs/demo (homepage live demo: web/ copy + fake API) and docs/card.png; rerun after UI changes before a release
+python tools/site_demo.py                  rebuild docs/demo (homepage view-only preview: web/ copy + fake read API) and docs/card.png; rerun after UI changes before a release
 .venv-build/Scripts/python.exe tools/build.py   release build (PyInstaller lives only in .venv-build)
 
 cd android && ./gradlew test               Kotlin unit tests (incl. the shared recurrence vectors)

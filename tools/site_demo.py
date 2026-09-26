@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
-"""홈페이지(docs/)의 체험판과 알림 카드 그림을 만든다.
+"""홈페이지(docs/)의 화면 미리 보기와 알림 카드 그림을 만든다.
 
     python tools/site_demo.py
 
-결과: docs/demo/        실제 화면(web/)을 그대로 베끼고, 서비스 대신 demo.js 가 답한다
+결과: docs/demo/        실제 화면(web/)을 베끼고, 서비스 대신 demo.js 가 답한다 (보기 전용)
       docs/card.png     알림 카드 한 장 (toast.py 가 실제로 그리는 그림)
 
-체험판은 서버 없이 돈다. 본보기 일정을 임시 APPDATA 에 심고 실제 서비스 핸들러에게
-물어 받은 답(개요 · 달력 회차 · 동기화 상태)을 demo.js 안에 구워 둔다. 날짜는 여는
-날에 맞춰 옮기고, 시각은 홈페이지의 막대가 정한다. 완료 · 건너뛰기 · 삭제 · 설정은
-그 자리에서만 바뀌고 저장하지 않는다.
+미리 보기는 서버 없이 돈다. 본보기 일정을 임시 APPDATA 에 심고 실제 서비스 핸들러에게
+물어 받은 답(개요 · 달력 회차)을 demo.js 안에 구워 둔다. 날짜는 여는 날에 맞춰 옮기고,
+시각과 화면(홈 · 달력)은 홈페이지가 정한다. 창 위의 누르기는 홈페이지가 막는다.
 
 화면을 고친 뒤 배포할 때 다시 돌린다 (docs/demo 는 web/ 의 사본이다).
 실제 일정은 건드리지 않는다 - 모듈을 불러오기 전에 APPDATA 를 임시 폴더로 돌린다.
@@ -84,14 +83,13 @@ def capture():
         return body
 
     t = date.today()
-    lo, hi = t - timedelta(days=45), t + timedelta(days=120)   # 달력을 앞뒤로 몇 달 넘겨 볼 만큼
+    lo, hi = t - timedelta(days=45), t + timedelta(days=45)    # 이번 달 달력 (여는 날이 달라도 넉넉히)
     rng = "from=%s&to=%s" % (lo, hi)
     try:
         return {
             "base": t.isoformat(),
             "overview": get("/api/overview"),
             "occ": get("/api/occurrences?" + rng)["items"],
-            "sync": get("/api/sync"),
         }
     finally:
         srv.shutdown()
@@ -143,7 +141,7 @@ def main():
     finally:
         shutil.rmtree(SANDBOX, ignore_errors=True)
     n = sum(len(f) for _, _, f in os.walk(OUT))
-    print("체험판 %s (파일 %d개) · 알림 카드 %dx%d" % (os.path.relpath(OUT, ROOT), n, *size))
+    print("미리 보기 %s (파일 %d개) · 알림 카드 %dx%d" % (os.path.relpath(OUT, ROOT), n, *size))
 
 
 if __name__ == "__main__":

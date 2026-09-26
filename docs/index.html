@@ -7,7 +7,7 @@
 <link rel="icon" href="icon.png">
 <meta name="description" content="할 일 · 루틴 · 메모를 한 창에서. Windows 데스크톱 앱과 Android 앱, Google 계정으로 동기화.">
 <meta property="og:title" content="LazyScheduler">
-<meta property="og:description" content="하루가 하늘의 해 궤도 위에 놓이는 할 일 · 루틴 앱">
+<meta property="og:description" content="할 일 · 루틴 · 메모를 한 창에서.">
 <meta property="og:image" content="https://sooookin.github.io/lazy-scheduler/home.png">
 <style>
   :root{
@@ -62,7 +62,7 @@
   .demo{--w:min(960px, calc(100vw - 32px)); width:var(--w); margin:36px 0 0 calc((100% - var(--w)) / 2)}
   .stage{position:relative; aspect-ratio:960 / 592; border-radius:14px; overflow:hidden;
     background:#dfe7ea; box-shadow:0 18px 50px rgba(8,32,43,.22), 0 2px 6px rgba(8,32,43,.10)}
-  .stage iframe{position:absolute; left:0; top:0; width:960px; height:592px; border:0;
+  .stage iframe{pointer-events:none; position:absolute; left:0; top:0; width:960px; height:592px; border:0;
     transform-origin:0 0; transform:scale(var(--k, 1))}
   .scrub{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px 18px; margin-top:22px}
   .scrub output{font-size:28px; font-weight:300; letter-spacing:.5px; color:var(--ink2);
@@ -87,7 +87,10 @@
     #d6e6ec 50%, #c9dce4 68%, #e3a57c 76%, #3a4753 83%, #1e2934 100%)}
   .ticks{display:flex; justify-content:space-between; font-size:12.5px; color:var(--dim); padding:0 4px;
     font-variant-numeric:tabular-nums}
-  .demo .note{margin-top:10px}
+  .tabs{display:flex; gap:6px; margin-bottom:12px}
+  .tabs button{font:inherit; font-size:14px; padding:6px 16px; border-radius:18px; cursor:pointer;
+    border:1px solid var(--pale); background:var(--card); color:var(--faint)}
+  .tabs button.on{background:var(--mid); border-color:var(--mid); color:var(--onmid)}
   @media (max-width: 640px){
     .scrub{grid-template-columns:auto 1fr}
     #t-hint{display:none}
@@ -120,23 +123,27 @@
   <img src="icon.png" alt="">
   <div>
     <h1>LazyScheduler</h1>
-    <p class="tag">할 일 · 루틴 · 메모를 한 창에서. 되풀이되는 일은 한 번만 정해 두면 됩니다.</p>
+    <p class="tag">할 일 · 루틴 · 메모를 한 창에서.</p>
   </div>
 </header>
 
-<p>마감이 있는 일, 매달 돌아오는 일, 기한 없이 적어 두는 메모를 같은 자리에서 다룹니다.
-Windows 데스크톱 앱과 Android 앱이 있고, Google 계정으로 로그인하면 둘이 같아집니다.</p>
+<p>마감 있는 일, 매달 돌아오는 일, 적어만 둘 메모를 한곳에서 봅니다.
+Windows와 Android 앱이 있고, Google 계정으로 로그인하면 둘이 맞춰집니다.</p>
 
 <a class="cta" href="https://github.com/Sooookin/lazy-scheduler/releases/latest">Windows 앱 내려받기</a>
-<p class="note">설치할 것 없이 압축을 풀고 실행하면 됩니다. Windows 10 · 11.</p>
+<p class="note">설치 없이 압축만 풀면 됩니다. Windows 10 · 11.</p>
 
-<section class="demo" aria-label="체험판">
+<section class="demo" aria-label="앱 화면 미리 보기">
+  <div class="tabs" id="tabs">
+    <button data-v="home" class="on">홈</button>
+    <button data-v="cal">달력</button>
+  </div>
   <div class="stage" id="stage">
-    <iframe id="demo" src="demo/" title="LazyScheduler 체험판 (실제 앱 화면)"></iframe>
+    <iframe id="demo" src="demo/" title="LazyScheduler 화면 미리 보기" tabindex="-1"></iframe>
   </div>
   <div class="scrub">
     <output id="t-out" for="t">--:--</output>
-    <span class="note" id="t-hint" style="margin:0">막대를 끌어 하루를 흘려 보세요</span>
+    <span class="note" id="t-hint" style="margin:0">막대를 끌면 시각이 바뀝니다</span>
     <div class="times" id="times">
       <button data-m="now" class="on">지금</button>
       <button data-m="340">새벽</button>
@@ -150,55 +157,40 @@ Windows 데스크톱 앱과 Android 앱이 있고, Google 계정으로 로그인
       <div class="ticks" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
     </div>
   </div>
-  <p class="note">실제 앱 화면입니다. 동그라미를 눌러 완료해 보고(다 끝내면 밤이 옵니다), 하늘의 돌멩이를 잡아 옮겨 보세요.
-  체험판은 아무것도 저장하지 않습니다.</p>
 </section>
 
-<h2>무엇을 하나</h2>
+<h2>세 가지</h2>
 <ul class="kinds">
-  <li><b>할 일</b><span>달력에서 마감 날짜를 고릅니다. 같은 날에 이미 있는 일이 함께 보입니다.</span></li>
-  <li><b>루틴</b><span>되풀이되는 일. 날짜 하나와 단위를 고르면 규칙을 제안합니다.</span></li>
-  <li><b>메모</b><span>기한 없이 목록에만 남습니다.</span></li>
+  <li><b>할 일</b><span>마감 날짜가 있는 일</span></li>
+  <li><b>루틴</b><span>되풀이되는 일</span></li>
+  <li><b>메모</b><span>날짜 없이 적어 두는 것</span></li>
 </ul>
-<p>창 위쪽은 오늘 하루입니다. 궤도는 실제 해가 지나는 길이고, 구슬 하나가 일 하나입니다.
-빛은 시각을 따라 바뀌고, 하늘에는 게으른 돌멩이 하나가 삽니다.</p>
+<p>창 위쪽 하늘이 오늘 하루입니다. 해가 지나는 길 위에 할 일이 시각대로 놓입니다.</p>
 
-<h2>되풀이되는 일을 정하는 법</h2>
-<p>이 일을 하는 날 하루를 달력에서 고르고, 단위(일 · 주 · 월 · 년)와 간격(매달 · 분기 · 반기)을 고릅니다.
-그러면 <b>그 날에 실제로 돌아오는 규칙만</b> 목록으로 나옵니다. 하나 고르면 끝입니다.</p>
-<ul>
-  <li>매월 말일 · 매월 마지막 영업일 · 매월 셋째 목요일</li>
-  <li>매월 말일 3영업일 전 · 3·6·9·12월 말일 · 격주 월·수요일</li>
-</ul>
-<p>주말이나 공휴일에 걸리면 앞 영업일로 당길지 다음으로 미룰지 정할 수 있습니다. 한국 공휴일을 따릅니다.</p>
+<h2>루틴 정하기</h2>
+<p>날짜 하나와 주기를 고르면, 그 날에 맞는 규칙을 추려 보여 줍니다. 하나 고르면 끝.</p>
+<p class="note">매월 말일 · 마지막 영업일 · 셋째 목요일 · 말일 3영업일 전 · 분기 말 · 격주 월·수</p>
+<p>주말이나 공휴일에 걸리면 앞당기거나 미룹니다. 한국 공휴일 기준입니다.</p>
 
-<h2>창을 닫아도 뒤에서 챙깁니다</h2>
+<h2>닫아도 알림은 옵니다</h2>
 <div class="desk" id="desk" aria-hidden="true">
-  <div class="ghost"><i>×</i>창을 닫아도<br>프로그램은 계속 돕니다</div>
+  <div class="ghost"><i>×</i>창을 닫아도<br>알림은 계속</div>
   <img class="card" src="card.png" alt="" width="436" height="170">
   <div class="taskbar"><span class="dot"></span><span class="dot"></span><span class="me"><img src="icon.png" alt=""></span><span>16:30</span></div>
 </div>
-<ul>
-  <li><b>× 는 창만 닫습니다.</b> 프로그램은 작업표시줄 알림 영역(오른쪽 아래)에 남아,
-    마감 전(기본 30분)에 화면 구석으로 카드를 띄웁니다.</li>
-  <li><b>카드에서 바로 끝냅니다.</b> 완료 · 10분 뒤를 카드에서 누르면 되고, 창을 열 필요가 없습니다.</li>
-  <li><b>아침 브리핑.</b> 아침에 오늘 할 일을 한 번 요약해 줍니다. 전체 화면이나 발표 중에는 미뤘다가 끝나면 묶어서 보여 줍니다.</li>
-  <li><b>다시 여는 데 1초.</b> 바탕화면 아이콘이나 알림 영역의 아이콘을 누르면 창이 곧바로 돌아옵니다.</li>
-  <li><b>Windows 시작과 함께.</b> 설정에서 켜 두면 PC를 켤 때마다 뒤에서 조용히 기다립니다.
-    창을 닫아 두면 화면은 쉬고 알림 시계만 돌아 거의 자원을 쓰지 않습니다.</li>
-</ul>
-<p class="note">완전히 끄려면 알림 영역 아이콘을 우클릭하고 "완전히 종료"를 누르세요.
-Windows 11은 새 아이콘을 숨겨 두기도 합니다 — 작업표시줄의 ^ 를 누르면 있습니다.</p>
+<p>× 를 눌러도 프로그램은 알림 영역에 남습니다. 마감 30분 전이면 화면 구석에 카드가 뜨고,
+거기서 바로 완료하거나 10분 미룰 수 있습니다.</p>
+<p>아침에는 그날 할 일을 한 번 알려 줍니다. 발표나 전체 화면 중에는 끝날 때까지 기다립니다.</p>
+<p class="note">다시 열려면 바탕화면 아이콘을, 완전히 끄려면 알림 영역 아이콘을 우클릭해 "완전히 종료"를 누르세요.
+PC를 켤 때 자동으로 실행되게 하는 설정도 있습니다.</p>
 
 <h2>동기화</h2>
-<p>로그인하지 않아도 전부 동작합니다. 일정은 내 기기 안에만 있습니다.</p>
-<p>Google 계정으로 로그인하면 PC와 휴대폰의 일정이 같아집니다. 처음 로그인할 때는 양쪽 것을 합치고,
-어느 쪽도 지우지 않습니다. 각자의 일정은 각자의 계정에만 보입니다.
-자세한 것은 <a href="privacy.html">개인정보처리방침</a>에 적어 두었습니다.</p>
+<p>로그인 없이도 다 됩니다. 이때 일정은 이 PC에만 있습니다.</p>
+<p>Google 계정으로 로그인하면 PC와 휴대폰이 맞춰집니다. 처음 로그인할 때 양쪽 일정을 합치고, 아무것도 지우지 않습니다.
+자세한 내용은 <a href="privacy.html">개인정보처리방침</a>에 있습니다.</p>
 
-<h2>내 일정이 저장되는 곳</h2>
-<p><code>%APPDATA%\LazyScheduler\data.json</code> — 이 파일만 백업하면 됩니다.
-새 버전으로 폴더를 덮어써도 일정과 설정은 그대로 남습니다.</p>
+<h2>저장 위치</h2>
+<p>일정은 <code>%APPDATA%\LazyScheduler\data.json</code> 한 파일에 있습니다. 새 버전으로 덮어써도 그대로 남습니다.</p>
 
 <footer>
   <a href="https://github.com/Sooookin/lazy-scheduler">GitHub</a>
@@ -208,7 +200,8 @@ Windows 11은 새 아이콘을 숨겨 두기도 합니다 — 작업표시줄의
 
 </div>
 <script>
-/* 체험판: 막대의 시각을 창 안(demo/demo.js)에 알려 준다. 보이지 않을 때는 창을 쉬게 한다. */
+/* 미리 보기: 막대의 시각과 고른 화면(홈 · 달력)을 창 안(demo/demo.js)에 알려 준다.
+   보이지 않을 때는 창을 쉬게 한다. */
 (() => {
   const frame = document.getElementById('demo'), stage = document.getElementById('stage');
   const range = document.getElementById('t'), out = document.getElementById('t-out');
@@ -239,6 +232,11 @@ Windows 11은 새 아이콘을 숨겨 두기도 합니다 — 작업표시줄의
     anim = requestAnimationFrame(step);
   });
   setInterval(() => { if(live) show(realMin()); }, 20000);
+  const tabs = [...document.querySelectorAll('#tabs button')];
+  tabs.forEach(b => b.onclick = () => {
+    tabs.forEach(x => x.classList.toggle('on', x === b));
+    send({lsView: b.dataset.v});
+  });
   show(realMin());
 
   new ResizeObserver(() => stage.style.setProperty('--k', stage.clientWidth / 960)).observe(stage);
