@@ -12,6 +12,7 @@ from desktop import paths
 from core import recur
 from core import store
 from desktop import toast
+import platforms
 from platforms import autostart, system, tray
 from desktop import updater
 import version
@@ -26,6 +27,7 @@ DRAIN_MAX = 64 * 1024           # 거절한 뒤 흘려 버릴 최대 바이트
 DRAIN_WAIT = 0.25               # 그때 기다릴 시간(초)
 TOKEN_HEADER = ipc.TOKEN_HEADER
 TOKEN_SLOT = b"__TM_TOKEN__"    # index.html 에서 비밀값으로 바꿔 끼울 자리
+OS_SLOT = b"__TM_OS__"          # index.html 의 data-os: 화면이 운영체제에 맞춰 단추 자리 · 말을 고른다
 WEEK = "월화수목금토일"
 # HTTP API 의 약속 번호. 응답 형식을 깨는 변경(필드를 빼거나 뜻을 바꿈)을 하면 올린다.
 # 필드를 더하는 것은 깨는 변경이 아니다. 다른 화면(휴대폰 앱 등)은 /api/ping 으로 확인한다.
@@ -369,6 +371,7 @@ class Handler(BaseHTTPRequestHandler):
             data = f.read()
         if ext == "html":
             data = data.replace(TOKEN_SLOT, paths.ipc_token().encode("ascii"))
+            data = data.replace(OS_SLOT, platforms.OS.encode("ascii"))
         # 화면 파일(html·css·js)은 no-store 여야 업데이트가 바로 보인다. 글꼴은
         # 한 벌에 160KB 짜리 한글 세 벌이라 창을 열 때마다 480KB 를 다시 받고
         # 다시 해석하고 있었다. 글꼴은 좀처럼 바뀌지 않으므로 하루 동안 들고 있게 한다

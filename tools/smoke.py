@@ -25,6 +25,38 @@ PORT = 18777
 MAC = sys.platform == "darwin"
 
 
+_said = []
+
+
+def say(*parts):
+    line = " ".join(str(x) for x in parts)
+    _said.append(line)
+    print(line, flush=True)
+
+
+def annotate(level, title, text):
+    """GitHub Actions 에서만: 결과를 작업 요약의 annotation 으로 (로그인 없이 읽힌다)."""
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    enc = text[-3500:].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print("::%s title=%s::%s" % (level, title, enc), flush=True)
+
+
+def compare(before, after):
+    """알림 카드가 실제로 그려졌는지: 알림 전 · 후 화면이 다른 곳의 테두리 상자."""
+    try:
+        from PIL import Image, ImageChops
+        a, b = Image.open(before).convert("RGB"), Image.open(after).convert("RGB")
+        if a.size != b.size:
+            return "크기가 다르다 %s %s" % (a.size, b.size)
+        box = ImageChops.difference(a, b).getbbox()
+        w, h = a.size
+        colors = len(a.resize((w // 8, h // 8)).getcolors(1 << 20) or [])
+        return "화면 %dx%d · 색 %d가지 · 알림 뒤 바뀐 곳 %s" % (w, h, colors, box)
+    except Exception as e:
+        return "비교 못함 %s" % e
+
+
 def arg(name, default=None):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
 
@@ -54,9 +86,9 @@ def shot(path):
         else:
             from PIL import ImageGrab
             ImageGrab.grab(all_screens=True).save(path)
-        print("  찍음", path, os.path.exists(path))
+        say("  찍음", path, os.path.exists(path))
     except Exception as e:
-        print("  찍지 못함", path, e)
+        say("  찍지 못함", path, e)
 
 
 def shot_window(path, exe_hint):
@@ -93,7 +125,7 @@ def shot_window(path, exe_hint):
 
     u.EnumWindows(cb, 0)
     if not found:
-        print("  앱 창을 찾지 못했다")
+        say("  앱 창을 찾지 못했다")
         return
     w, h, hwnd = max(found)
     g = ctypes.windll.gdi32
@@ -108,7 +140,7 @@ def shot_window(path, exe_hint):
     g.DeleteObject(bmp)
     g.DeleteDC(mem)
     u.ReleaseDC(hwnd, dc)
-    print("  창을 찍음", path, (w, h))
+    say("  창을 찍음", path, (w, h))
 
 
 def call(method, path, token, body=None):
@@ -126,39 +158,45 @@ def main():
     env = dict(os.environ, APPDATA=box, LS_PORT_BASE=str(PORT))
     exe = arg("--exe")
     cmd = [exe] if exe else [sys.executable, os.path.join(ROOT, "main.py")]
-    print("켠다:", cmd, "데이터:", box)
+    say("켠다:", cmd, "데이터:", box)
     proc = subprocess.Popen(cmd, cwd=os.path.dirname(exe) if exe else ROOT, env=env)
     data = os.path.join(box, "LazyScheduler")
     ok = True
     try:
         if not wait(lambda: up(PORT), 90):
-            print("실패: 서비스가 포트를 열지 않았다")
+            say("실패: 서비스가 포트를 열지 않았다")
             ok = False
             return 1
-        print("서비스 떴다")
+        say("서비스 떴다")
         token = open(os.path.join(data, "ipc.key"), encoding="ascii").read().strip()
         o = call("GET", "/api/overview", token)
-        print("  버전", o.get("version"), "· 할 일", len(o.get("today", []) if isinstance(o.get("today"), list) else []))
+        say("  버전", o.get("version"), "· 할 일", len(o.get("today", []) if isinstance(o.get("today"), list) else []))
         if not wait(lambda: up(PORT + 2), 90):
-            print("실패: 창 프로세스가 뜨지 않았다")
+            say("실패: 창 프로세스가 뜨지 않았다")
             ok = False
         else:
-            print("창 떴다")
+            say("창 떴다")
         time.sleep(6)                                    # 화면이 다 그려지기를
         if MAC:
             shot(os.path.join(out, "window.png"))
         else:
             shot_window(os.path.join(out, "window.png"),
                         os.path.basename(exe).lower()[:8] if exe else "python")
+        if MAC:
+            before = os.path.join(out, "window.png")
+        else:
+            before = os.path.join(out, "before.png")
+            shot(before)
         call("POST", "/api/test-toast", token, {})
         time.sleep(2.5)
         shot(os.path.join(out, "toast.png"))
+        say("  " + compare(before, os.path.join(out, "toast.png")))
         call("POST", "/api/quit", token, {})
         if not wait(lambda: not up(PORT) and not up(PORT + 2), 20):
-            print("실패: 종료하라고 했는데 포트가 남아 있다")
+            say("실패: 종료하라고 했는데 포트가 남아 있다")
             ok = False
         else:
-            print("곱게 내려갔다")
+            say("곱게 내려갔다")
         return 0 if ok else 1
     finally:
         try:
@@ -172,7 +210,11 @@ def main():
             print("---- app.log ----")
             print(text[-6000:])
             if "Traceback" in text:
-                print("경고: app.log 에 Traceback 이 있다")
+                say("경고: app.log 에 Traceback 이 있다")
+            annotate("notice" if ok and "Traceback" not in text else "error", "smoke",
+                     "\n".join(_said) + "\n---- app.log ----\n" + text[-2500:])
+        else:
+            annotate("error", "smoke", "\n".join(_said) + "\n(app.log 없음)")
         shutil.rmtree(box, ignore_errors=True)
 
 

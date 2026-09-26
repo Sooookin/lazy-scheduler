@@ -1852,6 +1852,19 @@ $('#s-upd-btn').onclick = e => {
 /* ══════════ 설정 ══════════ */
 /* 설정 창의 값은 창을 열 때 한 번만 채운다. 예전에는 45초마다 새로 읽을 때마다
    채워서, 고치던 값이 저장을 누르기 전에 조용히 예전 값으로 되돌아갔다. */
+/* macOS 에서 도는 창이면 (서비스가 index.html 의 data-os 에 적어 준다) 그 운영체제의 말로 */
+const ON_MAC = document.documentElement.dataset.os === 'mac';
+if(ON_MAC){
+  const auto = $('#s-auto');
+  if(auto) auto.parentNode.lastChild.textContent = ' 로그인할 때 자동 실행';
+  const sc = $('#s-shortcut');
+  if(sc) sc.hidden = true;                 /* 바로가기 대신 응용 프로그램 폴더 · Dock 에 둔다 */
+  const where = $('#s-where');
+  if(where) where.textContent = '~/Library/Application Support/LazyScheduler/data.json';
+  const hold = $('#s-hold');
+  if(hold) hold.parentNode.title = '전체 화면 앱 · 잠금 화면일 때 미룹니다.\n집중 모드(방해 금지)는 macOS 가 알려주지 않아 잡지 못합니다.';
+}
+
 function fillSettings(){
   const st = STATE.settings;
   $('#s-lead').value = st.notify_min != null ? st.notify_min : 30;

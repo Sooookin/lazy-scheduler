@@ -10,6 +10,7 @@ web/ 를 갈아 끼워도 화면은 그대로였다. 창 프로세스를 직접 
 """
 import io
 import os
+import sys
 
 import pytest
 
@@ -93,8 +94,11 @@ def test_focus_request_checks_for_a_new_build():
     assert "refresh_if_stale()" in head, "/focus 가 새 화면 파일을 살피지 않는다"
 
 
-# ---------- 창 자리 ----------
+# ---------- 창 자리 (Windows: platforms/win/window.py) ----------
 
+WIN_ONLY = pytest.mark.skipif(sys.platform == "darwin", reason="Windows 쪽 (platforms/win)")
+
+@WIN_ONLY
 def test_the_window_is_placed_before_it_is_shown():
     """pywebview 의 CenterScreen 은 이 조합에서 듣지 않는다 (핸들이 생긴 뒤에
     StartPosition 을 바꾸므로 WinForms 가 이미 자리를 정해 버렸다). 직접 놓는다.
@@ -107,6 +111,7 @@ def test_the_window_is_placed_before_it_is_shown():
         "보인 뒤에 옮기면 창이 깜빡인다"
 
 
+@WIN_ONLY
 def test_the_window_is_only_placed_once():
     """옮겨 둔 창을 숨겼다 열 때 제자리로 끌어오면 옮긴 뜻을 무시하는 것이다."""
     from platforms.win import window as _ui
@@ -118,6 +123,7 @@ def test_the_window_is_only_placed_once():
     _ui._placed[0] = False
 
 
+@WIN_ONLY
 def test_placing_uses_the_monitor_under_the_cursor():
     """주 모니터에 고정하면 모니터가 둘일 때 늘 한쪽에서만 열린다."""
     src = io.open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

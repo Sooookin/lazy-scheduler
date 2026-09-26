@@ -3,13 +3,15 @@
 
     python build.py
 
-결과: release/To-Do Manager.zip  (공유 폴더에 올릴 파일 하나)
-      release/To-Do Manager/    (압축 전 폴더)
+결과 (Windows): release/LazyScheduler.zip      release/LazyScheduler/  (압축 전 폴더)
+결과 (macOS):   release/LazyScheduler-mac.zip  release/mac/LazyScheduler.app
+                macOS 빌드는 Mac 에서만 된다 - GitHub Actions 의 macOS 러너가 한다.
 
 패키지 안에는 파이썬도 라이브러리도 없어도 되는 실행 파일 하나와
 아주 짧은 안내문만 들어간다. 내 일정(data.json)은 %APPDATA% 에 있어 절대 포함되지 않는다.
 """
 import os
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -19,6 +21,8 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RELEASE = os.path.join(ROOT, "release")
 OUT_NAME = "LazyScheduler"
+MAC = sys.platform == "darwin"
+BUNDLE_ID = "com.lazyscheduler.app"
 
 READ_ME = r"""LazyScheduler  -  할 일 · 루틴 · 메모
 ==========================================
@@ -108,6 +112,36 @@ READ_ME = r"""LazyScheduler  -  할 일 · 루틴 · 메모
   바뀐 뒤 처음 창을 열 때 무엇이 바뀌었는지 한 번 알려 줍니다.
   끄려면 설정 -> 프로그램 -> "새 버전 자동으로 받기".
   * 이 폴더에 쓸 수 있어야 합니다 (Program Files 처럼 막힌 곳에 두면 바꾸지 못합니다).
+"""
+
+
+READ_ME_MAC = r"""LazyScheduler (macOS)  -  할 일 · 루틴 · 메모
+==========================================
+
+■ 시작하기
+  1. LazyScheduler.app 을 "응용 프로그램" 폴더로 끌어다 놓으세요.
+  2. 처음 열 때 "확인되지 않은 개발자" 라며 열리지 않습니다 (Apple 서명이 없는 배포본입니다).
+       · Finder 에서 LazyScheduler.app 을 우클릭 -> [열기] -> [열기]
+       · 그래도 막히면 (macOS 15 이상): 시스템 설정 -> 개인정보 보호 및 보안 ->
+         맨 아래 "LazyScheduler 이(가) 차단되었습니다" 옆 [그래도 열기]
+     한 번만 하면 됩니다. 그 뒤로 앱이 스스로 받는 새 버전은 묻지 않고 열립니다.
+  * Apple 실리콘(M1 이후) Mac 용입니다.
+
+■ 기억할 것 하나
+  창의 닫기(왼쪽 위 첫 단추)는 창만 닫습니다. 프로그램은 뒤에서 계속 돌며 알림을 띄웁니다.
+  다시 열기   응용 프로그램 폴더 · Dock 의 아이콘, 또는 화면 위 메뉴 막대의 아이콘 -> 열기
+  완전히 끄기 메뉴 막대 아이콘 -> "완전히 종료"
+  로그인할 때 켜기: 창 오른쪽 위 톱니바퀴 -> "로그인할 때 자동 실행"
+
+■ 휴대폰 · Windows PC 와 같이 쓰기
+  설정 -> 동기화 -> "Google 계정으로 로그인". 같은 계정의 일정이 서로 같아집니다.
+
+■ 내 일정이 저장되는 곳
+  ~/Library/Application Support/LazyScheduler/data.json   (이 파일만 백업하면 됩니다)
+
+■ 업데이트
+  새 버전이 나오면 알아서 받아 두었다가, 알림이 없는 조용한 때에 바꿔 끼웁니다.
+  끄려면 설정 -> 프로그램 -> "새 버전 자동으로 받기".
 """
 
 
@@ -260,13 +294,22 @@ def main():
         args += ["--add-data", f"firebase/config.local.json{os.pathsep}firebase"]
     else:
         print("  ! firebase/config.local.json 이 없다 - 동기화를 쓸 수 없는 빌드가 된다")
-    # 지연 임포트되는 것들
-    for m in ("pystray._win32", "clr",
-              "webview.platforms.winforms", "webview.platforms.edgechromium"):
-        args += ["--hidden-import", m]
-    # pywebview 는 WebView2 DLL 을 자기 패키지 안에 들고 있다
-    args += ["--collect-data", "webview", "--collect-binaries", "webview",
-             "--collect-data", "clr_loader", "--collect-binaries", "clr_loader"]
+    # 운영체제별 부분은 platforms 가 처음 쓸 때 불러오므로(importlib) 빌드가 보지 못한다 - 통째로 담는다
+    args += ["--collect-submodules", "platforms.mac" if MAC else "platforms.win"]
+    if MAC:
+        args += ["--osx-bundle-identifier", BUNDLE_ID]
+        for m in ("webview.platforms.cocoa", "objc", "AppKit", "Foundation", "Quartz", "WebKit",
+                  "PyObjCTools.AppHelper"):
+            args += ["--hidden-import", m]
+        args += ["--collect-data", "webview"]
+    else:
+        # 지연 임포트되는 것들
+        for m in ("pystray._win32", "clr",
+                  "webview.platforms.winforms", "webview.platforms.edgechromium"):
+            args += ["--hidden-import", m]
+        # pywebview 는 WebView2 DLL 을 자기 패키지 안에 들고 있다
+        args += ["--collect-data", "webview", "--collect-binaries", "webview",
+                 "--collect-data", "clr_loader", "--collect-binaries", "clr_loader"]
     # 안 쓰는 무거운 것들 (깨끗한 venv 로 빌드해도 한 번 더 막아둔다)
     for m in ("numpy", "pandas", "scipy", "matplotlib", "IPython", "jupyter",
               "notebook", "nbformat", "sklearn", "sympy", "numba", "llvmlite",
@@ -295,6 +338,8 @@ def main():
     args += extra_binaries()
     args.append("main.py")
     run(args)
+    if MAC:
+        return finish_mac()
 
     prune(os.path.join(ROOT, "dist", OUT_NAME))
 
@@ -322,6 +367,50 @@ def main():
     size = os.path.getsize(zip_path) / 1024 / 1024
     print(f"\n완료: {zip_path}  ({size:.1f} MB)")
     print(f"      {dst}")
+
+
+def finish_mac():
+    """dist/LazyScheduler.app → 정보 고치기 · 다시 서명 · release/LazyScheduler-mac.zip.
+
+    Info.plist 를 고치면 PyInstaller 가 붙인 임시 서명이 깨진다. Apple 실리콘은 서명이 맞지 않는
+    실행 파일을 켜자마자 죽이므로 반드시 다시(임시로) 서명한다.
+    zip 은 ditto 로 만든다 - zipfile 은 .app 안의 심볼릭 링크와 실행 권한을 살리지 못한다.
+    자동 업데이트(platforms/mac/system.extract)가 zip 맨 위에서 LazyScheduler.app 을 찾는다.
+    """
+    sys.path.insert(0, ROOT)
+    import version
+    app = os.path.join(ROOT, "dist", OUT_NAME + ".app")
+    plist = os.path.join(app, "Contents", "Info.plist")
+    with open(plist, "rb") as f:
+        info = plistlib.load(f)
+    info.update({
+        "CFBundleDisplayName": OUT_NAME,
+        "CFBundleShortVersionString": version.VERSION,
+        "CFBundleVersion": version.VERSION,
+        "NSHighResolutionCapable": True,
+        "LSMinimumSystemVersion": "11.0",
+        # 서비스는 메뉴 막대 아이콘만 둔다 (Dock 에 뜨지 않게). 창 프로세스는 창을 보일 때
+        # 스스로 보통 앱이 된다 (platforms/mac/window.focus).
+        "LSUIElement": True,
+    })
+    with open(plist, "wb") as f:
+        plistlib.dump(info, f)
+    run(["codesign", "--force", "--deep", "--sign", "-", app])
+
+    stage = os.path.join(RELEASE, "mac")
+    os.makedirs(stage)
+    run(["ditto", app, os.path.join(stage, OUT_NAME + ".app")])
+    with open(os.path.join(stage, "먼저 읽어주세요.txt"), "w", encoding="utf-8") as f:
+        f.write(READ_ME_MAC)
+    zip_path = os.path.join(RELEASE, OUT_NAME + "-mac.zip")
+    run(["ditto", "-c", "-k", "--sequesterRsrc", stage, zip_path])
+
+    for d in ("build", "dist"):
+        shutil.rmtree(os.path.join(ROOT, d), ignore_errors=True)
+    spec = os.path.join(ROOT, OUT_NAME + ".spec")
+    if os.path.exists(spec):
+        os.remove(spec)
+    print("\n완료: %s  (%.1f MB)" % (zip_path, os.path.getsize(zip_path) / 1024 / 1024))
 
 
 if __name__ == "__main__":

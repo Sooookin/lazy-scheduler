@@ -137,6 +137,7 @@ def build(data):
     html = io.open(os.path.join(WEB, "index.html"), encoding="utf-8").read()
     for old, new in [
         ('<meta name="tm-token" content="__TM_TOKEN__">\n', '<meta name="robots" content="noindex">\n'),
+        ('data-os="__TM_OS__"', 'data-os="win"'),
         ('<link rel="stylesheet" href="style.css">',
          '<link rel="stylesheet" href="style.css">\n<link rel="stylesheet" href="demo.css">'),
         ('<script src="app.js"></script>', '<script src="demo.js"></script>\n<script src="app.js"></script>'),

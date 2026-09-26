@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 import zipfile
 from datetime import datetime, timedelta
 
@@ -11,6 +12,8 @@ import pytest
 
 from desktop import updater
 import version
+
+MAC = sys.platform == "darwin"
 
 
 def test_probe_modules_all_exist():
@@ -49,7 +52,7 @@ def test_latest_tag_is_read_from_the_redirect():
     assert updater.tag_from_location(loc) == "v2.4.1"
     assert updater.tag_from_location("https://github.com/x/y/releases") == ""
     rel = updater.release_for("v2.4.1")
-    assert rel["version"] == "2.4.1" and rel["zip_url"].endswith("/releases/download/v2.4.1/LazyScheduler.zip")
+    assert rel["version"] == "2.4.1" and rel["zip_url"].endswith("/releases/download/v2.4.1/" + updater.ASSET)
     assert rel["hash_url"].endswith(".sha256") and rel["notes_url"].endswith("-notes.txt")
     assert updater.release_for("latest") is None
 
@@ -134,8 +137,12 @@ def test_prepare_downloads_checks_and_stages(tmp_path, monkeypatch):
     """받기 → 해시 → 풀기 → 켜 보기. 해시가 다르면 아무것도 남기지 않는다."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("LazyScheduler/LazyScheduler.exe", "exe")
-        z.writestr("LazyScheduler/_internal/x.txt", "x")
+        if MAC:                                  # 배포본 모양이 운영체제마다 다르다 (platforms/<os>/system.py)
+            z.writestr("LazyScheduler.app/Contents/MacOS/LazyScheduler", "exe")
+            z.writestr("LazyScheduler.app/Contents/Resources/x.txt", "x")
+        else:
+            z.writestr("LazyScheduler/LazyScheduler.exe", "exe")
+            z.writestr("LazyScheduler/_internal/x.txt", "x")
     blob = buf.getvalue()
     good = hashlib.sha256(blob).hexdigest()
 
@@ -154,7 +161,7 @@ def test_prepare_downloads_checks_and_stages(tmp_path, monkeypatch):
     rel = dict(updater.release_for("v9.9.9"), zip_size=len(blob))
     updater.prepare(rel)
     p = updater.load_state()["pending"]
-    assert p["version"] == "9.9.9" and os.path.isfile(os.path.join(p["dir"], "LazyScheduler.exe"))
+    assert p["version"] == "9.9.9" and os.path.isfile(updater.system.exe_in(p["dir"]))
     assert p["notes"] == "첫째\n둘째"
     assert updater.status()["state"] == "ready"
 
@@ -264,3 +271,16 @@ def test_offline_is_told_apart(monkeypatch):
     monkeypatch.setattr(updater, "latest_tag", down)
     updater.check_once()
     assert updater.status()["state"] == "error" and updater.status()["error"] == "offline"
+
+
+@pytest.mark.skipif(not MAC, reason="macOS 배포본 (.app 안의 심볼릭 링크)")
+def test_mac_zip_cannot_link_outside_its_folder(tmp_path):
+    """.app 에는 링크가 많아 ditto 로 푼다. 밖을 가리키는 링크가 든 zip 은 풀기 전에 멈춘다."""
+    z = tmp_path / "evil.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        f.writestr("LazyScheduler.app/Contents/MacOS/LazyScheduler", "exe")
+        link = zipfile.ZipInfo("LazyScheduler.app/Contents/Frameworks/evil")
+        link.external_attr = (0o120777 << 16)
+        f.writestr(link, "../../../../../etc")
+    with pytest.raises(ValueError):
+        updater.extract(str(z), str(tmp_path / "out"))

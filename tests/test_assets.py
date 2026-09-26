@@ -6,12 +6,14 @@
 """
 import io
 import os
+import sys
 
 import pytest
 
 from desktop import paths
 from desktop import toast
-from platforms.win import tray
+
+WIN_ONLY = pytest.mark.skipif(sys.platform == "darwin", reason="Windows 쪽 (platforms/win)")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONTS = os.path.join(ROOT, "assets", "fonts")
@@ -110,6 +112,7 @@ def test_migration_brings_the_backups_and_state_too(tmp_path, monkeypatch):
     assert (old / "data.json").exists(), "예전 폴더는 한 벌 더로 남겨 둬야 한다"
 
 
+@WIN_ONLY
 def test_the_window_is_named_and_looked_up_by_the_same_value():
     """창을 제목으로 찾는다 (Windows). 짓는 쪽(ui.py)과 찾는 쪽(window.py)이 어긋나면 창을 못 찾는다."""
     make = io.open(os.path.join(ROOT, "desktop", "ui.py"), encoding="utf-8").read()
@@ -120,6 +123,7 @@ def test_the_window_is_named_and_looked_up_by_the_same_value():
     assert '"To-Do Manager"' not in src
 
 
+@WIN_ONLY
 def test_autostart_cleans_up_the_entry_made_under_the_old_name():
     """예전 이름의 값이 남으면 로그인할 때 두 번 실행된다."""
     from platforms.win import autostart
