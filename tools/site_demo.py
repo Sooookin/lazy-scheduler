@@ -56,12 +56,31 @@ def seed():
     ]:
         store.add({"title": title, "kind": "routine", "due_time": tm, "rule": rule})
     for title, k, tm in [("견적서 회신", -1, "09:00"), ("발표 자료 초안", 0, "13:30"),
-                         ("주간 보고 제출", 2, "17:00"), ("분기 계획 공유", 6, "15:00"),
-                         ("회의실 예약", 0, "")]:
+                         ("회의실 예약", 0, ""), ("주간 보고 제출", 2, "17:00"),
+                         ("분기 계획 공유", 6, "15:00"), ("세금계산서 발행", 9, "11:00"),
+                         ("신규 입사자 교육 자료", 13, ""), ("협력사 미팅", 16, "14:00"),
+                         ("예산안 초안", 21, "18:00"), ("워크숍 장소 확정", 27, ""),
+                         ("연간 계약 갱신", 34, "10:00")]:
         store.add({"title": title, "kind": "deadline", "due_date": D(k), "due_time": tm})
+    # 이미 끝낸 지난 일 - 달력의 지난 칸이 비지 않게
+    done = [("월초 회의록 정리", -24), ("거래처 방문", -20), ("분기 목표 점검", -15),
+            ("장비 점검 요청", -11), ("교육 신청", -7), ("출장 경비 정산", -4), ("자료 백업", -2)]
+    for title, k in done:
+        t_ = store.add({"title": title, "kind": "deadline", "due_date": D(k), "due_time": ""})
+        store.set_done(t_["id"], D(k), True)
     for m in ["읽을 책 목록 정리", "새 노트북 알아보기", "여름휴가 숙소 후보"]:
         store.add({"title": m, "kind": "floating"})
-
+    # 루틴은 두 달 전부터 쓰던 것으로 - 등록 이전 날짜는 달력에 안 나온다. 지난 회차는 끝낸 것으로.
+    import recur
+    born = t - timedelta(days=60)
+    with store.transaction() as d:
+        for x in d["tasks"]:
+            if x.get("kind") != "routine":
+                continue
+            x["created"] = born.isoformat() + "T09:00:00"
+            if x.get("rule"):
+                x["rule"]["anchor"] = born.isoformat()
+            x["done_dates"] = [day.isoformat() for day in recur.occurrences(x.get("rule") or {}, born, t - timedelta(days=1))]
 
 def capture():
     """실제 서비스 핸들러에게 묻는다 - 화면이 받는 것과 글자 하나까지 같은 답."""
@@ -83,7 +102,7 @@ def capture():
         return body
 
     t = date.today()
-    lo, hi = t - timedelta(days=45), t + timedelta(days=45)    # 이번 달 달력 (여는 날이 달라도 넉넉히)
+    lo, hi = t - timedelta(days=75), t + timedelta(days=75)    # 지난달 · 이번 달 · 다음 달 달력
     rng = "from=%s&to=%s" % (lo, hi)
     try:
         return {

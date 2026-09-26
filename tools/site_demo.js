@@ -3,7 +3,7 @@
    app.js 보다 먼저 읽힌다. 보기 전용이다 (홈페이지가 창 위의 누르기를 막는다).
      1. 읽기 요청(개요 · 달력 회차)에 구워 둔 답을 준다. 바꾸는 요청은 모두 거절한다.
      2. 구워 둔 날짜를 여는 날에 맞춰 옮긴다 (본보기 일정이 언제나 오늘 것이 되게).
-     3. 바깥(홈페이지)이 시각과 화면(홈 · 달력)을 정한다. 인자 없는 new Date() 와 개요의
+     3. 바깥(홈페이지)이 시각과 화면(홈 · 달력 · 달력의 달)을 정한다. 인자 없는 new Date() 와 개요의
         now 가 그 시각을 따른다. Date.now() 는 그대로 둔다 (움직임은 실제 흐름을 따라야 한다). */
 (() => {
   const DATA = /*DATA*/null;
@@ -74,6 +74,7 @@
     const d = e.data || {};
     if('lsMin' in d) setMin(d.lsMin == null ? null : Math.max(0, Math.min(1439, Math.round(d.lsMin))));
     if(d.lsView === 'home' || d.lsView === 'cal') setView(d.lsView);
+    if(d.lsCal === -1 || d.lsCal === 1) shiftMonth(d.lsCal);
     if('lsAway' in d){ if(d.lsAway) setHidden(true); else wake(); }
   });
 })();
