@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LazyScheduler</title>
+<link rel="icon" href="icon.png">
 <meta name="description" content="할 일 · 루틴 · 메모를 한 창에서. Windows 데스크톱 앱과 Android 앱, Google 계정으로 동기화.">
 <style>
   :root{
@@ -26,7 +27,14 @@
     -webkit-font-smoothing:antialiased;
   }
   .wrap{max-width:720px; margin:0 auto; padding:64px 16px 80px}
-  header{margin-bottom:48px}
+  header{margin-bottom:48px; display:flex; align-items:center; gap:18px}
+  header img{width:72px; height:72px; flex:0 0 auto}
+  .shot{margin:28px 0 8px}
+  .shot img{display:block; width:100%; height:auto; border-radius:12px;
+    box-shadow:0 10px 30px rgba(8,32,43,.18)}
+  .shot figcaption{margin-top:8px; font-size:14px; color:var(--dim)}
+  .shot .night{display:none}
+  @media (prefers-color-scheme: dark){ .shot .day{display:none} .shot .night{display:block} }
   h1{margin:0 0 6px; font-size:34px; font-weight:600; letter-spacing:-.4px; color:var(--ink2)}
   .tag{margin:0; font-size:17px; color:var(--faint)}
   h2{margin:48px 0 14px; font-size:19px; font-weight:600; color:var(--ink2);
@@ -58,8 +66,11 @@
 <div class="wrap">
 
 <header>
-  <h1>LazyScheduler</h1>
-  <p class="tag">할 일 · 루틴 · 메모를 한 창에서. 되풀이되는 일은 한 번만 정해 두면 됩니다.</p>
+  <img src="icon.png" alt="">
+  <div>
+    <h1>LazyScheduler</h1>
+    <p class="tag">할 일 · 루틴 · 메모를 한 창에서. 되풀이되는 일은 한 번만 정해 두면 됩니다.</p>
+  </div>
 </header>
 
 <p>마감이 있는 일, 매달 돌아오는 일, 기한 없이 적어 두는 메모를 같은 자리에서 다룹니다.
@@ -67,6 +78,12 @@ Windows 데스크톱 앱과 Android 앱이 있고, Google 계정으로 로그인
 
 <a class="cta" href="https://github.com/Sooookin/lazy-scheduler/releases/latest">Windows 앱 내려받기</a>
 <p class="note">설치할 것 없이 압축을 풀고 실행하면 됩니다. Windows 10 · 11.</p>
+
+<figure class="shot">
+  <img class="day" src="home.png" alt="LazyScheduler 홈 화면: 하늘의 해 궤도 위에 오늘 할 일이 시각대로 놓여 있다" width="1200" height="740">
+  <img class="night" src="night.png" alt="LazyScheduler 밤 화면" width="1200" height="740">
+  <figcaption>하루는 하늘의 해 궤도 위에 놓입니다. 빛은 시각을 따라 바뀌고, 일을 다 마치면 밤이 됩니다.</figcaption>
+</figure>
 
 <h2>무엇을 하나</h2>
 <ul class="kinds">
