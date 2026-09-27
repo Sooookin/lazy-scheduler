@@ -173,10 +173,10 @@ body.folded .clk, body.folded .acts, body.peek .clk, body.peek .acts{
   transition:opacity var(--t-fast) var(--ease-exit), visibility 0s linear var(--t-fast)}
 .clk-m b{font-size:var(--fs-title); letter-spacing:var(--tr-title); font-weight:var(--w-thin); line-height:1;
   color:var(--text); font-variant-numeric:tabular-nums}
-.clk-m span{font-size:var(--fs-body); letter-spacing:var(--tr-body); line-height:1; color:var(--text2)}
+.clk-m span{font-size:var(--fs-body); letter-spacing:var(--tr-body); font-weight:var(--w-sec); line-height:1; color:var(--text)}
 body.folded .clk-m{opacity:1; visibility:visible;
   transition:opacity var(--t-slow) var(--ease) var(--t-med), visibility 0s}
-.clk-d{font-size:var(--fs-body); letter-spacing:var(--tr-body); color:var(--text2); line-height:1}
+.clk-d{font-size:var(--fs-body); letter-spacing:var(--tr-body); font-weight:var(--w-sec); color:var(--text); line-height:1}
 .clk-c{margin-top:12px; font-size:var(--fs-display); letter-spacing:var(--tr-display);
   font-weight:var(--w-thin); line-height:.9; color:var(--text); font-variant-numeric:tabular-nums}
 
