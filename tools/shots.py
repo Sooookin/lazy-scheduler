@@ -73,6 +73,10 @@ def seed():
                          ("월간 운용보고서 제출", 2, "17:00"), ("교보생명 분기 자료", 6, "15:00"),
                          ("리스크 한도 점검표 회신", -1, "09:00")]:
         store.add({"title": title, "kind": "deadline", "due_date": D(k), "due_time": tm})
+    # 기간 업무 (시작일이 있는 할 일) - 오늘을 걸치는 것 둘, 조금 뒤에 시작하는 것 하나
+    for title, a0, b0 in [("월간 운용보고서", -3, 2), ("교보생명 분기 자료 준비", 0, 6),
+                          ("RA 시스템 이관", -10, 8)]:
+        store.add({"title": title, "kind": "deadline", "start_date": D(a0), "due_date": D(b0)})
     for m in ["멀모 해외 리밸 내역", "운용시스템-8U3150 주간 코멘트 추가", "운시-설정해지 반영"]:
         store.add({"title": m, "kind": "floating"})
 

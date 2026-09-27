@@ -154,8 +154,8 @@ def test_background_refresh_does_not_touch_the_settings_form():
 
 
 def test_calendar_routines_are_refetched_when_the_data_changes():
-    body = _js().split("function ensureRoutines(y, m){")[1].split("\n}\n")[0]
-    assert "STATE.rev" in body, "달력의 반복 회차가 달만 보고 다시 묻지 않는다"
+    body = _js().split("function ensureRoutines(from, to){")[1].split("\n}\n")[0]
+    assert "STATE.rev" in body, "달력의 반복 회차가 구간만 보고 다시 묻지 않는다"
 
 
 def test_polling_pauses_while_the_window_is_hidden():

@@ -49,6 +49,7 @@ _SETTINGS = {
     "business_only": True,
     "show_weekend": True,          # 달력에 주말 칸을 보여줄지
     "show_routines": True,         # 달력에 반복 업무도 얹을지
+    "cal_week": False,             # 달력을 7일 보기로 열지 (끄면 월). 이 기기에만
     "hold_when_busy": True,        # 발표 · 화면 공유 중에는 알림을 미뤘다가 나중에
     # 화면 밝기. 'auto' 는 해 높이를 따라 하루 종일 바뀌고, 'light' · 'dark' 는
     # 한낮 · 한밤의 빛으로 세워 둔다. 이 기기에서만 쓰는 값이라 동기화하지 않는다.
@@ -58,7 +59,11 @@ _SETTINGS = {
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
-                "notify_min", "muted", "pinned", "rule", "tag")
+                "notify_min", "muted", "pinned", "rule", "tag", "start_date")
+# 기간 업무 = 시작일(start_date)이 있는 할 일. 마감일(due_date)이 끝나는 날이다.
+# 새 종류로 두지 않았다: 알림 · 다가오는 마감 · 휴대폰(아직 시작일을 모른다) · 옛 버전이
+# 모두 "끝나는 날의 할 일" 로 그대로 다룬다. 기간이 없는 항목에는 이 키 자체가 없다.
+SPAN_MAX_DAYS = 366
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -676,7 +681,8 @@ def _check_setting(k, v):
     elif k == "brief_time":
         if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
             raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
-    elif k in ("business_only", "show_weekend", "show_routines", "hold_when_busy", "guy_walk", "auto_update"):
+    elif k in ("business_only", "show_weekend", "show_routines", "cal_week", "hold_when_busy", "guy_walk",
+               "auto_update"):
         if not isinstance(v, bool):
             raise ValidationError("요청 형식이 올바르지 않습니다")
     elif k == "theme":
@@ -735,6 +741,16 @@ def clean_task(patch, base=None):
         t.update(rule=None, due_date=_clean_day(t.get("due_date")), due_time=tm, notify_min=nm)
     else:
         t.update(rule=None, due_date=None, due_time="", notify_min=None, muted=False)
+    start = _clean_day(t.get("start_date")) if kind == "deadline" else None
+    if start and t.get("due_date"):
+        if start > t["due_date"]:
+            raise ValidationError("시작일이 끝나는 날보다 늦습니다")
+        if (date.fromisoformat(t["due_date"]) - date.fromisoformat(start)).days > SPAN_MAX_DAYS:
+            raise ValidationError("기간은 1년까지 잡을 수 있습니다")
+    if start and t.get("due_date") and start < t["due_date"]:
+        t["start_date"] = start
+    else:
+        t.pop("start_date", None)                 # 하루짜리(시작 = 끝)는 그냥 할 일이다
     return t
 
 
@@ -927,7 +943,7 @@ def occurrences(lo, hi, kinds=None):
 # 저장 형식과 일부러 떼어 둔다. done_dates · skip_dates 는 날마다 늘어나는데
 # 화면은 읽지 않는다 (회차의 완료 여부는 overview · occurrences 가 이미 계산해 준다).
 # 동기화는 이 목록이 아니라 저장 형식 전체를 주고받는다.
-PUBLIC_TASK_FIELDS = ("id", "title", "note", "kind", "tag", "due_date", "due_time",
+PUBLIC_TASK_FIELDS = ("id", "title", "note", "kind", "tag", "start_date", "due_date", "due_time",
                       "notify_min", "muted", "pinned", "done", "rule")
 
 
@@ -985,6 +1001,9 @@ def _inst(t, day, pre=None, done_dates=None):
         "tag": t.get("tag", ""),
         "pinned": bool(t.get("pinned")),
         "date": iso,
+        # 기간 업무의 시작일 (끝나는 날보다 앞일 때만. 휴대폰이 끝나는 날을 앞으로 당겼으면 없는 셈)
+        "start": (t.get("start_date") if t.get("start_date") and iso and t["start_date"] < iso
+                  and not routine else None),
         "time": t.get("due_time") or "",
         "due": due_dt.isoformat(timespec="minutes") if due_dt else None,
         # raw rule 은 싣지 않는다. 수정 창은 rule_n(정규화한 것)을 읽고,

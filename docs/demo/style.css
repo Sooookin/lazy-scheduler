@@ -31,6 +31,8 @@
   --hair:rgba(31,42,40,.12); --hair2:rgba(31,42,40,.20); --next:rgba(63,111,105,.07);
   --hover:rgba(63,111,105,.13); --hover-hi:rgba(63,111,105,.20);
   --hol:#b0573f; --danger:#b0573f;
+  /* 기간 업무의 띠 (겹치는 것끼리 차례로) */
+  --span1:#ff7a59; --span2:#3fb6e8; --span3:#8fd14f; --span4:#b58be0; --span5:#f0b43a;
   /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않아 큰 글자에만 남긴다. */
   --w-thin:300; --w-sec:400; --w-pri:500;
   --rowpad:12px; --tb:28px;
@@ -537,6 +539,113 @@ body.v-cal #btn-manage{display:none}
 .day .rtline:hover{color:var(--text)}
 .day .more{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--teal); text-align:right}
 .day .more:hover{color:var(--text)}
+
+/* ---------- 기간 업무 · 7일 보기 ----------
+   기간은 이름 없이 색 띠로만 그린다 (월: 날짜 아래 가로 띠 · 7일: 왼쪽 세로선).
+   무엇인지는 마우스를 올리면 손끝 카드로 나온다 - 띠에 글자를 얹으면 칸의 다른 일이 묻힌다.
+   색은 tokens.SPAN 을 차례로 돌려 쓴다 (app.js spanColor). */
+.cal-legend .lg.sp{width:5px; height:12px; border-radius:3px; background-color:var(--span1)}
+.day .bands{grid-column:auto; grid-row:auto; position:absolute; left:0; right:0; bottom:2px; height:calc(var(--bands) * 5px); pointer-events:none}
+.sband{position:absolute; left:0; right:0; top:calc(var(--lane) * 5px); height:3px; cursor:pointer; pointer-events:auto;
+  background-color:var(--c); transition:filter var(--t-fast) var(--ease)}
+.sband.st{left:4px; border-radius:2px 0 0 2px}
+.sband.en{right:4px; border-radius:0 2px 2px 0}
+.sband.st.en{border-radius:2px}
+.sband.dn{opacity:.3}
+.sband:hover{filter:brightness(1.08) saturate(1.2)}
+
+.cal.is-week .cal-top #cal-we{display:none}
+.wkv{flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 1px minmax(0,34%);
+  column-gap:20px; border-top:1px solid var(--hair2)}
+.wkv[hidden]{display:none}
+.wk-div{background-color:var(--hair)}
+.wk-list{position:relative; min-height:0; overflow-y:auto; padding-top:4px; display:flex}
+.wk-rails{position:relative; flex:0 0 auto; margin:0 10px 0 4px}
+.wk-rows{flex:1; min-width:0; display:flex; flex-direction:column}
+/* 세로선: 걸친 날들의 줄을 잇는다. 이 7일 안에서 시작하면 머리에 고리 */
+.rail{position:absolute; width:5px; cursor:pointer; background-color:var(--c);
+  transition:top var(--t-med) var(--ease), height var(--t-med) var(--ease), filter var(--t-fast) var(--ease)}
+.rail.st{border-top-left-radius:3px; border-top-right-radius:3px;
+  box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--c)}
+.rail.en{border-bottom-left-radius:3px; border-bottom-right-radius:3px}
+.rail.dn{opacity:.3}
+.rail:hover{filter:brightness(1.08) saturate(1.2)}
+
+.wr{padding:0 10px 2px; margin-bottom:2px; border-radius:var(--r-sm); cursor:pointer;
+  border-bottom:1px solid var(--hair); transition:background-color var(--t-fast) var(--ease)}
+.wr:hover{background-color:var(--hover)}
+.wr.sel{background-color:var(--field); border-bottom-color:transparent; box-shadow:inset 0 0 0 1.4px var(--teal)}
+.wh{display:flex; align-items:center; gap:8px; height:24px}
+.wd-n{min-width:20px; height:20px; padding:0 6px; box-sizing:border-box; display:grid; place-items:center;
+  border-radius:999px; font-size:var(--fs-label); letter-spacing:var(--tr-label); font-weight:var(--w-sec);
+  color:var(--text); font-variant-numeric:tabular-nums}
+.wr.sat .wd-n{color:var(--text2)}
+.wr.sun .wd-n{color:var(--hol)}
+.wr.now .wd-n{background-color:var(--teal); color:var(--on-teal); font-weight:var(--w-pri)}
+.wd-w{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text2)}
+.wr.sel .wd-w{color:var(--teal)}
+.wd-h{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--hol); white-space:nowrap}
+.wd-e{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text2); opacity:.6}
+.wd-c{margin-left:auto; font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text2);
+  font-variant-numeric:tabular-nums}
+.wd-go{font-size:var(--fs-body); letter-spacing:var(--tr-body); color:var(--hair2); margin-left:4px}
+.wr.sel .wd-go{color:var(--teal)}
+.wl{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); column-gap:14px}
+.wl:empty{display:none}
+/* 한 줄: 앞 칸(시각 · 점 · ✓)이 같은 오른끝선에 선다 */
+.wi{display:flex; align-items:center; gap:6px; height:18px; min-width:0;
+  font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text)}
+.wi.big{gap:8px; height:24px; font-size:var(--fs-label); letter-spacing:var(--tr-label);
+  border-radius:var(--r-xs); cursor:pointer; padding:0 4px; margin:0 -4px}
+.wi.big:hover{background-color:var(--hover)}
+.wm{flex:0 0 30px; text-align:right; font-variant-numeric:tabular-nums; font-weight:var(--w-thin);
+  color:var(--text2); font-size:var(--fs-micro); letter-spacing:var(--tr-micro)}
+.wm.ok{color:var(--teal); font-weight:var(--w-sec)}
+.wm.dt{height:18px; background:radial-gradient(circle at calc(100% - 5px) 50%, var(--teal) 0 2.5px, transparent 3px)}
+.wi.p .wm.dt{background:radial-gradient(circle at calc(100% - 5px) 50%, var(--text) 0 2.5px, transparent 3px); opacity:.75}
+.wi.rt{color:var(--text2)}
+.wi.rt .wm.dt{opacity:.45}
+.wn{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wi.dn{color:var(--text2)}
+.wi.dn .wn{text-decoration:line-through}
+
+.wk-pane{min-height:0; overflow-y:auto; padding-top:6px; display:flex; flex-direction:column}
+.wp-h{display:flex; align-items:baseline; gap:8px; height:32px; flex:0 0 auto}
+.wp-h b{font-size:var(--fs-title); letter-spacing:var(--tr-title); font-weight:var(--w-thin); color:var(--text);
+  font-variant-numeric:tabular-nums}
+.wp-h span{font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text2)}
+.wp-h .wp-tag.now{color:var(--teal)}
+.wp-h .wp-hol{color:var(--hol)}
+.wp-h .wp-c{margin-left:auto}
+.wp-list{border-top:1px solid var(--hair2); margin-top:4px; padding-top:6px; display:flex; flex-direction:column}
+.wp-empty{padding:6px 0; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text2); opacity:.7}
+.wk-pane .wp-add{align-self:flex-start; margin:6px 0 0}
+.wp-sp{margin-top:12px; padding-top:8px; border-top:1px solid var(--hair); display:flex; flex-direction:column; gap:8px}
+.wp-sh{display:flex; justify-content:space-between; font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text2)}
+.sp-row{display:flex; flex-direction:column; gap:4px; cursor:pointer; border-radius:var(--r-xs); padding:2px 4px; margin:0 -4px}
+.sp-row:hover{background-color:var(--hover)}
+.sp-l{display:flex; align-items:center; gap:8px; min-width:0; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text)}
+.sp-sw{width:5px; height:12px; border-radius:3px; flex:0 0 auto; background-color:var(--c)}
+.sp-n{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.sp-r{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); color:var(--text2); white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.sp-d{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); font-weight:var(--w-pri); color:var(--teal); white-space:nowrap}
+.sp-d.soon{color:var(--hol)}
+.sp-bar{height:4px; border-radius:2px; background-color:var(--hair); position:relative; overflow:hidden}
+.sp-bar i{position:absolute; left:0; top:0; bottom:0; border-radius:2px; background-color:var(--c);
+  transition:width var(--t-med) var(--ease)}
+.sp-row.dn{opacity:.55}
+.sp-row.dn .sp-n{text-decoration:line-through}
+/* 하루 목록의 기간 줄 */
+.day-sp .sp-sw{margin-left:8px}
+
+/* 폼: 하루 / 기간 */
+.step-row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px}
+.modal.sheet .f-left .step-row .step{margin:0 2px; padding-top:0; border-top:0}
+.step-row .seg button{height:22px; padding:0 10px; font-size:var(--fs-label); letter-spacing:var(--tr-label)}
+/* 기간을 고르면 시작 · 끝은 채움, 사이는 옅게 잇는다 */
+.mc span.ri{background-color:var(--hover-hi); border-radius:0}
+.mc span.rs:not(.re){border-radius:50%}
 
 /* ---------- 알약 묶음 (택일) ----------
    종류 고르기 · 알림 간격 · 달력 보기 · 전체 항목 분류가 모두 이 하나를 쓴다.

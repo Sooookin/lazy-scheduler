@@ -55,6 +55,13 @@ merging safe:
 | `updated` | UTC ISO string | server timestamp | the pull cursor must use one clock |
 | `schema` | — (file has `version`) | `2` | a newer app's documents are not rewritten by an older app |
 
+A **span** (기간 업무) is a `deadline` with an extra `start_date` (`YYYY-MM-DD`, earlier than
+`due_date`, at most a year before it). `due_date` stays the day it ends, so reminders, the
+upcoming list and apps that don't know spans yet (the phone, older PCs) treat it as a deadline
+on its last day; they edit field by field and so never drop `start_date`. Items without a span
+have no `start_date` key at all. If another device moves `due_date` before `start_date`, the
+PC shows it as a plain deadline. No rules change: `validTask` doesn't restrict extra fields.
+
 `id` is the document ID (a uuid made on the device, so creating works offline). It is
 also stored as a field, so the security rules can check that it matches the document ID.
 A deleted item keeps only `id`, `deleted: true`, `updated`, `schema`

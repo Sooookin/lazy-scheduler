@@ -71,6 +71,41 @@ def test_kind_normalizes_irrelevant_fields():
     assert (t["due_date"], t["due_time"], t["rule"]) == (None, "", None)
 
 
+# ---------- 기간 업무 (시작일이 있는 할 일) ----------
+
+def test_a_span_keeps_its_start_and_ends_on_the_due_date():
+    t = store.add(deadline(start_date="2026-09-21", due_date="2026-09-26"))
+    assert t["start_date"] == "2026-09-21" and t["due_date"] == "2026-09-26" and t["kind"] == "deadline"
+    inst = [i for i in store.between(date(2026, 9, 1), date(2026, 9, 30)) if i["id"] == t["id"]]
+    assert len(inst) == 1 and inst[0]["date"] == "2026-09-26" and inst[0]["start"] == "2026-09-21"
+    assert store.public_task(t)["start_date"] == "2026-09-21"
+
+
+def test_a_one_day_span_and_a_plain_deadline_carry_no_start_key():
+    """기간이 없는 항목에는 키 자체가 없다 - 동기화가 빈 값을 필드로 퍼 나르지 않게."""
+    assert "start_date" not in store.add(deadline(start_date="2026-09-26", due_date="2026-09-26"))
+    assert "start_date" not in store.add(deadline(due_date="2026-09-26"))
+    memo = store.add({"title": "메모", "kind": "floating", "start_date": "2026-09-01"})
+    assert "start_date" not in memo
+
+
+def test_clearing_the_start_turns_a_span_back_into_a_deadline():
+    t = store.add(deadline(start_date="2026-09-21", due_date="2026-09-26"))
+    assert "start_date" not in store.update(t["id"], {"start_date": None})
+    t2 = store.add(deadline(start_date="2026-09-21", due_date="2026-09-26"))
+    assert store.update(t2["id"], {"title": "이름만"})["start_date"] == "2026-09-21"
+
+
+@pytest.mark.parametrize("patch", [
+    {"start_date": "2026-09-27", "due_date": "2026-09-26"},
+    {"start_date": "2025-01-01", "due_date": "2026-09-26"},
+    {"start_date": "2026-02-30", "due_date": "2026-09-26"},
+])
+def test_a_bad_span_is_refused(patch):
+    with pytest.raises(store.ValidationError):
+        store.add(deadline(**patch))
+
+
 # ---------- 저장 안전 ----------
 
 def test_corrupt_file_is_recovered_from_backup_not_wiped():

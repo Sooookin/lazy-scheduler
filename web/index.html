@@ -113,6 +113,10 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
         </button>
         <button class="link" id="cal-now">이번 달</button>
+        <span class="seg cal-mode" id="cal-mode">
+          <button type="button" data-m="month" title="한 달을 한눈에">월</button>
+          <button type="button" data-m="week" title="고른 날부터 7일 - 날을 누르면 그 날부터">7일</button>
+        </span>
         <span class="seg tg">
           <button id="cal-we" title="주말 칸 표시 / 숨김">주말</button>
           <button id="cal-rt" title="루틴 표시 / 숨김">루틴</button>
@@ -123,6 +127,7 @@
           <span><i class="lg t"></i>오늘</span>
           <span><i class="lg f"></i>예정</span>
           <span><i class="lg rt"></i>루틴</span>
+          <span><i class="lg sp"></i>기간</span>
         </span>
         <button class="x" type="button" id="cal-close" title="오늘로 돌아가기" aria-label="오늘로 돌아가기">
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.6 1.6l7.8 7.8M9.4 1.6l-7.8 7.8"/></svg>
@@ -130,6 +135,12 @@
       </div>
       <div class="cal-head" id="cal-head"></div>
       <div class="cal-grid" id="cal-grid"></div>
+      <!-- 7일 보기: 왼쪽은 고른 날부터 7일, 오른쪽은 고른 날 하나. 기간 업무는 왼쪽 세로선 -->
+      <div class="wkv" id="cal-week" hidden>
+        <div class="wk-list" id="wk-list"><div class="wk-rails" id="wk-rails"></div><div class="wk-rows" id="wk-rows"></div></div>
+        <div class="wk-div"></div>
+        <div class="wk-pane" id="wk-pane"></div>
+      </div>
     </section>
 
     <footer class="foot">

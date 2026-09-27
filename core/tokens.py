@@ -180,6 +180,11 @@ COLOR = {
     "eye":     "#e4e9e3",      # 게으름뱅이의 눈 - 기본값 (app.js 가 해에 따라 --eye 를 다시 섞는다)
 }
 
+# 기간 업무(시작일이 있는 할 일)의 띠 색. 같은 때 겹치는 기간끼리 서로 다른 색이 되게
+# 차례로 돌려 쓴다 (web/app.js 의 spanColors). 띠가 3~5px 로 가늘어 옅으면 보이지 않으므로
+# 채도가 높은 편이다. 밤 화면에서도 그대로 쓴다.
+SPAN = ("#ff7a59", "#3fb6e8", "#8fd14f", "#b58be0", "#f0b43a")
+
 # 반투명 값은 색과 불투명도를 따로 둔다 (CSS 는 rgba, PIL 은 (r,g,b,a) 로 쓴다)
 ALPHA = {
     # 실선 두 가지. 밤에는 자바스크립트가 밝은 쪽으로 뒤집는다(--hair / --hair2).
@@ -316,6 +321,8 @@ def css_root():
         "  --hair:%s; --hair2:%s; --next:%s;" % (rgba("rule"), rgba("rule2"), rgba("next")),
         "  --hover:%s; --hover-hi:%s;" % (rgba("hover"), rgba("hover-hi")),
         "  --hol:%(hol)s; --danger:%(danger)s;" % c,
+        "  /* 기간 업무의 띠 (겹치는 것끼리 차례로) */",
+        "  " + " ".join("--span%d:%s;" % (k + 1, v) for k, v in enumerate(SPAN)),
         "  /* 굵기 단계. Light 는 작은 한글에서 획이 끊겨 읽히지 않아 큰 글자에만 남긴다. */",
         "  --w-thin:%(thin)d; --w-sec:%(sec)d; --w-pri:%(pri)d;" % WEIGHT,
         "  --rowpad:%(rowpad)s; --tb:%(tb)s;" % METRIC,

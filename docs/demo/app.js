@@ -443,6 +443,8 @@ function itemEl(i, opt){
   if(opt.showOverdue && i.date && i.date < STATE.today && !i.done)
     bits.push('<span class="st late">'+esc(fmtDay(i.date))+'</span>');
   const when = opt.showDate && i.date ? fmtDay(i.date) + (i.time ? ' ' + i.time : '') : (i.time || '');
+  /* 기간 업무: 시작일을 앞에 적어 "언제부터 하던 일" 인지 보이게 (마감은 끝나는 날) */
+  if(i.start) bits.push('<span class="tm">'+esc(md(i.start))+' ~</span>');
   if(when) bits.push('<span class="tm">'+esc(when)+'</span>');
   el.innerHTML = '<div class="dot" role="checkbox" tabindex="0" aria-checked="'+(i.done ? 'true' : 'false')+'" title="'+
       (i.done ? '완료 취소' : '완료') + '">'+(i.done ? '\u2713' : (i.n || '')) + '</div>'+
@@ -854,9 +856,9 @@ document.onkeydown = e => {
     if(view === 'cal') setView('home');
     return;
   }
-  /* 달력을 보고 있을 때만 좌우로 달 넘기기 (입력 중에는 방해하지 않는다) */
+  /* 달력을 보고 있을 때만 좌우로 넘기기 - 월은 한 달, 7일은 하루 (입력 중에는 방해하지 않는다) */
   if(view === 'cal' && !$$('.modal.on').length && /^Arrow(Left|Right)$/.test(e.key)){
-    shiftMonth(e.key === 'ArrowLeft' ? -1 : 1);
+    (e.key === 'ArrowLeft' ? $('#cal-prev') : $('#cal-next')).click();
     return;
   }
   /* 메모는 여러 줄이 될 수 있다 - 그 칸에서 Enter 는 줄바꿈이고, 저장은 Ctrl+Enter */
@@ -936,10 +938,11 @@ const leadLabel = m => !m ? '정각' : m % 60 === 0 ? (m / 60) + '시간' : m + 
 
 function Form(box){
   const F = f => box.querySelector('[data-f="'+f+'"]');
-  const self = {kind:'deadline', box:box, lead:null, date:null, R:null};
+  const self = {kind:'deadline', box:box, lead:null, date:null, R:null, span:false, start:null, half:false};
 
-  /* 작은 달력. 할 일은 마감 날짜를, 루틴은 "날짜 하나로 시작" 의 예시 날짜를 고른다 */
-  function miniCal(el, MC, onPick, marks){
+  /* 작은 달력. 할 일은 마감 날짜(기간이면 시작 · 끝 두 번)를, 루틴은 "날짜 하나로 시작" 의
+     예시 날짜를 고른다. range() 가 [시작, 끝] 을 주면 그 사이를 이어 칠한다 */
+  function miniCal(el, MC, onPick, marks, range){
     const draw = () => {
       const first = new Date(MC.y, MC.m, 1);
       const cur = new Date(first);
@@ -959,8 +962,13 @@ function Form(box){
                      (w === 0 || w === 6 || HOL.has(key)) ? 'we' : '',
                      HOL.has(key) ? 'hol' : w === 0 ? 'sun' : w === 6 ? 'sat' : '',
                      key === STATE.today ? 'now' : '', key === MC.pick ? 'on' : '',
-                     marks && marks.has(key) ? 'has' : ''].filter(Boolean).join(' ');
-        h += '<span data-d="'+key+'"'+(cls ? ' class="'+cls+'"' : '')+'>'+cur.getDate()+'</span>';
+                     marks && marks.has(key) ? 'has' : ''].filter(Boolean);
+        const rg = range && range();
+        if(rg && rg[0] && rg[1] && rg[0] < rg[1] && key >= rg[0] && key <= rg[1])
+          cls.push(key === rg[0] ? 'rs on' : key === rg[1] ? 're on' : 'ri');
+        else if(rg && rg[0] && !rg[1] && key === rg[0]) cls.push('rs on');
+        const cs = cls.join(' ');
+        h += '<span data-d="'+key+'"'+(cs ? ' class="'+cs+'"' : '')+'>'+cur.getDate()+'</span>';
         cur.setDate(cur.getDate() + 1);
       }
       el.innerHTML = h + '</div>';
@@ -1016,21 +1024,36 @@ function Form(box){
   };
 
   /* ---------- 할 일: 날짜는 달력으로만 ---------- */
+  /* 기간 업무: 같은 달력을 두 번 누른다 - 처음은 시작, 다음은 끝. 끝이 시작보다 앞이면
+     그 날부터 다시 시작한다. 저장하면 끝나는 날이 마감일이고, 시작일이 하나 더 붙는다. */
   function renderDeadline(i){
     self.date = i.date || shift(1);          /* 기본은 다음 날 (영업일만 쓰면 다음 영업일) */
+    self.start = i.start && i.start < self.date ? i.start : null;
+    self.span = !!self.start;
+    self.half = false;                       /* 기간: 시작만 골라 두고 끝을 기다리는 중 */
     const MC = calAt(self.date);
-    MC.pick = self.date;
+    MC.pick = self.span ? null : self.date;
     box.innerHTML =
-      '<div class="f-grid"><div class="f-left"><span class="step">마감 날짜</span><div data-f="mc"></div></div>'+
+      '<div class="f-grid"><div class="f-left"><div class="step-row"><span class="step" data-f="dlabel"></span>'+
+        seg('span', [['0','하루'], ['1','기간']], self.span ? '1' : '0')+'</div><div data-f="mc"></div></div>'+
       '<div class="f-right"><div class="due" data-f="due"></div></div></div>'+
       whenStrip(i.time, i.notify_min, i.muted, false, box.id === 'a-body');
     let redraw;
+    const dayText = v => { const d = dObj(v); return (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일'; };
+    const relOf = v => {
+      const days = Math.round((dObj(v) - dObj(STATE.today)) / 864e5);
+      return days === 0 ? '오늘' : days === 1 ? '내일' : days === 2 ? '모레' : days > 0 ? days + '일 뒤' : (-days) + '일 지남';
+    };
     const drawDue = () => {
+      F('dlabel').textContent = !self.span ? '마감 날짜' : self.half ? '끝나는 날을 누르세요' : '기간 · 시작과 끝';
       const v = self.date, d = dObj(v);
-      const days = Math.round((d - dObj(STATE.today)) / 864e5);
-      const rel = days === 0 ? '오늘' : days === 1 ? '내일' : days === 2 ? '모레' : days > 0 ? days + '일 뒤' : (-days) + '일 지남';
-      let h = '<b class="due-d">'+(d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[(d.getDay()+6)%7]+'요일</b>'+
-              '<span class="due-r">'+rel+'</span>';
+      const rel = relOf(v);
+      let h = '<b class="due-d">'+dayText(v)+'</b><span class="due-r">'+rel+'</span>';
+      if(self.span && self.half)
+        h = '<b class="due-d">'+dayText(self.start)+' 부터</b><span class="due-r">끝나는 날을 고르세요</span>';
+      else if(self.span && self.start)
+        h = '<b class="due-d">'+md(self.start)+' – '+md(v)+'</b>'+
+            '<span class="due-r">'+(dayDiff(self.start, v) + 1)+'일간 · 끝나는 날 '+rel+'</span>';
       if(bizOn() && !isBiz(v)){
         const alt = rollBiz(v, -1);
         h += '<div class="warn-line">이 날은 영업일이 아닙니다'+
@@ -1052,7 +1075,26 @@ function Form(box){
       };
     };
     const marks = new Set(deadlines().filter(t => !t.done && t.id !== i.id).map(t => t.due_date));
-    redraw = miniCal(F('mc'), MC, key => { self.date = key; drawDue(); }, marks);
+    const pick = key => {
+      if(!self.span){ self.date = key; return drawDue(); }
+      if(self.half && key > self.start){ self.date = key; self.half = false; }
+      else { self.start = key; self.half = true; }       /* 처음 · 다시 고르기 · 끝이 시작보다 앞 */
+      MC.pick = null;
+      redraw(); drawDue();
+    };
+    redraw = miniCal(F('mc'), MC, pick, marks, () => self.span ? [self.start, self.half ? null : self.date] : null);
+    box.querySelector('[data-s="span"]').parentNode.onclick = e => {
+      const b = e.target.closest('[data-s="span"]');
+      if(!b) return;
+      const on = b.dataset.v === '1';
+      if(on === self.span) return;
+      self.span = on;
+      b.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      if(on){                                 /* 고른 날을 끝으로 두고 시작을 고르게 한다 */
+        self.start = self.date; self.half = true; MC.pick = null;
+      }else{ self.start = null; self.half = false; MC.pick = self.date; }
+      redraw(); drawDue();
+    };
     drawDue();
     bindWhen();
   }
@@ -1250,7 +1292,10 @@ function Form(box){
     p.due_time = parseTime(F('time').value) || '';
     p.notify_min = self.lead;
     p.muted = !F('alarm').checked;
-    if(self.kind === 'deadline'){ p.due_date = self.date || STATE.today; p.rule = null; }
+    if(self.kind === 'deadline'){
+      p.due_date = self.date || STATE.today; p.rule = null;
+      p.start_date = self.span && self.start && !self.half && self.start < p.due_date ? self.start : null;
+    }
     else { p.rule = self.R; p.due_date = null; }
     return p;
   };
@@ -1261,6 +1306,7 @@ function Form(box){
       F('time').focus();
       return false;
     }
+    if(self.kind === 'deadline' && self.span && self.half){ say('끝나는 날을 고르세요'); return false; }
     const bad = self.kind === 'routine' ? self.problem() : '';
     if(bad){ say(bad); return false; }
     return true;
@@ -1353,11 +1399,12 @@ function confirmBox(title, msg, onOk, okLabel, extra, danger){
    매달 되풀이되는 항목이 칸을 다 차지해서 정작 마감이 안 보이게 된다. */
 /* 한 칸에 몇 줄이 들어가는지는 창 높이에 달렸다. 넷으로 못 박아 두면 창이
    낮을 때 마지막 줄이 반만 잘려 보인다 - 읽을 수도 누를 수도 없는 줄이다. */
-function calRoom(weeks){
+function calRoom(weeks, below){
   const g = $('#cal-grid'), h = g ? g.clientHeight : 0;
   if(!h || !weeks) return 4;
   const cell = (h - (weeks-1) - 2) / weeks;     /* 1px 실선 · 위아래 테두리 */
-  return Math.max(1, Math.min(5, Math.floor((cell - 26) / 16)));   /* 날짜 줄 · 여백 26 · 한 줄 16 */
+  /* 날짜 줄 · 여백 26 · 한 줄 16. below 는 칸 아랫단에 깔린 기간 띠의 높이 */
+  return Math.max(1, Math.min(5, Math.floor((cell - 26 - (below || 0)) / 16)));
 }
 
 /* 달력에 얹을 반복 발생.
@@ -1400,18 +1447,16 @@ const asRoutine = i => Object.assign({}, i, {due_date:i.date, due_time:i.time, _
 
 /* 이 칸(날짜)에 들어갈 것 전부. 달력과 하루 목록이 같은 것을 보게 한다 */
 function dayItems(key){
-  const out = deadlines().filter(t => cellDate(t.due_date) === key);
+  const out = deadlines().filter(t => !isSpan(t) && cellDate(t.due_date) === key);
   if(routinesOn())
     routineItems().forEach(i => { if(cellDate(i.date) === key) out.push(asRoutine(i)); });
   return out.sort(byWhen);
 }
 
-function ensureRoutines(y, m){
+function ensureRoutines(from, to){
   if(!routinesOn()) return;
-  const key = y + '-' + m + '@' + STATE.rev;
+  const key = from + '~' + to + '@' + STATE.rev;
   if(RT.key === key || RT.busy === key) return;
-  /* 주말 마감을 옆 달 칸으로 옮기는 경우까지 덮게 앞뒤로 한 주씩 더 */
-  const from = iso(new Date(y, m, 1 - 7)), to = iso(new Date(y, m + 1, 7));
   RT.busy = key;
   api('/api/occurrences?kind=routine&from=' + from + '&to=' + to).then(d => {
     if(RT.busy !== key) return;               /* 그 사이 더 새 것을 물었다 */
@@ -1427,10 +1472,68 @@ function deadlines(){
   return (STATE.tasks || []).filter(t => (t.kind || 'deadline') === 'deadline' && t.due_date);
 }
 
+/* ══════════ 기간 업무 ══════════
+   시작일(start_date)이 있는 할 일. 끝나는 날이 마감일이다 - 알림 · 다가오는 마감은
+   그대로 끝나는 날에 걸린다. 달력에서는 칸 안의 줄 대신 띠(월) · 세로선(7일)으로 그린다.
+   이름은 띠 위에 적지 않는다: 가는 띠에 글자를 얹으면 그 칸의 다른 일이 읽히지 않는다.
+   무엇인지는 마우스를 올리면 나온다 (손끝 카드). */
+const isSpan = t => !!(t && t.start_date && t.due_date && t.start_date < t.due_date);
+const spanList = () => (STATE.tasks || []).filter(t => (t.kind || 'deadline') === 'deadline' && isSpan(t));
+const SPAN_N = 5;                     /* tokens.SPAN 의 수 (--span1 ~ --span5) */
+
+/* 색: 시작일 차례로 놓으며, 같은 때 겹치는 앞의 기간이 쓰는 색은 피한다. 데이터만으로
+   정해지므로 월 · 7일 · 오른쪽 판 · 하루 목록 어디서나 같은 기간은 같은 색이다. */
+let SPAN_C = {rev:null, map:{}};
+function spanColor(t){
+  if(SPAN_C.rev !== STATE.rev){
+    const all = spanList().slice().sort((a, b) => a.start_date.localeCompare(b.start_date) || a.id.localeCompare(b.id));
+    const map = {}, placed = [];
+    all.forEach(s => {
+      const used = new Set(placed.filter(p => p.start_date <= s.due_date && s.start_date <= p.due_date).map(p => map[p.id]));
+      let c = 0;
+      while(used.has(c) && c < SPAN_N - 1) c++;
+      map[s.id] = c;
+      placed.push(s);
+    });
+    SPAN_C = {rev:STATE.rev, map:map};
+  }
+  return 'var(--span' + ((SPAN_C.map[t.id] || 0) + 1) + ')';
+}
+
+/* 보이는 구간에서 겹치지 않게 줄(lane)을 나눈다. 시작이 이른 것부터 빈 줄 맨 앞에 */
+function spanLanes(list){
+  const ends = [], out = new Map();
+  list.slice().sort((a, b) => a.start_date.localeCompare(b.start_date) || a.id.localeCompare(b.id))
+    .forEach(s => {
+      let k = ends.findIndex(e => e < s.start_date);
+      if(k < 0){ k = ends.length; ends.push(''); }
+      ends[k] = s.due_date;
+      out.set(s.id, k);
+    });
+  return out;
+}
+
+const md = k => { const d = dObj(k); return (d.getMonth() + 1) + '/' + d.getDate(); };
+const spanRange = s => md(s.start_date) + ' – ' + md(s.due_date);
+const dayDiff = (a, b) => Math.round((dObj(b) - dObj(a)) / 864e5);
+/* 끝나는 날까지: 오늘 마감 · D-3 · 지남 */
+function spanLeft(s, at){
+  const n = dayDiff(at || STATE.today, s.due_date);
+  return s.done ? '완료' : n === 0 ? '오늘 마감' : n > 0 ? 'D-' + n : (-n) + '일 지남';
+}
+function spanHov(s){
+  const days = dayDiff(s.start_date, s.due_date) + 1;
+  return {title: s.title, when: spanRange(s) + ' · ' + days + '일간 · ' + spanLeft(s) +
+          (s.due_time ? ' · 끝나는 날 ' + s.due_time : ''), note: s.note || ''};
+}
+/* 그 날 걸쳐 있는 기간들 */
+const spansOn = key => spanList().filter(s => s.start_date <= key && key <= s.due_date)
+  .sort((a, b) => a.due_date.localeCompare(b.due_date));
+
 /* 달력의 항목을 수정 창에 넘길 형태로 맞춘다 (STATE.tasks 는 저장 형식) */
 function asItem(t){
   return {id:t.id, title:t.title, note:t.note || '', kind:'deadline', rule:null,
-          date:t.due_date || null, time:t.due_time || '',
+          date:t.due_date || null, start:isSpan(t) ? t.start_date : null, time:t.due_time || '',
           notify_min:t.notify_min != null ? t.notify_min : null,
           muted:!!t.muted, rule_text:'', done:!!t.done};
 }
@@ -1512,7 +1615,7 @@ function hovHide(){
 }
 
 document.addEventListener('mouseover', e => {
-  const el = e.target.closest ? e.target.closest('.chip, .rtline') : null;
+  const el = e.target.closest ? e.target.closest('.chip, .rtline, .sband, .rail, .sp-row') : null;
   if(el === HOV_EL) return;             /* 제 안의 글자로 옮겨간 것뿐 */
   hovHide();
   if(!el) return;
@@ -1534,9 +1637,20 @@ function dayModal(key, list){
     (wknd ? ' · 주말 마감 ' + wknd + '건 포함' : '') + '</i>';
   const box = $('#day-list');
   box.innerHTML = '';
-  if(!list.length){
+  const sp = spansOn(key);
+  if(!list.length && !sp.length){
     box.innerHTML = '<div class="empty">이 날짜에 마감이 없습니다</div>';
   }
+  sp.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'mg-row day-row day-sp' + (s.done ? ' off' : '');
+    el.style.setProperty('--c', spanColor(s));
+    el.innerHTML = '<i class="sp-sw"></i><span class="n">' + esc(s.title) + '</span>' +
+                   '<span class="w">' + spanRange(s) + ' · ' + spanLeft(s, key) + '</span>';
+    el.title = '기간 업무 - 눌러서 열기';
+    el.onclick = () => { closeM('#m-day'); openEdit(asItem(s)); };
+    box.appendChild(el);
+  });
   list.forEach(t => {
     const el = document.createElement('div');
     el.className = 'mg-row day-row' + (t.done ? ' off' : '');
@@ -1566,14 +1680,26 @@ function dayModal(key, list){
 
 function drawCal(){
   if(!STATE) return;
+  const week = calWeek();
+  $$('#cal-mode button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'week') === week));
+  $('#v-cal').classList.toggle('is-week', week);
+  $('#cal-week').hidden = !week;
+  $('#cal-head').hidden = $('#cal-grid').hidden = week;
+  $('#cal-now').textContent = week ? '오늘' : '이번 달';
+  $('#cal-prev').title = week ? '하루 앞' : '이전 달';
+  $('#cal-next').title = week ? '하루 뒤' : '다음 달';
+  $('#cal-rt').classList.toggle('off', !routinesOn());
+  if(week) return drawWeek();
   if(!calCur){ const d = dObj(STATE.today); calCur = {y:d.getFullYear(), m:d.getMonth()}; }
   const y = calCur.y, m = calCur.m;
   $('#cal-ym').textContent = y + '년 ' + (m + 1) + '월';
 
-  ensureRoutines(y, m);
+  /* 주말 마감을 옆 달 칸으로 옮기는 경우까지 덮게 앞뒤로 한 주씩 더 */
+  ensureRoutines(iso(new Date(y, m, 1 - 7)), iso(new Date(y, m + 1, 7)));
 
   const byDate = {};
   deadlines().forEach(t => {
+    if(isSpan(t)) return;                          /* 기간은 칸 안의 줄이 아니라 띠로 */
     const k = cellDate(t.due_date);
     (byDate[k] = byDate[k] || []).push(t);
   });
@@ -1618,7 +1744,22 @@ function drawCal(){
   grid.innerHTML = '';
   const HN = STATE.holiday_names || {};
 
+  /* 기간의 띠: 보이는 여섯 주에서 줄을 한 번 나눠 두면 주가 바뀌어도 같은 줄로 이어진다.
+     셋까지만 그린다 (넘는 것은 그 날 목록에 있다). 이름은 적지 않고 손끝 카드로 */
+  const g0 = new Date(cur), g1 = new Date(cur); g1.setDate(g1.getDate() + weeks * 7 - 1);
+  const vis = spanList().filter(s => s.due_date >= iso(g0) && s.start_date <= iso(g1));
+  const lanes = spanLanes(vis);
+  const BAND_MAX = 3;
+
   for(let wk = 0; wk < weeks; wk++){
+    /* 이 주에 그릴 띠 줄 수 - 한 주의 칸들은 같은 높이만큼 비워 두어야 띠가 가로로 곧게 잇는다 */
+    const w0 = new Date(cur); w0.setDate(cur.getDate() + days[0]);
+    const w1 = new Date(cur); w1.setDate(cur.getDate() + days[days.length - 1]);
+    const wkSpans = vis.filter(s => s.due_date >= iso(w0) && s.start_date <= iso(w1) && lanes.get(s.id) < BAND_MAX);
+    const bands = wkSpans.length ? Math.max(...wkSpans.map(s => lanes.get(s.id))) + 1 : 0;
+    /* 띠는 칸 아랫단에 깐다 - 날짜 아래에 두면 모든 줄이 한 칸씩 밀려 그 날의 일이 잘린다.
+       띠가 있는 주만 그 높이만큼 줄 수를 덜어 낸다 */
+    const roomW = bands ? calRoom(weeks, bands * 5 + 2) : room;
     for(const w of days){
       const d = new Date(cur); d.setDate(cur.getDate() + w);
       const key = iso(d);
@@ -1637,12 +1778,31 @@ function drawCal(){
       cell.innerHTML = '<div class="n">' + num + '</div>' +
         (hol && !out ? '<span class="hn">' + esc(HN[key] || '공휴일') + '</span>' : '');
 
+      if(!out && bands){
+        const bb = document.createElement('div');
+        bb.className = 'bands';
+        bb.style.setProperty('--bands', bands);
+        wkSpans.forEach(s => {
+          if(s.start_date > key || s.due_date < key) return;
+          const st = s.start_date === key || w === days[0], en = s.due_date === key || w === days[days.length - 1];
+          const el = document.createElement('i');
+          el.className = 'sband' + (s.start_date === key ? ' st' : '') + (s.due_date === key ? ' en' : '') +
+                         (s.done ? ' dn' : '');
+          el.style.setProperty('--c', spanColor(s));
+          el.style.setProperty('--lane', lanes.get(s.id));
+          el._hov = spanHov(s);
+          el.onclick = e => { e.stopPropagation(); openEdit(asItem(s)); };
+          bb.appendChild(el);
+        });
+        cell.appendChild(bb);
+      }
+
       if(!out){
         const list = byDate[key] || [];
         const dls = list.filter(t => !t._rt);
         const rts = list.filter(t => t._rt);
-        /* 루틴 줄과 '+N건 더' 가 쓸 자리를 먼저 떼어 둔다 */
-        const budget = Math.max(1, room - (rts.length ? 1 : 0));
+        /* 루틴 줄과 '+N건 더' 가 쓸 자리를 먼저 떼어 둔다. 띠가 두 줄을 넘으면 한 줄 더 */
+        const budget = Math.max(1, roomW - (rts.length ? 1 : 0));
         const show = dls.length > budget ? budget - 1 : budget;
         dls.slice(0, Math.max(0, show)).forEach(t => cell.appendChild(chipEl(t)));
         if(dls.length > show){
@@ -1667,7 +1827,7 @@ function drawCal(){
           cell.appendChild(rl);
         }
         /* 뭔가 있는 날은 그날 목록을, 빈 날은 추가 창을 연다 */
-        cell.onclick = () => list.length ? dayModal(key, list)
+        cell.onclick = () => list.length || spansOn(key).length ? dayModal(key, list)
                                          : openAdd('deadline', {date:key});
         const kind = hol ? (HN[key] || '공휴일') + ' · 영업일 아님'
                          : we ? '주말 · 영업일 아님' : '';
@@ -1714,9 +1874,10 @@ function setView(v){
   if(was !== v) replay(v === 'cal' ? $('#v-cal') : $('#v-home'), 'view-in');
 }
 $('#btn-view').onclick = () => setView(view === 'cal' ? 'home' : 'cal');
-$('#cal-prev').onclick = () => shiftMonth(-1);
-$('#cal-next').onclick = () => shiftMonth(1);
+$('#cal-prev').onclick = () => calWeek() ? pickWeek(addDay(wkSel || STATE.today, -1)) : shiftMonth(-1);
+$('#cal-next').onclick = () => calWeek() ? pickWeek(addDay(wkSel || STATE.today, 1)) : shiftMonth(1);
 $('#cal-now').onclick = () => {
+  if(calWeek()) return pickWeek(STATE.today);
   const t = dObj(STATE.today), was = calCur;
   calCur = null; drawCal();
   if(was) slideCal((t.getFullYear() - was.y) * 12 + t.getMonth() - was.m);
@@ -1735,6 +1896,164 @@ $('#cal-we').onclick = () => {
   STATE.settings.show_weekend = on;          /* 그리기는 바로, 저장은 뒤에 */
   drawCal();
   api('/api/settings', {show_weekend: on});
+};
+
+/* ══════════ 7일 보기 ══════════
+   고른 날부터 7일. 날을 누르면 그 날이 맨 위로 오고 7일이 그 날부터 다시 선다 (굴러가듯).
+   ‹ › · 좌우 화살표는 하루씩. 오른쪽 판은 고른 날 하나를 전부 보여 준다.
+   왼쪽 줄에는 시각 있는 일은 시각을, 없는 일은 점을 먼저 둔다 (도안 11a). */
+let wkSel = null;                     /* 고른 날 = 7일의 첫날 (iso) */
+const calWeek = () => !!(STATE && STATE.settings && STATE.settings.cal_week);
+const addDay = (k, n) => { const d = dObj(k); d.setDate(d.getDate() + n); return iso(d); };
+
+/* 7일 보기의 한 줄에 놓을 것 (기간 업무는 세로선이라 뺀다). 주말 마감도 제 날에 그대로 */
+function weekItems(key){
+  const out = deadlines().filter(t => !isSpan(t) && t.due_date === key);
+  if(routinesOn())
+    routineItems().forEach(i => { if(i.date === key) out.push(asRoutine(i)); });
+  return out.sort(byWhen);
+}
+
+/* 줄 하나: 앞 칸(시각 · 점 · ✓) + 이름 */
+function wkItem(t, big){
+  const el = document.createElement('div');
+  const past = !t.done && !t._rt && t.due_date < STATE.today;
+  el.className = 'wi' + (t._rt ? ' rt' : '') + (t.done ? ' dn' : '') + (past ? ' p' : '') + (big ? ' big' : '');
+  const mark = t.done ? '<span class="wm ok">✓</span>'
+             : t.due_time ? '<span class="wm tm">' + esc(t.due_time) + '</span>'
+             : '<span class="wm dt"></span>';
+  el.innerHTML = mark + '<span class="wn">' + esc(t.title) + '</span>';
+  return el;
+}
+
+function drawWeek(){
+  if(!wkSel) wkSel = STATE.today;
+  const days = [0, 1, 2, 3, 4, 5, 6].map(k => addDay(wkSel, k));
+  ensureRoutines(addDay(wkSel, -7), addDay(wkSel, 14));
+  $('#cal-ym').textContent = md(days[0]) + ' – ' + md(days[6]);
+  const HN = STATE.holiday_names || {};
+  const rows = $('#wk-rows');
+  rows.innerHTML = '';
+  days.forEach(key => {
+    const d = dObj(key), w = d.getDay(), hol = HOL.has(key);
+    const all = weekItems(key);
+    const dls = all.filter(t => !t._rt), rts = all.filter(t => t._rt);
+    const row = document.createElement('div');
+    row.className = 'wr' + (key === wkSel ? ' sel' : '') + (key === STATE.today ? ' now' : '') +
+                    (w === 0 || hol ? ' sun' : w === 6 ? ' sat' : '');
+    row.dataset.d = key;
+    row.innerHTML = '<div class="wh"><b class="wd-n">' + d.getDate() + '</b><span class="wd-w">' + WD_SUN[w] + '</span>' +
+      (hol ? '<span class="wd-h">' + esc(HN[key] || '공휴일') + '</span>' : '') +
+      (all.length ? '' : '<span class="wd-e">비어 있음</span>') +
+      '<span class="wd-c">' + (all.length || '') + '</span><span class="wd-go">›</span></div>' +
+      '<div class="wl"></div>';
+    const list = row.querySelector('.wl');
+    dls.forEach(t => list.appendChild(wkItem(t)));
+    /* 루틴은 여기서는 한 줄로 접는다 - 오른쪽 판에서 모두 보인다 */
+    if(rts.length){
+      const rl = wkItem({title:'루틴 ' + rts.length, _rt:true, done:rts.every(t => t.done)});
+      rl._hov = {title:'루틴 ' + rts.length + '건', when:fmtDay(key),
+                 rows:rts.map(t => ({t:t.due_time || '', x:t.title, done:!!t.done}))};
+      rl.classList.add('rtline');
+      list.appendChild(rl);
+    }
+    row.onclick = () => pickWeek(key);
+    rows.appendChild(row);
+  });
+  drawRails(days);
+  drawPane(wkSel);
+}
+
+/* 기간의 세로선: 걸친 줄의 위에서 아래까지. 이 7일 안에서 시작하면 머리에 고리를 단다 */
+function drawRails(days){
+  const box = $('#wk-rails'), first = days[0], last = days[6];
+  box.innerHTML = '';
+  const vis = spanList().filter(s => s.due_date >= first && s.start_date <= last);
+  const lanes = spanLanes(vis);
+  const pos = {};
+  $$('#wk-rows .wr').forEach(r => pos[r.dataset.d] = {top:r.offsetTop, bot:r.offsetTop + r.offsetHeight});
+  vis.forEach(s => {
+    const a = s.start_date < first ? first : s.start_date, b = s.due_date > last ? last : s.due_date;
+    if(!pos[a] || !pos[b]) return;
+    const st = s.start_date >= first, en = s.due_date <= last;
+    const top = pos[a].top + (st ? 6 : 0), bot = pos[b].bot - (en ? 6 : 0);
+    const el = document.createElement('i');
+    el.className = 'rail' + (st ? ' st' : '') + (en ? ' en' : '') + (s.done ? ' dn' : '');
+    el.style.cssText = 'left:' + (lanes.get(s.id) * 9) + 'px;top:' + top + 'px;height:' + Math.max(6, bot - top) + 'px;--c:' + spanColor(s);
+    el._hov = spanHov(s);
+    el.onclick = e => { e.stopPropagation(); openEdit(asItem(s)); };
+    box.appendChild(el);
+  });
+  box.style.width = Math.max(1, lanes.size ? Math.max(...lanes.values()) + 1 : 0) * 9 + 'px';
+}
+
+/* 오른쪽 판: 고른 날의 전부 + 그 날 걸쳐 있는 기간 업무 */
+function drawPane(key){
+  const pane = $('#wk-pane'), d = dObj(key), w = d.getDay(), HN = STATE.holiday_names || {};
+  /* 판은 하루 전부라 시각 차례로 섞는다 (시각 없는 일은 뒤, 같은 시각이면 할 일이 먼저) */
+  const all = weekItems(key).sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99') ||
+                                            (a._rt ? 1 : 0) - (b._rt ? 1 : 0));
+  const sp = spansOn(key);
+  const gap = dayDiff(STATE.today, key);
+  const tag = gap === 0 ? '오늘' : gap > 0 ? gap + '일 뒤' : (-gap) + '일 전';
+  pane.innerHTML =
+    '<div class="wp-h"><b>' + d.getDate() + '</b><span>' + WD_SUN[w] + '요일</span>' +
+    '<span class="wp-tag' + (gap === 0 ? ' now' : '') + '">' + tag + '</span>' +
+    (HOL.has(key) ? '<span class="wp-hol">' + esc(HN[key] || '공휴일') + '</span>' : '') +
+    '<span class="wp-c">' + (all.length ? all.length + '건' : '') + '</span></div>' +
+    '<div class="wp-list"></div>' +
+    '<button type="button" class="link wp-add">+ 이 날에 추가</button>' +
+    '<div class="wp-sp"><div class="wp-sh"><span>진행 중인 기간 업무</span><span>' + (sp.length || '없음') + '</span></div></div>';
+  const list = pane.querySelector('.wp-list');
+  if(!all.length) list.innerHTML = '<div class="wp-empty">이 날엔 정해진 일이 없습니다</div>';
+  all.forEach(t => {
+    const el = wkItem(t, true);
+    el.title = '눌러서 열기';
+    el.onclick = () => openEdit(t._rt ? t : asItem(t));
+    list.appendChild(el);
+  });
+  pane.querySelector('.wp-add').onclick = () => openAdd('deadline', {date:key});
+  const box = pane.querySelector('.wp-sp');
+  sp.forEach(s => {
+    const len = Math.max(1, dayDiff(s.start_date, s.due_date));
+    const pr = Math.min(1, Math.max(0, dayDiff(s.start_date, key) / len));
+    const left = dayDiff(key, s.due_date);
+    const el = document.createElement('div');
+    el.className = 'sp-row' + (s.done ? ' dn' : '');
+    el.style.setProperty('--c', spanColor(s));
+    el.innerHTML = '<div class="sp-l"><i class="sp-sw"></i><span class="sp-n">' + esc(s.title) + '</span>' +
+      '<span class="sp-r">' + spanRange(s) + '</span>' +
+      '<span class="sp-d' + (!s.done && left <= 1 ? ' soon' : '') + '">' + (s.done ? '완료' : left === 0 ? '오늘 마감' : 'D-' + left) + '</span></div>' +
+      '<div class="sp-bar"><i style="width:' + Math.round(pr * 100) + '%"></i></div>';
+    el._hov = spanHov(s);
+    el.onclick = () => openEdit(asItem(s));
+    box.appendChild(el);
+  });
+}
+
+/* 날을 고른다: 그 날이 첫 줄이 된다. 몇 칸 굴렀는지 손에 남게 위아래로 미끄러진다 */
+function pickWeek(key){
+  if(!key || key === wkSel) return;
+  const n = dayDiff(wkSel, key);
+  wkSel = key;
+  drawWeek();
+  if(calm()) return;
+  const o = {duration:280, easing:EASE};
+  $('#wk-rows').animate([{opacity:.4, transform:'translateY(' + (n > 0 ? 18 : -18) + 'px)'}, {opacity:1, transform:'none'}], o);
+  $('#wk-rails').animate([{opacity:0}, {opacity:1}], o);
+  $('#wk-pane').animate([{opacity:0, transform:'translateY(6px)'}, {opacity:1, transform:'none'}], o);
+}
+
+/* 월 ↔ 7일. 고른 모양은 이 기기에만 남긴다 (설정 cal_week) */
+function setCalMode(week){
+  STATE.settings.cal_week = week;
+  if(week && !wkSel) wkSel = STATE.today;
+  drawCal();
+  api('/api/settings', {cal_week: week});
+}
+$('#cal-mode').onclick = e => {
+  const b = e.target.closest('[data-m]');
+  if(b) setCalMode(b.dataset.m === 'week');
 };
 
 /* ══════════ 전체 관리 ══════════ */
