@@ -388,7 +388,7 @@ function fmtDay(s){
    완료는 동그라미로만 한다. 줄을 누르면 열린다 (고치기 · 자세히).
    예전에는 줄 전체가 "다 했다" 였고 수정은 연필에 맡겼는데, 열어 보려던 손이
    완료를 눌렀고 연필은 찾기 어려웠다. 마우스를 올리면 자주 하는 동작
-   (내일로 · 건너뛰기 · 삭제) 이 뜬다. 어느 것이든 5초 안에 되돌릴 수 있다. */
+   (내일로 · 건너뛰기 · 삭제) 이 뜬다. 어느 것이든 3초 안에 되돌릴 수 있다. */
 function rowActs(i, where){
   const a = [];
   if(!i.done){
@@ -640,10 +640,10 @@ const change = (u, b) => api(u + '?ov=1', b).then(d => {
 });
 
 /* ══════════ 되돌리기 ══════════
-   완료 · 건너뛰기 · 내일로 · 삭제는 묻지 않고 곧바로 한다. 아래 가운데에 5초 동안
+   완료 · 건너뛰기 · 내일로 · 삭제는 묻지 않고 곧바로 한다. 아래 가운데에 3초 동안
    "되돌리기" 가 뜬다. 확인 창으로 한 번 더 묻는 것보다 빠르고, 잘못 눌렀을 때도
-   손해가 없다. 삭제만은 실제로 지우는 것을 5초 미룬다 (되돌리면 아무 일도 없었던 것). */
-const UNDO_MS = 5000;
+   손해가 없다. 삭제만은 실제로 지우는 것을 3초 미룬다 (되돌리면 아무 일도 없었던 것). */
+const UNDO_MS = 3000;
 /* verb 는 한 일(완료 · 삭제 · 내일로 …), title 은 그 항목. 되돌리기 옆에 남은 초를
    센다 - 언제까지 되돌릴 수 있는지가 보여야 서두를지 말지를 안다. */
 function undoToast(verb, title, undo){
@@ -710,7 +710,7 @@ function later(i){
   });
 }
 
-/* 삭제: 화면에서는 곧바로 빼고, 서버에는 5초 뒤에 보낸다 */
+/* 삭제: 화면에서는 곧바로 빼고, 서버에는 3초 뒤에 보낸다 */
 const GONE = new Map();               /* id → {t: 타이머} */
 function sendDelete(id){
   return change('/api/task/' + encodeURIComponent(id) + '/delete', {});
@@ -1370,7 +1370,7 @@ $('#e-save').onclick = () => {
   change('/api/task/'+encodeURIComponent(EDIT.id), Object.assign({title, note:$('#e-note').value.trim()}, editForm.read()))
     .then(() => { closeM('#m-edit'); say('저장됨'); });
 };
-/* 건너뛰기 · 내일로 · 삭제는 묻지 않는다. 창을 닫고 5초 동안 되돌릴 수 있다 */
+/* 건너뛰기 · 내일로 · 삭제는 묻지 않는다. 창을 닫고 3초 동안 되돌릴 수 있다 */
 $('#e-skip').onclick = () => { closeAll(); skipOnce(EDIT); };
 $('#e-later').onclick = () => { closeAll(); later(EDIT); };
 $('#e-del').onclick = () => { closeAll(); removeSoon(EDIT); };
@@ -1746,8 +1746,10 @@ function drawCal(){
 
   /* 기간의 띠: 보이는 여섯 주에서 줄을 한 번 나눠 두면 주가 바뀌어도 같은 줄로 이어진다.
      셋까지만 그린다 (넘는 것은 그 날 목록에 있다). 이름은 적지 않고 손끝 카드로 */
-  const g0 = new Date(cur), g1 = new Date(cur); g1.setDate(g1.getDate() + weeks * 7 - 1);
-  const vis = spanList().filter(s => s.due_date >= iso(g0) && s.start_date <= iso(g1));
+  /* 이 달에 걸친 기간만 고르되, 옆 달 칸까지 끊지 않고 잇는다 - 9/28 ~ 10/3 은 9월에서도
+     10월에서도 한 줄로 이어 보인다. 옆 달에만 있는 기간은 그 달에서 본다 */
+  const m0 = iso(first), m1 = iso(last);
+  const vis = spanList().filter(s => s.due_date >= m0 && s.start_date <= m1);
   const lanes = spanLanes(vis);
   const BAND_MAX = 3;
 
@@ -1778,7 +1780,7 @@ function drawCal(){
       cell.innerHTML = '<div class="n">' + num + '</div>' +
         (hol && !out ? '<span class="hn">' + esc(HN[key] || '공휴일') + '</span>' : '');
 
-      if(!out && bands){
+      if(bands){
         const bb = document.createElement('div');
         bb.className = 'bands';
         bb.style.setProperty('--bands', bands);
@@ -1870,6 +1872,7 @@ function setView(v){
   $('#btn-view-l').textContent = v === 'cal' ? '오늘' : '달력';
   $('#btn-view').title = v === 'cal' ? '오늘' : '달력';
   fold();
+  if(v === 'cal' && was !== 'cal') wkSel = null;   /* 다시 들어오면 7일은 오늘부터 */
   if(v === 'cal') drawCal();
   if(was !== v) replay(v === 'cal' ? $('#v-cal') : $('#v-home'), 'view-in');
 }
@@ -2044,13 +2047,32 @@ function pickWeek(key){
   $('#wk-pane').animate([{opacity:0, transform:'translateY(6px)'}, {opacity:1, transform:'none'}], o);
 }
 
+/* 왼쪽 7일 위에서 휠: 한 눈금에 하루씩 굴린다 (끊어서). 터치패드는 작은 값이 잇달아
+   오므라 모아서 한 눈금만큼 차면 하루 넘기고, 넘긴 뒤 잠깐은 남은 관성을 버린다 */
+let _wkAcc = 0, _wkLock = 0;
+$('#wk-list').addEventListener('wheel', e => {
+  if(!calWeek() || e.ctrlKey) return;
+  e.preventDefault();
+  const now = performance.now();
+  if(now < _wkLock){ _wkAcc = 0; return; }
+  _wkAcc += e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+  if(Math.abs(_wkAcc) < 50) return;
+  const n = _wkAcc > 0 ? 1 : -1;
+  _wkAcc = 0;
+  _wkLock = now + (e.deltaMode === 0 && Math.abs(e.deltaY) < 50 ? 220 : 60);
+  pickWeek(addDay(wkSel || STATE.today, n));
+}, {passive:false});
+
 /* 월 ↔ 7일. 고른 모양은 이 기기에만 남긴다 (설정 cal_week) */
 function setCalMode(week){
   STATE.settings.cal_week = week;
-  if(week && !wkSel) wkSel = STATE.today;
+  if(week) wkSel = STATE.today;
   drawCal();
   api('/api/settings', {cal_week: week});
 }
+/* 창 높이가 바뀌면 칸에 들어갈 줄 수(월) · 세로선 자리(7일)가 달라진다 */
+let _calT = 0;
+addEventListener('resize', () => { clearTimeout(_calT); _calT = setTimeout(() => { if(view === 'cal') drawCal(); }, 120); });
 $('#cal-mode').onclick = e => {
   const b = e.target.closest('[data-m]');
   if(b) setCalMode(b.dataset.m === 'week');
@@ -2414,7 +2436,7 @@ function shotHook(){
       ctxOpen(r.left + 300, r.bottom + 2, i, 'today');
     },
     undo:       () => { undoToast('완료', (first() || {title:'국내 일임 매매'}).title, () => {});
-                        clearTimeout(undoToast._t); },   /* 가상 시간이 5초를 지나쳐 버린다 */
+                        clearTimeout(undoToast._t); },   /* 가상 시간이 3초를 지나쳐 버린다 */
   };
   const f = go[m[1]];
   if(f) setTimeout(f, 80);
