@@ -36,30 +36,35 @@ LIGHT = {
     "base":     "#e4e9e3",   # 한낮의 바탕
     "panel":    "#eef2ec",   # 한낮의 면(종이)
     "ink":      "#1f2a28",   # 한낮의 글자
-    "ink2":     "#5d6a67",   # 한낮의 보조 글자
-    "teal":     "#3f6f69",   # 한낮의 강조
+    "ink2":     "#4c5855",   # 한낮의 보조 글자 (6.5:1. #5d6a67 은 노을 면에서 4.4:1 이었다)
+    "teal":     "#39655f",   # 한낮의 강조 (노을 면에서도 5:1 을 넘게 한 단 짙게)
     "warm":     "#f4dcd4",   # 해 뜰 · 질 무렵의 땅 · 면 (참고 도안 '디오라마 하루' 의 노을 땅)
     "night":    "#1a2128",   # 해가 지고 섞어 넣는 밤
     "pale":     "#ffffff",   # 밤의 글자 (ink 가 여기로 간다)
-    "pale2":    "#e2e7e4",   # 밤의 보조 글자
-    "hol":      "#b0573f",   # 낮의 벽돌빛 (지난 것 · 공휴일 · 되돌릴 수 없는 것)
-    "hol-lit":  "#f2ab97",   # 밤의 벽돌빛 - 어두운 면에서 #b0573f 는 3.3:1 뿐이다
-    # 지난 일(시각이 지났거나 어제 것). 참고 도안의 호박빛이다. 예전에는 공휴일 ·
-    # 삭제와 같은 벽돌빛이라 "놓친 것" 과 "되돌릴 수 없는 것" 이 같은 색으로 읽혔다.
-    "late":     "#b1782f",
-    "late-lit": "#e2b36f",   # 밤의 호박빛 - 어두운 면에서도 4.5:1 을 넘게
-    # 되돌릴 수 없는 일 (삭제 · 완전히 종료 · 계정 지우기). 예전의 벽돌빛(#b0573f)은
-    # 밤 면에서 바탕에 잠겨 읽히지 않았다. 낮에는 짙은 주홍, 밤에는 밝은 산호빛이다.
-    "danger":     "#d4451a",
-    "danger-lit": "#ff8a5c",
+    # 밤의 보조 글자. 회색 기운 없이 흰빛에 가깝게 둔다 - 밤에는 흐린 회백이 오히려 탁하게
+    # 읽혔다. 위계는 밝기 대신 굵기 · 크기와 흰 빛(번짐)의 유무가 맡는다.
+    "pale2":    "#e3eae7",
+    # 색 글자는 낮 · 밤 짝으로 둔다. 낮 것은 밝은 면 위에서 4.5:1 을 넘게 한 단 짙고,
+    # 밤 것은 밝아서 어두운 면 위에서 네온처럼 선다 (가라앉은 흙빛은 무겁게 읽혔다 - 노을 가족으로).
+    "hol":      "#b82650",   # 공휴일 · 일요일: 코랄 핑크 (예전 벽돌빛 #b0573f)
+    "hol-lit":  "#ff94ad",
+    # 지난 일(시각이 지났거나 어제 것): 노을의 탠저린. 예전의 호박빛(#b1782f)은 낮에 3.3:1 이었고
+    # 짙게 누르면 갈색이 된다 - 붉은 쪽으로 옮겨 짙어도 주황으로 읽힌다.
+    "late":     "#b0380c",
+    "late-lit": "#ffa070",
+    # 되돌릴 수 없는 일 (삭제 · 완전히 종료 · 계정 지우기). 지난 일이 주홍 쪽으로 오면서
+    # 겹치지 않게 한 단 붉은 쪽으로 옮겼다.
+    "danger":     "#b3261e",
+    "danger-lit": "#ff7b72",
     # 궤도에서 지나온 쪽. 청록(teal)을 그대로 쓰면 낮 하늘 위에서 너무 무겁다 -
     # 낮에는 옅은 청록, 밤에는 남색 하늘에 가라앉은 청록이다.
     "rib-past":   "#7aa9a1",
     # 밤의 지나온 궤도. 회색(#415253)으로 두니 궤도가 색을 잃었다 - 청록 기운을 남긴다.
     "rib-past-n": "#467571",
-    # 밤의 강조. 예전의 밝은 박하빛(#8fc2b9)은 매트한 밤 화면에서 혼자 떠 보였다 -
-    # 초안의 가라앉은 청록이다. 채운 원 · 단추 위의 글자는 흰색이다 (--on-teal).
-    "teal-lit": "#6fa199",
+    # 밤의 강조. 예전의 가라앉은 청록(#6fa199)과 네온 민트(#86d2c4)의 한가운데 - 밝게 띄워 봤더니
+    # 너무 튀어서 원래 빛깔 쪽으로 되돌렸다. 밤 면에서 4.5:1. 채운 원 · 단추 위의 글자는 먹빛이다
+    # (--on-teal, 흰 글자는 2.2:1). 둘레에 아주 옅은 빛이 번진다 (style.css 의 "빛").
+    "teal-lit": "#7abaae",
     # 하늘은 종이를 여러 겹 세운 디오라마다. 뒤로 갈수록 옅고, 앞으로 올수록
     # 짙으면서 그림자가 길어진다 - 그 깊이가 색으로도 한 번 더 말해진다.
     #
@@ -124,22 +129,32 @@ def _mix(a, b, t):
 
 
 # 밤 한 벌. 창 화면이 한밤(노을 0 · 밤 1)에 섞어 내는 색과 같다 (web/sky.js 의 applyLight).
-# 알림 카드(toast.py)가 이 색을 입는다 - 하늘 화면으로 바뀐 뒤에도 카드만 예전 종이색으로
-# 남아 있었다. 밤 화면을 고른 것은, 바탕화면 · 다른 창 위에 떠도 어두운 면이 튀지 않고
-# 글자가 가장 또렷해서다. 새 색을 짓지 않고 LIGHT 의 재료만 섞는다.
+# 새 색을 짓지 않고 LIGHT 의 재료만 섞는다. (알림 카드는 예전에 이 색을 입었다 - 지금은 아래 DAY)
 NIGHT = {
-    "surface": _mix(LIGHT["panel"], LIGHT["night"], .80),     # 면 (--surface)
-    "bg":      _mix(LIGHT["base"], LIGHT["night"], .88),      # 바탕 (--bg). 밝은 알약 위의 글자로도 쓴다
+    "surface": _mix(LIGHT["panel"], LIGHT["night"], .836),    # 면 (--surface)
+    "bg":      _mix(LIGHT["base"], LIGHT["night"], .904),     # 바탕 (--bg). 밝은 알약 위의 글자로도 쓴다
     "text":    LIGHT["pale"],                                 # 글자 (--text)
     "text2":   LIGHT["pale2"],                                # 보조 글자 (--text2)
     "teal":    LIGHT["teal-lit"],                             # 강조 (--teal)
     "late":    LIGHT["late-lit"],                             # 지난 것 (--late)
 }
-# 한 단 더 흐린 글자(라벨 · 상대 시각), 안내 띠, 면의 위아래 결
+# 한 단 더 흐린 글자(라벨 · 상대 시각), 안내 띠
 NIGHT["faint"] = _mix(NIGHT["text2"], NIGHT["surface"], .38)
 NIGHT["teal-soft"] = _mix(NIGHT["teal"], NIGHT["text2"], .35)
-NIGHT["wash-hi"] = _mix(NIGHT["surface"], LIGHT["pale"], .05)
-NIGHT["wash-lo"] = _mix(NIGHT["surface"], LIGHT["night"], .22)
+
+# 낮 한 벌. 창 화면이 한낮에 쓰는 색과 같다 (applyLight 가 해가 높을 때 내는 값 - LIGHT 의 재료 그대로).
+# 알림 카드(toast.py)가 이 색을 입는다. 밤 한 벌을 입혀 봤더니 짙은 회색 판이 바탕화면 위에서
+# 무겁게 떴다 - 창의 한낮처럼 옅은 종이 한 장이 곁눈에도 가볍다.
+DAY = {
+    "surface": LIGHT["panel"],     # 면 (--surface)
+    "bg":      LIGHT["base"],      # 바탕 (--bg). 채운 알약 위의 글자로도 쓴다
+    "text":    LIGHT["ink"],       # 글자 (--text)
+    "text2":   LIGHT["ink2"],      # 보조 글자 (--text2)
+    "teal":    LIGHT["teal"],      # 강조 (--teal)
+    "late":    LIGHT["late"],      # 지난 것 (--late)
+}
+DAY["faint"] = _mix(DAY["text2"], DAY["surface"], .38)
+DAY["teal-soft"] = _mix(DAY["teal"], DAY["text2"], .35)
 
 # 섞이지 않는 색. 아래 이름들은 tray.py · Theme.kt 가 그대로 읽는다.
 COLOR = {
@@ -313,7 +328,7 @@ def css_root():
         "  /* 한낮의 기본값. 자바스크립트가 창 요소에 덮어쓴다. */",
         "  --surface:%(panel)s; --text:%(ink)s; --text2:%(ink2)s; --teal:%(teal)s;" % LIGHT,
         # 청록을 채워 쓴 곳의 글자(--on-teal)와 먹빛 띠 위에 얹는 청록(--teal-inv)
-        "  --on-teal:%(onmid)s; --teal-inv:%(mint)s; --field:%(field)s;" % c,
+        "  --on-teal:%(onmid)s; --teal-inv:%(mint)s; --field:%(field)s; --faint:%(dim)s;" % c,
         ("  --sky-hi:%(sky-hi)s; --sky-lo:%(sky-lo)s; --hill1:%(hill1)s; "
          "--hill2:%(hill2)s; --hill3:%(hill3)s; --ribbon:%(ribbon)s; "
          "--rib-hi:%(rib-hi)s; --bead:%(rib-hi)s; --guy:%(guy)s; --late:%(late)s;") % LIGHT,

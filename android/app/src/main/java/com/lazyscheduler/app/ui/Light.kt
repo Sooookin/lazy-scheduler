@@ -126,31 +126,37 @@ fun palette(litMin: Double): Pal {
     val sl = skyLight(litMin)
     val day = 1 - sl.night
     val warm = sl.dusk
-    val surface = mix(mix(L.panel, L.warm, warm * .85), L.night, (1 - day) * .80)
+    // 어두워지는 곡선은 가운데서 가파르다 (PC 의 applyLight 와 같다): 면이 중간 회색을 지나는 동안에는
+    // 먹빛도 흰빛도 4.5:1 을 넘지 못하므로 그 구간을 몇 분으로 줄인다.
+    val dk = smooth(1 - day, .30, .70)
+    val surface = mix(mix(L.panel, L.warm, warm * .85), L.night, dk * .836)
     val ink = mix(L.ink, Color(0xFFE8ECE9), smooth(1 - day, .3, .7))
-    // 글자는 면의 실제 밝기를 보고 뒤집는다 (PC 의 applyLight 와 같다). 면과 같은 비율로 섞으면
-    // 새벽 · 해질녘에 면이 중간 회색을 지나는 동안 글자도 회색이 되어 읽히지 않았다.
+    // 글자는 섞지 않고 한 번에 뒤집는다 - 섞으면 회색 글자가 생겨 19:10 무렵 본문이 1.2:1 로 사라졌다.
+    // 뒤집는 곳은 대비가 같아지는 휘도(.215)보다 조금 밝은 .30 (회색 면 위에서는 밝은 글자가 더 또렷하다).
     val ls = surface.luminance().toDouble()
-    val flip = smooth(ls, .235, .205)
-    val pull = .55 * (1 - smooth(abs(ls - .22), 0.0, .45))   // 중간 회색 근처: 보조 글자 · 청록을 글자 쪽으로
-    val textC = mix(L.ink, L.pale, flip)
+    val flip = ls < .30
+    val textC = if (flip) L.pale else L.ink
+    // 면이 중간 회색에 가까운 몇 분: 색 글자를 본문 글자 쪽으로 당긴다 (빛깔은 남긴다)
+    val mid = 1 - smooth(abs(ls - .215), 0.0, .14)
+    fun pull(c: Color) = mix(c, textC, mid * (if (flip) .6 else .8))
     fun layer(d: Color, dusk: Color, n: Color) = mix(mix(d, dusk, sl.dusk), n, sl.night)
     return Pal(
         light = sl, day = day.toFloat(),
-        bg = mix(mix(L.base, L.warm, warm * .70), L.night, (1 - day) * .88),
+        bg = mix(mix(L.base, L.warm, warm * .70), L.night, dk * .904),
         surface = surface,
         text = textC,
-        text2 = mix(mix(L.ink2, L.pale2, flip), textC, pull),
-        teal = mix(mix(L.teal, L.tealLit, flip), textC, pull * .7),
-        hol = mix(L.hol, L.holLit, flip),
-        late = mix(L.late, L.lateLit, flip),
-        danger = mix(L.danger, L.dangerLit, flip),
+        text2 = pull(if (flip) L.pale2 else L.ink2),
+        teal = pull(if (flip) L.tealLit else L.teal),
+        hol = pull(if (flip) L.holLit else L.hol),
+        late = pull(if (flip) L.lateLit else L.late),
+        danger = pull(if (flip) L.dangerLit else L.danger),
         ribPast = mix(L.ribPast, L.ribPastN, 1 - day),
         ribDot = ink.copy(alpha = (.16 + .08 * (1 - day)).toFloat()),
-        hair = ink.copy(alpha = .12f),
-        hair2 = ink.copy(alpha = .20f),
-        onTeal = mix(L.pale, Color(0xFFEDF3EF), 1 - day),
-        tealInv = mix(L.teal, L.tealLit, day * .85),
+        hair = ink.copy(alpha = (.12 + .03 * dk).toFloat()),
+        hair2 = ink.copy(alpha = (.20 + .05 * dk).toFloat()),
+        // 채운 청록 위의 글자: 밤에는 청록이 네온 민트로 밝아지므로 먹빛
+        onTeal = if (flip) L.ink else L.pale,
+        tealInv = if (flip) L.teal else L.tealLit,
         field = mix(mix(surface, Color.White, day * .55), L.pale, (1 - day) * .10),
         skyHi = layer(L.skyHi, L.skyHiD, L.skyHiN),
         skyLo = layer(L.skyLo, L.skyLoD, L.skyLoN),

@@ -23,13 +23,10 @@ from core import tokens
 from platforms import cards
 
 # ---------------- 색 ----------------
-# tokens.py 가 유일한 출처다. 카드는 창 화면의 밤 색(tokens.NIGHT)을 입는다 - 하늘 화면으로
-# 바뀐 뒤에도 카드만 예전 종이색으로 남아 있었다. 어두운 면이라 바탕화면 · 다른 창 위에
-# 떠도 튀지 않고, 곁눈으로 봐도 글자가 또렷하다.
-_N        = tokens.NIGHT
+# tokens.py 가 유일한 출처다. 카드는 창 화면의 한낮 색(tokens.DAY)을 입는다 - 창의 일정 판과
+# 같은 옅은 종이 한 장이다. 밤 색(짙은 회색 판)은 바탕화면 위에서 무겁게 떠서 바꿨다.
+_N        = tokens.DAY
 SURFACE   = _N["surface"]
-WASH_HI   = _N["wash-hi"]
-WASH_LO   = _N["wash-lo"]
 TEXT      = _N["text"]        # 시각 · 제목 · 본문
 TEXT2     = _N["text2"]       # 보조 단추 · 접힌 줄
 FAINT     = _N["faint"]       # 라벨 · 상대 시각 · 아래 줄
@@ -43,11 +40,10 @@ def _alpha(hex_, a):
     return tuple(int(hex_[i:i + 2], 16) for i in (1, 3, 5)) + (int(round(a * 255)),)
 
 
-# 선 · 마우스를 올렸을 때 덮는 색 · 테두리. 밤 화면의 --hair · --hair2 처럼 밝은 쪽으로.
+# 선 · 마우스를 올렸을 때 덮는 색 · 테두리. 창 화면의 --hair · --hair2 처럼 글자색을 옅게.
 RULE1 = _alpha(TEXT2, .12)
 RULE2 = _alpha(TEXT2, .20)
 HOVER_HI = (TEXT, .12)
-EDGE = (TEXT, .16)            # 면의 윤곽 - 밤 화면의 접힌 종이 날(--sky-edge)처럼 옅은 달빛
 
 # 예전 호출은 그때의 색을 글자로 적어 보냈다: 짙은 색(#08202b) = 지난 알림, 박하빛 = 안내.
 # 팔레트가 바뀌어도 그 뜻은 그대로이므로 옛 값도 받아 준다.
@@ -305,29 +301,44 @@ def _shadow(w, h):
     return out
 
 
+@functools.lru_cache(maxsize=4)
+def _paper(w, h):
+    """카드 크기의 종이 결 (L). 창 화면의 일정 판 · 종이 창과 같은 고운 결(web/paper-fine.png,
+    세기까지 구워 둔 것)을 배율만큼 키워 깐다. 디오라마의 굵은 결은 카드에서 너무 거칠었다.
+    그림이 없으면 None (맨 면으로 그린다)."""
+    import os
+    from PIL import Image
+    src = os.path.join(paths.WEB_DIR, "paper-fine.png")
+    if not os.path.exists(src):
+        return None
+    t = Image.open(src).convert("L")
+    n = max(64, int(round(t.width * SCALE)))
+    t = t.resize((n, n), Image.BICUBIC)
+    out = Image.new("L", (w, h))
+    for y in range(0, h, n):
+        for x in range(0, w, n):
+            out.paste(t, (x, y))
+    return out
+
+
 @functools.lru_cache(maxsize=16)
 def _card_face(w, h):
-    """밤의 면 + 옅은 윤곽. 글자 없이.
+    """한낮의 면 + 종이 결. 글자 없이.
 
-    창 화면처럼 무늬 없는 맨 면이다 (예전의 모조지 결은 하늘 화면에서 뺐다). 위가 아주
-    조금 밝고 아래로 가라앉는다 - 떠 있는 종이 한 장으로 읽히게.
+    창 화면의 종이(일정 판 · 디오라마)와 같은 재질이다. 예전에는 위가 조금 밝고 아래로
+    가라앉는 빛과 둘레의 달빛 윤곽을 두었는데, 빛나는 판처럼 읽혀 뺐다 - 이제 빛은 없고,
+    맨 면에 결만 soft-light 로 섞는다 (빛깔은 그대로, 결만 드러난다). 떠 있다는 것은
+    밑의 그림자(_shadow)가 말한다.
     마우스를 올릴 때마다 카드를 새로 그리므로 바탕은 크기별로 기억해 두고,
     받은 쪽이 .copy() 해서 그 위에 그린다.
     """
-    from PIL import Image, ImageDraw
-    grad = Image.linear_gradient("L").resize((w, h))                       # 위 밝게 → 아래 조금 어둡게
-    hi, lo = _rgb(WASH_HI), _rgb(WASH_LO)
-    face = Image.merge("RGB", [grad.point(lambda v, a=a, b=b: a + (b - a) * v // 255)
-                               for a, b in zip(hi, lo)])
+    from PIL import Image, ImageChops
+    face = Image.new("RGB", (w, h), _rgb(SURFACE))
+    grain = _paper(w, h)
+    if grain is not None:
+        face = ImageChops.soft_light(face, grain.convert("RGB"))
     card = face.convert("RGBA")
     card.putalpha(_rounded_mask(w, h, R))
-    ring = Image.new("L", (w * 4, h * 4), 0)
-    ImageDraw.Draw(ring).rounded_rectangle([0, 0, w * 4 - 1, h * 4 - 1], radius=R * 4,
-                                           outline=255, width=max(4, int(4 * SCALE)))
-    ring = ring.resize((w, h), Image.LANCZOS).point(lambda v: int(v * EDGE[1]))
-    edge = Image.new("RGBA", (w, h), _rgb(EDGE[0]) + (0,))
-    edge.putalpha(ring)
-    card.alpha_composite(edge)
     return card
 
 

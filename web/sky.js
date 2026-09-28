@@ -188,42 +188,53 @@ function applyLight(min){
   /* 화면(바탕 · 글자)도 하늘과 같은 때에 어두워진다 - 해 높이로 따로 셈하면
      하늘은 아직 노을인데 글자만 먼저 뒤집히는 때가 생긴다. */
   const sl = skyLight(min), day = 1 - sl.night, warm = sl.dusk;
-  /* 땅(면)은 디오라마의 맨 앞 종이이자 목록 판이다 - 노을에는 도안의 노을 땅색으로 */
-  const surface = mixc(mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, (1-day)*.80);
-  setLit('--bg',      mixc(mixc(LIT.base,  LIT.warm, warm*.70), LIT.night, (1-day)*.88));
+  /* 땅(면)은 디오라마의 맨 앞 종이이자 목록 판이다 - 노을에는 도안의 노을 땅색으로.
+     어두워지는 곡선은 가운데서 가파르다(dk): 면이 중간 회색을 지나는 동안에는 먹빛도 흰빛도
+     4.5:1 을 넘지 못한다. 예전에는 하늘을 따라 고르게 섞어 그 회색에 수십 분 머물렀고,
+     글자까지 같이 섞여 19:10 무렵 본문이 1.2:1 로 사라졌다. 이제 그 구간은 몇 분이다. */
+  const dk = smooth(1 - day, .30, .70);
+  const surface = mixc(mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, dk*.836);
+  setLit('--bg',      mixc(mixc(LIT.base,  LIT.warm, warm*.70), LIT.night, dk*.904));
   setLit('--surface', surface);
-  /* 글자는 면의 실제 밝기를 보고 뒤집는다. 예전에는 면과 같은 비율(1-day)로 섞어서, 새벽 ·
-     해질녘에 면이 중간 회색을 지나는 동안 글자도 같이 회색이 되어 (1.5:1 안팎) 읽히지 않았다.
-     면의 휘도가 .22 근처(먹빛 · 흰빛 글자의 대비가 같아지는 곳)를 지나는 짧은 구간에서만
-     건너가므로, 그 밖에서는 본문 대비가 4.9:1 아래로 내려가지 않는다. */
-  const Ls = lum(surface), flip = smooth(Ls, .235, .205);
-  setLit('--text',    mixc(LIT.ink,  LIT.pale,  flip));
-  /* 보조 글자는 먹빛 · 흰빛 사이의 중간색이라 중간 회색 면에서 가장 약하다 - 그 근처에서는
-     본문 글자 쪽으로 당겨 한 단 아래의 위계만 남긴다 */
-  const pull = .55 * (1 - smooth(Math.abs(Ls - .22), 0, .45));
-  setLit('--text2',   mixc(mixc(LIT.ink2, LIT.pale2, flip), mixc(LIT.ink, LIT.pale, flip), pull));
-  /* 청록도 같은 까닭으로 중간 회색 면에서는 글자 쪽으로 조금 당긴다 (빛깔은 남기고 대비만 올린다) */
-  setLit('--teal',    mixc(mixc(LIT.teal, LIT['teal-lit'], flip), mixc(LIT.ink, LIT.pale, flip), pull * .7));
-  /* 벽돌빛도 밤에는 밝아진다. 이 색만 고정이면 지난 일 · 공휴일 · 삭제가
-     밤 화면에서 셋 다 바탕에 잠긴다 (3.3:1). */
-  setLit('--hol',     mixc(LIT.hol, LIT['hol-lit'], flip));
-  setLit('--late',    mixc(LIT.late, LIT['late-lit'], flip));
-  setLit('--danger',  mixc(LIT.danger, LIT['danger-lit'], flip));
+  /* 글자는 섞지 않고 한 번에 뒤집는다 - 섞으면 그 사이에 회색 글자가 생긴다. 뒤집는 곳은
+     먹빛 · 흰빛 대비가 같아지는 휘도(.215)보다 조금 밝은 .30 이다: 회색 면 위에서는 밝은
+     글자가 옅은 빛을 머금어 먹빛보다 또렷하다 (수치는 조금 낮아도 눈에는 그렇다). */
+  const Ls = lum(surface), flip = Ls < .30 ? 1 : 0;
+  const txt = flip ? LIT.pale : LIT.ink;
+  /* 면이 중간 회색에 가까운 몇 분(mid): 색 글자를 본문 글자 쪽으로 당기고(빛깔은 남긴다),
+     글자 뒤에 옅은 빛을 깐다 - 흰 글자는 제 빛이 번지고, 먹빛 글자 뒤에는 밝은 테가 선다. */
+  const mid = 1 - smooth(Math.abs(Ls - .215), 0, .14);
+  const pull = c => mixc(c, txt, mid * (flip ? .6 : .8));
+  setLit('--text',    txt);
+  setLit('--text2',   pull(flip ? LIT.pale2 : LIT.ink2));
+  setLit('--teal',    pull(flip ? LIT['teal-lit'] : LIT.teal));
+  /* 색 글자도 밤에는 밝은 짝으로. 이 색만 고정이면 지난 일 · 공휴일 · 삭제가 밤 면에 잠긴다 */
+  setLit('--hol',     pull(flip ? LIT['hol-lit'] : LIT.hol));
+  setLit('--late',    pull(flip ? LIT['late-lit'] : LIT.late));
+  setLit('--danger',  pull(flip ? LIT['danger-lit'] : LIT.danger));
+  /* 한 단 더 흐린 글자 (옆 달 날짜 · 비어 있음 · 입력칸 안내). 예전에는 보조 글자에 투명도를
+     걸었는데, 투명도는 면이 바뀔 때마다 대비가 따라 움직여 낮에 맞추면 노을 · 밤에 사라졌다 */
+  setLit('--faint',   mixc(flip ? LIT.pale2 : LIT.ink2, surface, .32));
+  setLit('--halo', mid < .02 ? 'none' : flip
+    ? '0 0 1px rgba(255,255,255,' + (.35*mid).toFixed(2) + '), 0 0 7px rgba(255,255,255,' + (.3*mid).toFixed(2) + ')'
+    : '0 0 2px rgba(250,246,242,' + (.85*mid).toFixed(2) + '), 0 0 6px rgba(250,246,242,' + (.5*mid).toFixed(2) + ')');
+  /* 빛 (style.css 의 "빛"). 칠한 것 둘레에 옅게 번진다 - 네온은 색감만, 멀리 퍼지지 않게.
+     낮에는 더 옅고, 밤이 깊을수록 조금씩 짙어진다. 흰 글자의 번짐(--glow-w)은 밤(night-ink)에만. */
+  setLit('--glow', (flip ? .12 + .12 * smooth(1 - day, .5, 1) : .13).toFixed(3));
+  setLit('--glow-w', (flip ? .75 + .25 * smooth(1 - day, .5, 1) : 0).toFixed(3));
+  document.body.classList.toggle('night-ink', flip === 1);
   setLit('--rib-past', mixc(LIT['rib-past'], LIT['rib-past-n'], 1-day));
   /* 궤도 가운데의 점선 - 띠가 종이 두 겹을 이은 솔기처럼 보인다 */
   /* 실선 · 점선도 밤낮 사이를 이어서 섞는다. 예전에는 day .5 에서 먹빛 ↔ 흰빛으로
-     한 번에 뒤집혀, 밤으로 흘러가는 동안 선만 툭 바뀌었다. */
+     한 번에 뒤집혀, 밤으로 흘러가는 동안 선만 툭 바뀌었다. 밤에는 한 단 진하게. */
   const ink = hx(mixc(LIT.ink, '#e8ece9', smooth(1 - day, .3, .7))).join(',');
   setLit('--rib-dot', 'rgba(' + ink + ',' + (.16 + .08 * (1 - day)).toFixed(3) + ')');
-  setLit('--hair',  'rgba(' + ink + ',.12)');
-  setLit('--hair2', 'rgba(' + ink + ',.20)');
-  /* 채워 쓴 청록 위의 글자. 밤에는 청록 자체가 박하빛으로 밝아지므로 뒤집는다.
-     낮에는 밝은 글자, 밤에는 먹빛 글자다. 해질녘의 좁은 구간에서만 건너간다 -
-     한낮 내내 서서히 섞으면 중간쯤에서 회색 글자가 청록 위에 얹힌다. */
-  /* 채운 청록 위의 글자 · 체크는 밤낮 모두 흰빛이다 (밤의 청록이 가라앉은 색이라) */
-  setLit('--on-teal', mixc(LIT.pale, '#edf3ef', 1-day));
+  setLit('--hair',  'rgba(' + ink + ',' + (.12 + .03 * dk).toFixed(3) + ')');
+  setLit('--hair2', 'rgba(' + ink + ',' + (.20 + .05 * dk).toFixed(3) + ')');
+  /* 채운 청록 위의 글자 · 체크. 낮에는 흰빛, 밤에는 청록이 네온 민트로 밝아지므로 먹빛이다 */
+  setLit('--on-teal', flip ? LIT.ink : LIT.pale);
   /* 되돌리기 띠처럼 바탕을 뒤집어 쓴 곳의 청록. 위와 반대로 움직인다. */
-  setLit('--teal-inv', mixc(LIT.teal, LIT['teal-lit'], day*.85));
+  setLit('--teal-inv', flip ? LIT.teal : LIT['teal-lit']);
   /* 입력칸. 늘 면보다 한 겹 밝아 "여기가 쓰는 곳" 임을 말한다 -
      낮에는 흰 쪽으로, 밤에는 밤빛을 살짝 걷어 내는 쪽으로. */
   setLit('--field', mixc(mixc(surface, '#ffffff', day*.55), LIT.pale, (1-day)*.10));
@@ -382,6 +393,14 @@ function drawSky(all){
     '<filter id="' + id + '" x="-20%" y="-80%" width="140%" height="300%">' +
     '<feDropShadow data-l="' + len + '" dx="' + (dir*len).toFixed(1) + '" dy="' + (len*.85).toFixed(1) +
     '" stdDeviation="' + blur + '" flood-color="#1f2a28" flood-opacity="' + op + '"/></filter>';
+  /* 능선 · 땅의 그림자: 종이를 오려 겹친 그림처럼, 앞 겹이 바로 뒤 겹 위에 드리운다. 앞 겹일수록
+     아래에 있으므로 그림자는 윗날 위쪽으로 뜬다 (보는 쪽에서 오는 은은한 빛이 겹 사이에 고인 그늘).
+     해 쪽에서 아래로 떨어뜨리면 거의 다 앞 겹에 가려 보이지 않았다. 가로만 해를 따르고(relight 가
+     data-l 로 다시 민다), 뒤로 갈수록 겹 사이가 좁다고 보고 k 만큼 짧게 한다. */
+  const Fc = (id, k) =>
+    '<filter id="' + id + '" x="-20%" y="-40%" width="140%" height="180%">' +
+    '<feDropShadow data-l="' + (3*k).toFixed(2) + '" dx="' + (dir*3*k).toFixed(1) + '" dy="' + (-3*k).toFixed(1) +
+    '" stdDeviation="' + (4*k).toFixed(1) + '" flood-color="#1f2a28" flood-opacity="' + (.30*Math.min(1, k + .1)).toFixed(3) + '"/></filter>';
   /* 그림자는 필터 사본이 만들고, 같은 도형을 그 위에 또렷하게 한 번 더 그린다.
      필터 결과만 쓰면 화면 배율에 따라 늘어난 래스터가 보인다. */
   const cast = (id, shape) => '<g filter="url(#' + id + ')">' + shape + '</g>' + shape;
@@ -392,18 +411,29 @@ function drawSky(all){
     '<stop offset="0" style="stop-color:var(--sky-lo);stop-opacity:0"/>' +
     '<stop offset="1" style="stop-color:var(--sky-lo);stop-opacity:.42"/></linearGradient>';
   let g = '<defs>' + mist +
-    F('sH1', 2, 1.6, '.14') + F('sH2', 4.5, 2.6, '.24') + F('sH3', 7, 3.4, '.32') +
-    F('sRB', 11, 6, '.36') + F('sMK', 13, 5, '.4') + F('sGR', 9, 5, '.42') +
+    Fc('sH1', .5) + Fc('sH2', .8) + Fc('sH3', 1) +
+    F('sRB', 11, 6, '.36') + F('sMK', 13, 5, '.4') + Fc('sGR', 1.1) +
     '<clipPath id="sClip"><rect x="0" y="0" width="' + W + '" height="' + SKY_H + '"/></clipPath>' +
+    /* 종이. 능선 · 땅 · 궤도 띠는 미술 종이를 오려 세운 것이다: 결(pPaper - tools/make_paper.py 가
+       만든 web/paper.png 를 soft-light 로 얹어 빛깔은 그대로 두고 결만 드러낸다). 가장자리는 깨끗하게
+       둔다 (오린 듯 흔들어 봤더니 자글자글해 보였다). 돌멩이 · 구슬 · 단추 · 글자는 종이가 아니다. */
+    '<pattern id="pPaper" patternUnits="userSpaceOnUse" width="256" height="256">' +
+    '<image href="paper.png" width="256" height="256"/></pattern>' +
+    /* 땅(일정 판)은 글자를 읽는 곳이라 훨씬 고운 결 (style.css 의 .ground::before 와 같은 그림) */
+    '<pattern id="pPaperFine" patternUnits="userSpaceOnUse" width="256" height="256">' +
+    '<image href="paper-fine.png" width="256" height="256"/></pattern>' +
     '</defs>';
+  /* 종이 결 한 장 - 같은 도형을 결로 한 번 더 칠한다 (그림자 사본에는 넣지 않는다) */
+  const grain = (d, op, pat) => '<path d="' + d + '" fill="url(#' + (pat || 'pPaper') + ')" opacity="' + op + '" style="mix-blend-mode:soft-light"/>';
 
   /* ── 능선 셋. 뒤에서 앞으로, 뒤일수록 높고 옅으며 앞일수록 낮고 짙다. 겹마다
         굴곡이 여럿 - 한 겹에 한두 번 오르내리면 풍경이 아니라 띠로 보인다. 겹 사이마다
         안개를 한 장씩 깐다. 그림자는 앞 겹일수록 길고 짙다. ── */
   const mistBand = (y0, y1) => '<rect x="0" y="' + Y(y0) + '" width="' + W + '" height="' + (Y(y1) - Y(y0)).toFixed(1) +
     '" fill="url(#sMist)"/>';
+  const body = line => line + 'L' + X(906) + ' ' + Y(216) + 'L' + X(-6) + ' ' + Y(216) + 'Z';
   const ridge = (line, fill, edge) =>
-    '<path d="' + line + 'L' + X(906) + ' ' + Y(216) + 'L' + X(-6) + ' ' + Y(216) + 'Z" fill="' + fill + '"/>' +
+    '<path d="' + body(line) + '" fill="' + fill + '"/>' +
     '<path d="' + line + '" fill="none" stroke="var(--sky-edge)" stroke-width="1" opacity="' + edge + '"/>';
   [['sH1', 'hill1', .7,  'M%-6 144C%40 132 %82 120 %132 124S%202 146 %252 140S%332 114 %392 118S%472 144 %532 136' +
                         'S%622 106 %692 112S%782 142 %842 134S%892 122 %906 124', [122, 172]],
@@ -411,7 +441,7 @@ function drawSky(all){
                         'S%782 146 %852 156S%900 170 %906 168', [148, 194]],
    ['sH3', 'hill3', .45, 'M%-6 192C%70 184 %140 178 %210 184S%320 198 %400 192S%520 176 %600 182S%740 198 %820 190' +
                         'S%890 180 %906 184', null]].forEach(h => {
-    g += cast(h[0], ridge(sc(h[3]), 'var(--' + h[1] + ')', h[2]));
+    g += cast(h[0], ridge(sc(h[3]), 'var(--' + h[1] + ')', h[2])) + grain(body(sc(h[3])), .85);
     if(h[4]) g += mistBand(h[4][0], h[4][1]);
   });
 
@@ -419,7 +449,9 @@ function drawSky(all){
         해 뜨기 40분 전부터 진 뒤 40분까지 그려 양 끝을 땅에 꽂는다 ── */
   const A0 = T0 - 40, A1 = T1 + 40, orbit = arc(A0, A1);
   let rib = cast('sRB', '<path d="' + orbit + '" fill="none" stroke="var(--ribbon)" stroke-width="' +
-    SKY_RIB + '" stroke-linecap="round" stroke-linejoin="round"/>');
+    SKY_RIB + '" stroke-linecap="round" stroke-linejoin="round"/>') +
+    '<path d="' + orbit + '" fill="none" stroke="url(#pPaper)" stroke-width="' + SKY_RIB +
+    '" stroke-linecap="round" opacity=".65" style="mix-blend-mode:soft-light"/>';
   /* 자정에 날이 바뀌어도 궤도가 한 번에 남색으로 돌아가지 않게 한다. 어제 하루를
      다 지나온 하늘색 띠가 자정을 넘어서도 그대로 남아 있다가, 새 날의 띠가 땅에서
      솟기 전 두 시간 동안 천천히 옅어진다 (23:59 과 00:00 이 같은 궤도다). */
@@ -474,7 +506,7 @@ function drawSky(all){
       if(isNext && !done) marks.push('<circle cx="' + cx + '" cy="' + cy +
         '" r="6" fill="none" stroke="var(--on-teal)" stroke-width="1" opacity=".6"/>');
       labels.push('<text data-n="' + i.n + '" x="' + cx + '" y="' + (cy + 3.4).toFixed(1) +
-        '" text-anchor="middle" font-size="9.5" font-weight="500" fill="' +
+        '" text-anchor="middle" font-size="9.5" font-weight="500"' + (fill ? '' : ' class="bn"') + ' fill="' +
         (fill ? 'var(--on-teal)' : ring) + '" opacity="' + (done ? .55 : 1) + '">' + i.n + '</text>');
       SKY_BEADS.push({n:i.n, x:cx, y:cy, label:(i.time || '') + '  ' +
         (i.title.length > 22 ? i.title.slice(0,21) + '…' : i.title)});
@@ -499,7 +531,8 @@ function drawSky(all){
   /* ── 땅. 디오라마의 맨 앞 종이다. 이 능선이 곧 지평선이고, 아래로는
         창 바닥까지 이어지는 판(.ground)이 같은 색으로 받는다 ── */
   const gl = sc('M%-6 206C%130 202 %290 209 %450 205S%740 201 %906 206');
-  g += cast('sGR', '<path d="' + gl + 'L' + X(906) + ' ' + Y(232) + 'L' + X(-6) + ' ' + Y(232) + 'Z" fill="var(--surface)"/>') +
+  const gd = gl + 'L' + X(906) + ' ' + Y(232) + 'L' + X(-6) + ' ' + Y(232) + 'Z';
+  g += cast('sGR', '<path d="' + gd + '" fill="var(--surface)"/>') + grain(gd, 1, 'pPaperFine') +
        '<path d="' + gl + '" fill="none" stroke="var(--sky-edge)" stroke-width="1" opacity=".9"/>';
 
   /* ── 땅의 눈금. 궤도의 가로는 해 뜸 ~ 해 짐을 고르게 편 시간 자라서, 땅에 매시

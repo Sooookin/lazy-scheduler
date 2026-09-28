@@ -34,7 +34,7 @@ os.environ["LOCALAPPDATA"] = SANDBOX
 sys.path.insert(0, ROOT)
 
 # 베낄 화면 파일. 나머지(아이콘 원본 등)는 체험판에 필요 없다.
-COPY = ["style.css", "app.js", "sky.js", "pebble.js", "icon-32.png", "fonts"]
+COPY = ["style.css", "app.js", "sky.js", "pebble.js", "icon-32.png", "paper.png", "paper-fine.png", "fonts"]
 
 
 def seed():
