@@ -87,18 +87,22 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** 이 휴대폰에만 두는 보기 설정 (밝기 · 돌멩이 · 움직임 줄이기). */
+/** 이 휴대폰에만 두는 보기 설정 (밝기 · 돌멩이 · 움직임 줄이기 · 달력을 월 / 7일로). */
 class ViewPrefs(ctx: Context) {
     private val p = ctx.getSharedPreferences("view", Context.MODE_PRIVATE)
     var theme by mutableStateOf(p.getString("theme", "auto") ?: "auto"); private set
     var walk by mutableStateOf(p.getBoolean("walk", true)); private set
     var calm by mutableStateOf(p.getBoolean("calm", false)); private set
+    var calWeek by mutableStateOf(p.getBoolean("cal_week", false)); private set
     fun theme(v: String) { theme = v; p.edit().putString("theme", v).apply() }
     fun walk(v: Boolean) { walk = v; p.edit().putBoolean("walk", v).apply() }
     fun calm(v: Boolean) { calm = v; p.edit().putBoolean("calm", v).apply() }
+    fun calWeek(v: Boolean) { calWeek = v; p.edit().putBoolean("cal_week", v).apply() }
 }
 
-/** 5초 동안의 "되돌리기". */
+/** 3초 동안의 "되돌리기" (PC 와 같다). */
+internal const val UNDO_MS = 3_000L
+
 class Undo(val verb: String, val title: String, val undo: () -> Unit)
 
 /** 열려 있는 편집 종이: 새 항목(kind · 날짜) 또는 있는 항목(과 그 회차). */
@@ -133,7 +137,7 @@ fun App() {
     val extraHolidays = settings["holidays"] as? List<String>
     val businessOnly = settings["business_only"] != false
 
-    // ---- 지우기는 5초 기다린다 (되돌리기가 정말 되돌리게) ----
+    // ---- 지우기는 되돌리기 띠가 떠 있는 동안 기다린다 (되돌리기가 정말 되돌리게) ----
     val gone = remember { mutableStateMapOf<String, Task>() }
     val jobs = remember { HashMap<String, Job>() }
     fun flushDeletes() { for (id in jobs.keys.toList()) { jobs.remove(id)?.cancel(); gone[id]?.let { Repo.delete(it) } } }
@@ -175,12 +179,12 @@ fun App() {
     var menu by remember { mutableStateOf<Instance?>(null) }
     var undo by remember { mutableStateOf<Undo?>(null) }
     var doneTick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(undo) { if (undo != null) { delay(5_000); undo = null } }
+    LaunchedEffect(undo) { if (undo != null) { delay(UNDO_MS); undo = null } }
 
     fun removeSoon(t: Task) {
         gone[t.id] = t
         jobs.remove(t.id)?.cancel()
-        jobs[t.id] = scope.launch { delay(5_000); jobs.remove(t.id); Repo.delete(t) }
+        jobs[t.id] = scope.launch { delay(UNDO_MS); jobs.remove(t.id); Repo.delete(t) }
         undo = Undo("삭제", t.title) { jobs.remove(t.id)?.cancel(); gone.remove(t.id) }
     }
     fun toggle(i: Instance) {
@@ -223,25 +227,27 @@ fun App() {
     val density = LocalDensity.current
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val tallH = top + 186.dp
-    val skyH by animateDpAsState(if (tall) tallH else top + 86.dp, tween(if (prefs.calm) 0 else 480, easing = EaseMove), label = "sky")
-    val ribbon by animateFloatAsState(if (tall) 1f else 0f, tween(if (prefs.calm) 0 else 320), label = "ribbon")
+    // 접히고 펴지는 값은 State 째로 넘긴다 - 여기서 읽으면 움직이는 동안 매 프레임 화면 전체를 다시 짠다
+    // 하늘이 접히고 펴지는 것 · 화면이 바뀌는 것은 "움직임 줄이기" 와 상관없이 움직인다 (PC 와 같다 -
+    // 그 설정은 돌멩이의 폴짝 · 굴림만 멈춘다). 휴대폰의 "애니메이션 제거" 를 켜면 Compose 가 알아서 멈춘다.
+    val skyH = animateDpAsState(if (tall) tallH else top + 86.dp, tween(560, easing = EaseMove), label = "sky")
+    val ribbon = animateFloatAsState(if (tall) 1f else 0f, tween(360), label = "ribbon")
 
-    CompositionLocalProvider(LocalPal provides pal) {
-        Box(Modifier.fillMaxSize().background(pal.surface)) {
+    CompositionLocalProvider(LocalPal provides pal, LocalPaper provides rememberPaper()) {
+        Box(Modifier.fillMaxSize().background(pal.surface).paper()) {
             Column(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val wPx = with(density) { maxWidth.toPx() }
                     val beads = remember(rows) { rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next) } } }
                     val ghost = if (ed != null || draft.picking) draft.ghostMinute() else null
                     Sky(
-                        height = skyH, tallHeight = tallH, top = top, ribbon = ribbon,
+                        height = { skyH.value }, tallHeight = tallH, top = top, ribbon = { ribbon.value },
                         beads = beads, nowMin = nowMin, ghost = ghost,
                         onGhost = if (draft.picking || (ed != null && ed.task == null && ed.kind != "floating")) ({ m -> draft.pickFromSky(m) }) else null,
                     ) {
-                        val groundY = with(density) { skyH.toPx() - 2 * 206f.let { (tallH.toPx() / it) } }
-                        Pebble(width = wPx, groundY = groundY, night = sunNight || allDone || prefs.theme == "dark",
+                        Pebble(width = wPx, groundY = { with(density) { skyH.value.toPx() - 2 * tallH.toPx() / 206f } }, night = sunNight || allDone || prefs.theme == "dark",
                             walk = prefs.walk, calm = prefs.calm, doneTick = doneTick, awake = busy || lingering,
-                            lookX = ghost?.let { g -> SkyGeo(wPx, with(density) { skyH.toPx() }, with(density) { tallH.toPx() }, with(density) { top.toPx() }, density.density).onArc(g.toDouble(), density.density).first.x })
+                            lookX = ghost?.let { g -> SkyGeo(wPx, with(density) { tallH.toPx() }, with(density) { tallH.toPx() }, with(density) { top.toPx() }, density.density).onArc(g.toDouble(), density.density).first.x })
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -249,8 +255,7 @@ fun App() {
                     AnimatedContent(
                         targetState = screen,
                         transitionSpec = {
-                            if (prefs.calm) fadeIn(tween(0)) togetherWith fadeOut(tween(0))
-                            else (fadeIn(tween(220, 60)) + slideInVertically(tween(320, easing = EaseMove)) { it / 14 }) togetherWith fadeOut(tween(120))
+                            (fadeIn(tween(220, 60)) + slideInVertically(tween(320, easing = EaseMove)) { it / 14 }) togetherWith fadeOut(tween(120, easing = EaseExit))
                         },
                         contentKey = { if (it is Editing) "edit" else it.toString() },
                         label = "screen",
@@ -265,8 +270,10 @@ fun App() {
                                 onSkip = { if (s.task != null && s.date != null) skip(Instance(s.task, s.date, false)); editing = null },
                             )
                             Tab.HOME -> Home(o, rows, today, nowMin, onToggle = ::toggle, onMenu = { menu = it })
-                            Tab.CAL -> CalendarScreen(visible.orEmpty(), today, nowMin, onToggle = ::toggle, onMenu = { menu = it },
-                                onAdd = { d -> openEditor(Editing(null, d, "deadline")) })
+                            Tab.CAL -> CalendarScreen(visible.orEmpty(), today, nowMin, prefs.calWeek, onWeek = { prefs.calWeek(it) },
+                                onToggle = ::toggle, onMenu = { menu = it },
+                                onAdd = { d -> openEditor(Editing(null, d, "deadline")) },
+                                onOpen = { t -> openEditor(Editing(t, t.dueDate?.let { LocalDate.parse(it) })) })
                             Tab.ALL -> AllScreen(visible.orEmpty(), today, onOpen = { t -> openEditor(Editing(t, null)) })
                             Tab.SET -> SettingsScreen(user, settings, prefs, remindOn,
                                 setRemind = { remindOn = it; Reminders.setEnabled(context, it, tasks, settings) })
@@ -281,9 +288,9 @@ fun App() {
             // ---- 되돌리기 ----
             AnimatedVisibility(
                 visible = undo != null,
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = if (ed == null) 84.dp else 20.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = if (ed == null) 78.dp else 20.dp),
                 enter = fadeIn(tween(160)) + slideInVertically(tween(260, easing = EaseMove)) { it / 2 },
-                exit = fadeOut(tween(140)) + slideOutVertically(tween(180)) { it / 3 },
+                exit = fadeOut(tween(140, easing = EaseExit)) + slideOutVertically(tween(180, easing = EaseExit)) { it / 3 },
             ) {
                 var shown by remember { mutableStateOf<Undo?>(null) }
                 undo?.let { shown = it }
@@ -301,26 +308,28 @@ fun App() {
     }
 }
 
-/** 움직임 곡선 (tokens.MOTION 의 ease-move). */
+/** 움직임 곡선 (tokens.MOTION): ease-move 큰 면이 옮겨 가는 것 · ease-exit 사라지는 것 (머뭇거리지 않고 빠진다). */
 val EaseMove = androidx.compose.animation.core.CubicBezierEasing(.32f, .72f, 0f, 1f)
+val EaseExit = androidx.compose.animation.core.CubicBezierEasing(.4f, 0f, 1f, 1f)
 
 // ---------------- 아래 탭 ----------------
 
 @Composable
 internal fun TabBar(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit) {
     val pal = LocalPal.current
-    Box(Modifier.fillMaxWidth().background(pal.surface).navigationBarsPadding()) {
+    Box(Modifier.fillMaxWidth().background(pal.surface).paper().navigationBarsPadding()) {
         Hair(Modifier.align(Alignment.TopCenter))
-        Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(58.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in listOf(Tab.HOME, Tab.CAL, null, Tab.ALL, Tab.SET)) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     if (t == null) {
                         Box(
-                            Modifier.offset(y = (-10).dp).size(56.dp).shadow(8.dp, CircleShape, spotColor = pal.teal, ambientColor = pal.teal)
+                            Modifier.offset(y = (-8).dp).size(50.dp).glow(pal.teal, 14.dp, 25.dp, pal.glow * .9f)
+                                .shadow(8.dp, CircleShape, spotColor = pal.teal, ambientColor = pal.teal)
                                 .clip(CircleShape).background(pal.teal).press(onClick = onAdd),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Canvas(Modifier.size(20.dp)) {
+                            Canvas(Modifier.size(18.dp)) {
                                 val w = 1.8.dp.toPx()
                                 drawLine(pal.onTeal, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), w, StrokeCap.Round)
                                 drawLine(pal.onTeal, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), w, StrokeCap.Round)
@@ -386,15 +395,15 @@ private fun TabIcon(t: Tab, c: Color) {
 internal fun UndoBar(u: Undo, key: Any?, onUndo: () -> Unit) {
     val pal = LocalPal.current
     val ink = LitTokens.ink
-    var left by remember(key) { mutableIntStateOf(5) }
+    var left by remember(key) { mutableIntStateOf((UNDO_MS / 1000).toInt()) }
     val prog = remember(key) { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(key) {
-        launch { prog.animateTo(0f, tween(5_000, easing = androidx.compose.animation.core.LinearEasing)) }
+        launch { prog.animateTo(0f, tween(UNDO_MS.toInt(), easing = androidx.compose.animation.core.LinearEasing)) }
         while (left > 1) { delay(1_000); left-- }
     }
     Box(Modifier.padding(horizontal = 16.dp).widthIn(max = 420.dp).fillMaxWidth()
         .shadow(12.dp, RoundedCornerShape(14.dp), spotColor = ink).clip(RoundedCornerShape(14.dp)).background(ink)) {
-        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp).height(54.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp).height(48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(u.verb, style = T.body, color = LitTokens.pale2.copy(alpha = .7f))
             Spacer(Modifier.width(10.dp))
             Text(u.title, Modifier.weight(1f), style = T.leadM, color = LitTokens.pale, maxLines = 1, overflow = TextOverflow.Ellipsis)

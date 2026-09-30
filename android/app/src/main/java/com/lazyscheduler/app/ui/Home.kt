@@ -58,12 +58,12 @@ fun Home(o: Overview?, rows: List<HomeRow>, today: LocalDate, nowMin: Int, onTog
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 24.dp)) {
         item(key = "head") {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
-                Text("오늘", style = T.head, color = pal.text)
+                Text("오늘", style = T.head.lit(pal.text, big = true), color = pal.text)
                 Spacer(Modifier.width(8.dp))
-                Text("${rows.size}", style = T.head.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Light), color = pal.text2)
+                Text("${rows.size}", style = T.head.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Light).lit(pal.text2, big = true), color = pal.text2)
                 Spacer(Modifier.weight(1f))
                 val all = rows.isNotEmpty() && done == rows.size
-                Text("${shortDay(today)} · ", style = T.body, color = pal.text2)
+                Text("${shortDay(today)} · ", style = T.body.lit(pal.text2), color = pal.text2)
                 Text(if (all) "전부 완료 ${hhmm(nowMin)}" else "완료 $done", style = T.body, color = if (all) pal.teal else pal.text2)
             }
             Hair(strong = true)
@@ -77,12 +77,15 @@ fun Home(o: Overview?, rows: List<HomeRow>, today: LocalDate, nowMin: Int, onTog
         for (r in rows) {
             if (r.band != last) {
                 val b = r.band
-                item(key = "band$b") { Band(BANDS[b], if (b == 0) pal.late else null) }
+                item(key = "band$b") { Box(Modifier.animateItem()) { Band(BANDS[b], if (b == 0) pal.late else null) } }
                 last = b
             }
+            // 줄이 빠지면 (지우기 · 내일로) 아래 줄들이 올라와 메우고, 새 줄은 옅게 떠오른다 (PC 와 같다)
             item(key = r.i.task.id + "@" + r.i.date) {
-                ItemLine(r.n, r.i, r.late, r.next, if (r.band == 0) dateLabel(r.i.date!!, today) else null,
-                    onTap = { onToggle(r.i) }, onMenu = { onMenu(r.i) })
+                Box(Modifier.animateItem(fadeInSpec = tween(220), placementSpec = tween(280, easing = EaseMove), fadeOutSpec = tween(140))) {
+                    ItemLine(r.n, r.i, r.late, r.next, if (r.band == 0) dateLabel(r.i.date!!, today) else null,
+                        onTap = { onToggle(r.i) }, onMenu = { onMenu(r.i) })
+                }
             }
         }
     }
@@ -100,16 +103,19 @@ internal fun ItemLine(n: Int?, i: Instance, late: Boolean, next: Boolean, dayTag
         Row(
             Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(10.dp)).background(bg)
                 .then(if (next) Modifier.border(1.2.dp, pal.teal, RoundedCornerShape(10.dp)) else Modifier)
-                .press(onLong = onMenu, onClick = onTap).height(44.dp).padding(start = 6.dp, end = 2.dp),
+                .press(onLong = onMenu, onClick = onTap).height(40.dp).padding(start = 6.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             NumDot(n, i.done, late)
             Spacer(Modifier.width(12.dp))
-            Text(i.task.title, Modifier.weight(1f), style = T.lead, color = if (i.done) pal.text2 else pal.text,
+            // 끝내면 이름이 먹빛에서 흐린 색으로 천천히 물러난다 (PC 의 done-fade)
+            val tc by animateColorAsState(if (i.done) pal.text2 else pal.text, tween(420), label = "title")
+            Text(i.task.title, Modifier.weight(1f), style = T.lead, color = tc,
                 textDecoration = if (i.done) T.strike else null, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (next) Text("다음", Modifier.padding(start = 8.dp), style = T.micro, color = pal.teal)
-            val w = listOfNotNull(dayTag, i.time.ifEmpty { null }).joinToString(" ")
-            if (w.isNotEmpty()) Text(w, Modifier.padding(start = 8.dp), style = T.time, color = if (late) pal.late else pal.text2)
+            // 기간 업무는 시작일을 앞에 (끝나는 날이 이 줄의 날이다): "9/28 ~ 17:00"
+            val w = listOfNotNull(dayTag, if (i.task.isSpan) "${md(i.task.start())} ~" else null, i.time.ifEmpty { null }).joinToString(" ")
+            if (w.isNotEmpty()) Text(w, Modifier.padding(start = 8.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2)
             Box(Modifier.clip(RoundedCornerShape(8.dp)).tap(onMenu).padding(horizontal = 6.dp, vertical = 10.dp)) {
                 Text("›", style = T.lead, color = pal.text2.copy(alpha = .6f))
             }

@@ -44,6 +44,10 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 
 /**
  * 하늘의 돌멩이 (규칙서: design/references/LS 돌멩이 행동.dc.html, PC 는 web/pebble.js).
@@ -65,7 +69,7 @@ internal var pebbleStill = false
 
 @Composable
 fun Pebble(
-    width: Float, groundY: Float, night: Boolean, walk: Boolean, calm: Boolean,
+    width: Float, groundY: () -> Float, night: Boolean, walk: Boolean, calm: Boolean,
     doneTick: Int, lookX: Float?, awake: Boolean = false,
 ) {
     // 밤이어도 곁에서 일을 하는 동안(awake)은 깨어 고깔을 쓴 채 같이 움직인다
@@ -178,7 +182,7 @@ fun Pebble(
             .preferredFrameRate(FrameRateCategory.High)
             .graphicsLayer {
                 translationX = x.value - bw / 2
-                translationY = groundY - bh - 4 * d - hop.value
+                translationY = groundY() - bh - 4 * d - hop.value
             }
             .size(40.dp, 36.dp)
             .pointerInput(asleep) {
@@ -224,7 +228,15 @@ fun Pebble(
                 cubicTo(0f, top + bh * .42f, w * .12f, top, w * .5f, top)
                 close()
             }
-            drawPath(body, pal.guy, alpha = .92f)
+            // 밤의 돌멩이는 달빛을 머금은 흰 덩어리 - 불투명하고, 둘레로 빛이 번진다 (PC 와 같다)
+            if (pal.glowW > 0f) drawIntoCanvas { cv ->
+                val glow = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = androidx.compose.ui.graphics.Color(0xFFD6ECF6).copy(alpha = .6f * pal.glowW).toArgb()
+                    maskFilter = android.graphics.BlurMaskFilter(11 * d, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+                cv.nativeCanvas.drawPath(body.asAndroidPath(), glow)
+            }
+            drawPath(body, pal.guy, alpha = if (pal.glowW > 0f) 1f else .92f)
             drawPath(body, androidx.compose.ui.graphics.Color.White.copy(alpha = .14f), style = Stroke(1 * d))
             // 눈
             val ey = top + 12 * d

@@ -77,6 +77,10 @@ class Draft {
     var note by mutableStateOf("")
     var kind by mutableStateOf("deadline")
     var date by mutableStateOf(LocalDate.now())
+    /** 기간 업무: 시작일 (끝나는 날 = date). half 는 시작만 골라 두고 끝을 기다리는 중. */
+    var span by mutableStateOf(false)
+    var start by mutableStateOf<LocalDate?>(null)
+    var half by mutableStateOf(false)
     var time by mutableStateOf("")
     var lead by mutableStateOf<Int?>(null)
     var alarm by mutableStateOf(true)
@@ -97,6 +101,8 @@ class Draft {
         title = t?.title ?: ""; note = t?.note ?: ""; kind = t?.kind ?: e.kind
         date = t?.dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: e.date ?: if (businessOnly && !Recur.isBusinessDay(today)) Recur.nextBusinessDay(today) else today
+        start = t?.takeIf { it.isSpan }?.startDate?.let { LocalDate.parse(it) }
+        span = start != null; half = false
         time = t?.dueTime ?: ""
         lead = t?.notifyMin; alarm = !(t?.muted ?: false)
         rule = t?.rule; ruleText = t?.ruleText ?: ""
@@ -105,6 +111,19 @@ class Draft {
         wds = (rule?.get("weekdays") as? List<*>)?.map { (it as Number).toInt() }?.toSet() ?: setOf(base.dayOfWeek.value - 1)
         picking = false; calOpen = false; error = null
         defaultLead = ReminderPlan.defaultLead(settings)
+    }
+
+    /** 달력을 누른다. 기간이면 처음은 시작, 다음은 끝 - 끝이 시작보다 앞이면 그 날부터 다시 시작한다. */
+    fun pickDay(d: LocalDate) {
+        if (!span) { date = d; return }
+        val s = start
+        if (half && s != null && d.isAfter(s)) { date = d; half = false } else { start = d; half = true }
+    }
+
+    fun spanOn(on: Boolean) {
+        if (on == span) return
+        span = on
+        if (on) { start = date; half = true } else { start = null; half = false }     // 고른 날을 시작으로 두고 끝을 고르게 한다
     }
 
     fun ghostMinute(): Int? = if (picking) pickMin else if (kind == "floating") null else minsOf(time)
@@ -126,7 +145,13 @@ class Draft {
                 if (err != null) { error = err; return null }
                 f += mapOf("rule" to clean, "due_date" to null, "due_time" to time, "notify_min" to lead, "muted" to !alarm)
             }
-            "deadline" -> f += mapOf("rule" to null, "due_date" to date.toString(), "due_time" to time, "notify_min" to lead, "muted" to !alarm)
+            "deadline" -> {
+                if (span && half) { error = "끝나는 날을 고르세요"; return null }
+                val st = start?.takeIf { span && it.isBefore(date) }
+                if (st != null && st.plusYears(1).isBefore(date)) { error = "기간은 1년까지 잡을 수 있습니다"; return null }
+                f += mapOf("rule" to null, "due_date" to date.toString(), "due_time" to time, "notify_min" to lead, "muted" to !alarm,
+                    "start_date" to st?.toString())
+            }
             else -> f += mapOf("rule" to null, "due_date" to null, "due_time" to "", "notify_min" to null, "muted" to false)
         }
         return f
@@ -199,8 +224,14 @@ private fun Form(
 private fun ColumnScope.DeadlinePart(d: Draft, today: LocalDate, businessOnly: Boolean, editing: Boolean, others: List<Task>) {
     val pal = LocalPal.current
     val open = others.filter { it.kind == "deadline" && !it.done && it.dueDate != null }
-    Label("마감")
-    if (!editing) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Label(if (!d.span) "마감" else if (d.half) "끝나는 날을 누르세요" else "기간 · 시작과 끝", Modifier.weight(1f))
+        Seg(listOf(false to "하루", true to "기간"), d.span, Modifier.padding(top = 8.dp), height = 30.dp, pad = 12.dp) { d.spanOn(it) }
+    }
+    val range = if (d.span) d.start to (if (d.half) null else d.date) else null
+    if (d.span) {
+        MiniCal(today, d.date, open.mapNotNull { it.dueDate }.toSet(), range = range) { d.pickDay(it) }
+    } else if (!editing) {
         val tomorrow = today.plusDays(1)
         val nextBiz = Recur.nextBusinessDay(today.plusDays(1))
         val quick = listOf("오늘" to today, "내일" to tomorrow, "다음 영업일" to nextBiz)
@@ -217,14 +248,23 @@ private fun ColumnScope.DeadlinePart(d: Draft, today: LocalDate, businessOnly: B
         MiniCal(today, d.date, open.mapNotNull { it.dueDate }.toSet()) { d.date = it }
     }
     val same = open.filter { it.dueDate == d.date.toString() }
+    val st = d.start
     Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(dayName(d.date), style = T.leadM, color = pal.text)
-        Spacer(Modifier.width(8.dp))
-        Text(dateLabel(d.date, today).takeIf { it.length <= 2 } ?: "", style = T.label, color = pal.teal)
+        if (d.span && st != null && d.half) {
+            Text("${dayName(st)} 부터", style = T.leadM, color = pal.text)
+        } else if (d.span && st != null) {
+            Text("${md(st)} – ${md(d.date)}", style = T.leadM, color = pal.text)
+            Spacer(Modifier.width(8.dp))
+            Text("${days(st, d.date) + 1}일간", style = T.label, color = pal.teal)
+        } else {
+            Text(dayName(d.date), style = T.leadM, color = pal.text)
+            Spacer(Modifier.width(8.dp))
+            Text(dateLabel(d.date, today).takeIf { it.length <= 2 } ?: "", style = T.label, color = pal.teal)
+        }
         Spacer(Modifier.weight(1f))
         Text(if (same.isEmpty()) "같은 날 마감 없음" else "같은 날 마감 ${same.size}건", style = T.label, color = pal.text2)
     }
-    if (businessOnly && !Recur.isBusinessDay(d.date)) {
+    if (businessOnly && !d.half && !Recur.isBusinessDay(d.date)) {
         val alt = Recur.nextBusinessDay(d.date, forward = false)
         Text("영업일이 아닙니다 · ${shortDay(alt)}로 당기기 ›", Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).tap { d.date = alt }.padding(vertical = 4.dp),
             style = T.label, color = pal.teal)
@@ -335,7 +375,8 @@ private fun Wheel(items: List<String>, index: Int, modifier: Modifier, onIndex: 
 
 /** 늘 여섯 줄 (달을 넘겨도 아래가 움직이지 않는다). 점 = 이미 마감이 있는 날. */
 @Composable
-internal fun MiniCal(today: LocalDate, picked: LocalDate, marks: Set<String> = emptySet(), onPick: (LocalDate) -> Unit) {
+internal fun MiniCal(today: LocalDate, picked: LocalDate, marks: Set<String> = emptySet(),
+                     range: Pair<LocalDate?, LocalDate?>? = null, onPick: (LocalDate) -> Unit) {
     val pal = LocalPal.current
     var month by remember { mutableStateOf(YearMonth.from(picked)) }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -355,11 +396,17 @@ internal fun MiniCal(today: LocalDate, picked: LocalDate, marks: Set<String> = e
             repeat(7) {
                 val day = cur
                 val out = day.month != first.month
-                val on = day == picked
+                // 기간: 시작 · 끝은 채운 동그라미, 그 사이는 옅은 청록 띠로 잇는다
+                val (r0, r1) = range ?: (null to null)
+                val on = if (range == null) day == picked else day == r0 || day == r1
+                val inside = r0 != null && r1 != null && !day.isBefore(r0) && !day.isAfter(r1)
                 val dw = day.dayOfWeek.value % 7
-                Box(Modifier.weight(1f).height(38.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.weight(1f).height(34.dp), contentAlignment = Alignment.Center) {
+                    if (inside && !out && r0 != r1) Box(
+                        Modifier.align(if (day == r0) Alignment.CenterEnd else if (day == r1) Alignment.CenterStart else Alignment.Center)
+                            .fillMaxWidth(if (day == r0 || day == r1) .5f else 1f).height(28.dp).background(pal.teal.copy(alpha = .14f)))
                     Box(
-                        Modifier.size(32.dp).then(if (on) Modifier.raised(CircleShape, pal) else Modifier).clip(CircleShape)
+                        Modifier.size(28.dp).then(if (on) Modifier.raised(CircleShape, pal) else Modifier).clip(CircleShape)
                             .background(if (on) pal.teal else Color.Transparent)
                             .then(if (day == today && !on) Modifier.border(1.4.dp, pal.teal, CircleShape) else Modifier)
                             .tap { if (out) month = YearMonth.from(day); onPick(day) },

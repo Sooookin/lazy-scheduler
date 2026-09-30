@@ -14,6 +14,7 @@ data class Task(
     val kind: String = "deadline",           // routine | deadline | floating
     val tag: String = "",
     val dueDate: String? = null,
+    val startDate: String? = null,           // 기간 업무의 시작일 (끝나는 날 = dueDate, docs/sync.md)
     val dueTime: String = "",
     val notifyMin: Int? = null,
     val muted: Boolean = false,
@@ -26,6 +27,9 @@ data class Task(
     val deleted: Boolean = false,
 ) {
     val ruleText: String get() = if (kind == "routine") Recur.describe(rule) else ""
+
+    /** 기간 업무: 시작일이 끝나는 날보다 앞인 할 일. 다른 기기가 끝을 시작 앞으로 옮기면 그냥 할 일이다. */
+    val isSpan: Boolean get() = kind == "deadline" && startDate != null && dueDate != null && startDate < dueDate
 
     companion object {
         /** Firestore document → Task. A malformed document gives null instead of crashing the list. */
@@ -41,6 +45,7 @@ data class Task(
                 kind = (m["kind"] as? String)?.takeIf { it in setOf("routine", "deadline", "floating") } ?: "deadline",
                 tag = m["tag"] as? String ?: "",
                 dueDate = m["due_date"] as? String,
+                startDate = (m["start_date"] as? String)?.takeIf { it.length == 10 },
                 dueTime = m["due_time"] as? String ?: "",
                 notifyMin = (m["notify_min"] as? Number)?.toInt(),
                 muted = m["muted"] == true,

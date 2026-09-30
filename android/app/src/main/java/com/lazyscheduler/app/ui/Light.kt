@@ -115,8 +115,12 @@ data class Pal(
     val skyHi: Color, val skyLo: Color, val hill1: Color, val hill2: Color, val hill3: Color,
     val ribbon: Color, val ribHi: Color, val bead: Color, val guy: Color, val eye: Color, val pupil: Color,
     val skyEdge: Color, val shade: Color,
+    /** 빛 (PC 의 --glow · --glow-w): 칠한 것 둘레의 옅은 번짐 세기와, 밤에만 켜지는 흰 글자 번짐 세기 */
+    val glow: Float = 0f, val glowW: Float = 0f,
 ) {
     val isNight get() = day < .5f
+    /** 흐린 글자 (PC 의 --faint): 투명도로 흐리면 밤에 면이 비쳐 탁해진다 - 면 쪽으로 섞은 색 */
+    val faint: Color get() = lerp(text2, surface, .32f)
 }
 
 private fun mix(a: Color, b: Color, t: Double) = lerp(a, b, t.toFloat().coerceIn(0f, 1f))
@@ -171,6 +175,8 @@ fun palette(litMin: Double): Pal {
         pupil = mix(L.pupil, L.pupilN, 1 - day),
         skyEdge = Color.White.copy(alpha = (.32 + .58 * day).toFloat()),
         shade = L.ink,
+        glow = (if (flip) .12 + .12 * smooth(1 - day, .5, 1.0) else .13).toFloat(),
+        glowW = (if (flip) .75 + .25 * smooth(1 - day, .5, 1.0) else 0.0).toFloat(),
     )
 }
 

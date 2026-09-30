@@ -57,7 +57,7 @@ fun RowMenu(
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         AnimatedVisibility(i != null,
             enter = slideInVertically(tween(320, easing = EaseMove)) { it } + fadeIn(tween(120)),
-            exit = slideOutVertically(tween(200)) { it } + fadeOut(tween(160))) {
+            exit = slideOutVertically(tween(200, easing = EaseExit)) { it } + fadeOut(tween(160, easing = EaseExit))) {
             val it0 = shown ?: return@AnimatedVisibility
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)).background(pal.surface)
@@ -95,7 +95,7 @@ private fun MenuLine(text: String, strong: Boolean = false, color: Color? = null
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(12.dp))
             .background(if (strong) pal.teal.copy(alpha = .10f) else Color.Transparent)
-            .press(onClick = onClick).height(50.dp).padding(horizontal = 14.dp),
+            .press(onClick = onClick).height(44.dp).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { icon(if (strong) pal.teal else c) }

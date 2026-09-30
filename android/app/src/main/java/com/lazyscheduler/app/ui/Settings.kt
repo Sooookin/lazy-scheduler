@@ -151,7 +151,7 @@ private fun DeleteAccount(onDismiss: () -> Unit, onConfirm: (keep: Boolean) -> U
     var keep by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
-        Column(Modifier.clip(RoundedCornerShape(20.dp)).background(pal.surface).padding(22.dp)) {
+        Column(Modifier.clip(RoundedCornerShape(20.dp)).background(pal.surface).paper().padding(22.dp)) {
             Text("계정과 데이터를 지울까요?", style = T.head, color = pal.text)
             Spacer(Modifier.height(10.dp))
             Text("계정에 올라간 일정이 모두 지워지고 로그인이 끊깁니다. PC 에서도 사라집니다. 되돌릴 수 없습니다.", style = T.body, color = pal.text)

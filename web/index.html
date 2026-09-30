@@ -32,7 +32,10 @@
    <!-- 접힌 하늘의 작은 시계 (창 · 달력을 보는 동안). sky-art 는 접히면 위로 밀려 올라가므로 밖에 둔다 -->
    <div class="clk-m" aria-hidden="true"><b id="clock-m">--:--</b><span id="dow-m">—</span></div>
    <div class="sky-art" id="sky-art">
+    <!-- 세 장: 뒤(하늘의 능선) · 궤도와 구슬 · 앞(땅과 눈금). 구슬만 바뀌면 가운데 장만 다시 칠한다 (drawSky) -->
     <svg class="sky-svg" id="sky-svg" aria-hidden="true"></svg>
+    <svg class="sky-svg" id="sky-rib" aria-hidden="true"></svg>
+    <svg class="sky-svg" id="sky-front" aria-hidden="true"></svg>
 
     <div class="clk">
       <div class="clk-d" id="dow">—</div>

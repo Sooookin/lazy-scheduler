@@ -43,7 +43,7 @@ fun AllScreen(tasks: List<Task>, today: LocalDate, onOpen: (Task) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 24.dp)) {
         item {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("전체 항목", style = T.title, color = pal.text)
+                Text("전체 항목", style = T.title.lit(pal.text, big = true), color = pal.text)
                 Spacer(Modifier.weight(1f))
                 Text("${shown.size}건", style = T.body, color = pal.text2)
             }
@@ -56,12 +56,12 @@ fun AllScreen(tasks: List<Task>, today: LocalDate, onOpen: (Task) -> Unit) {
         if (shown.isEmpty()) item { Empty(if (filter == "done") "끝낸 항목이 없습니다" else "항목이 없습니다", "") }
         items(shown, key = { it.id }) { t ->
             Column {
-                Row(Modifier.fillMaxWidth().press { onOpen(t) }.height(48.dp).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().press { onOpen(t) }.height(42.dp).padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(KIND_NAME[t.kind] ?: "", Modifier.width(56.dp), style = T.label, color = pal.text2)
                     Text(t.title, Modifier.weight(1f), style = T.lead, color = if (t.done) pal.text2 else pal.text,
                         textDecoration = if (t.done) T.strike else null, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val (w, late) = whenText(t, today)
-                    Text(w, Modifier.padding(start = 10.dp), style = T.time, color = if (late) pal.late else pal.text2, maxLines = 1)
+                    Text(w, Modifier.padding(start = 10.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2, maxLines = 1)
                     Chevron()
                 }
                 Hair()
@@ -79,7 +79,7 @@ private fun whenText(t: Task, today: LocalDate): Pair<String, Boolean> = when (t
     else -> {
         val d = t.dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         if (d == null) "기한 없음" to false
-        else (dateLabel(d, today) + if (t.dueTime.isNotEmpty()) " " + t.dueTime else "") to (!t.done && d.isBefore(today))
+        else ((if (t.isSpan) md(t.start()) + " – " else "") + dateLabel(d, today) + if (t.dueTime.isNotEmpty()) " " + t.dueTime else "") to (!t.done && d.isBefore(today))
     }
 }
 

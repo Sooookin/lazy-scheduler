@@ -1,5 +1,12 @@
 package com.lazyscheduler.app.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -97,12 +104,32 @@ internal fun Modifier.raised(shape: androidx.compose.ui.graphics.Shape, pal: Pal
  * 아직 안 한 것은 도드라지고, 끝낸 것은 눌려 들어간다 (그림자로만 말한다).
  */
 @Composable
-internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 22.dp) {
+internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 20.dp) {
     val pal = LocalPal.current
     val c = if (late && !done) pal.late else pal.teal
     val bg by animateColorAsState(if (done) c else if (pal.isNight) Color.Transparent else pal.field, tween(180), label = "dot")
+    // 방금 끝냈으면 톡: 작게 눌렸다 살짝 넘쳐 돌아오고, 테 하나가 번지며 사라진다 (PC 의 dot-pop · dot-ring).
+    // 처음부터 끝나 있던 것은 가만히 있다.
+    val pop = remember { Animatable(1f) }
+    val ring = remember { Animatable(1f) }
+    var was by remember { mutableStateOf(done) }
+    LaunchedEffect(done) {
+        val now = done && !was
+        was = done
+        if (!now) return@LaunchedEffect
+        launch { ring.snapTo(0f); ring.animateTo(1f, tween(560, easing = EaseMove)) }
+        pop.snapTo(.72f)
+        pop.animateTo(1f, spring(dampingRatio = .45f, stiffness = 700f))
+    }
     Box(
-        Modifier.size(size).then(if (!done) Modifier.raised(CircleShape, pal, 1.5.dp) else Modifier)
+        Modifier.size(size)
+            .drawBehind {
+                val t = ring.value
+                if (t < 1f) drawCircle(c.copy(alpha = .55f * (1 - t)), this.size.minDimension / 2 * (1 + .9f * t), style = Stroke(1.5.dp.toPx()))
+            }
+            .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
+            .then(if (!done) Modifier.raised(CircleShape, pal, 1.5.dp) else Modifier)
+            .glow(c, 8.dp, size / 2, if (done || late) pal.glow * (if (done) .9f else .7f) else 0f)
             .clip(CircleShape).background(bg).border(1.5.dp, c, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
@@ -128,21 +155,22 @@ internal fun Check(color: Color, size: Dp) {
 internal fun Chip(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val pal = LocalPal.current
     Box(
-        modifier.height(36.dp).then(if (on) Modifier.raised(RoundedCornerShape(10.dp), pal) else Modifier)
+        modifier.height(32.dp).then(if (on) Modifier.raised(RoundedCornerShape(10.dp), pal) else Modifier)
             .clip(RoundedCornerShape(10.dp))
             .background(if (on) pal.teal else pal.field)
             .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(10.dp))
-            .press(onClick = onClick).padding(horizontal = 16.dp),
+            .press(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = T.lead, color = if (on) pal.onTeal else pal.text, maxLines = 1) }
 }
 
 /** 둥근 틀 안의 고르기 (할 일 · 루틴 · 메모 / 단위 / 간격 / 필터). */
 @Composable
-internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modifier = Modifier, fill: Boolean = false, onPick: (V) -> Unit) {
+internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modifier = Modifier, fill: Boolean = false,
+                      height: Dp = 34.dp, pad: Dp = 13.dp, onPick: (V) -> Unit) {
     val pal = LocalPal.current
     Row(
-        modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).border(1.dp, pal.hair2, RoundedCornerShape(19.dp)).padding(3.dp),
+        modifier.height(height).clip(RoundedCornerShape(height / 2)).border(1.dp, pal.hair2, RoundedCornerShape(height / 2)).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for ((v, label) in options) {
@@ -151,7 +179,7 @@ internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modi
                 (if (fill) Modifier.weight(1f) else Modifier).fillMaxHeight()
                     .then(if (on) Modifier.raised(RoundedCornerShape(16.dp), pal, 1.5.dp) else Modifier)
                     .clip(RoundedCornerShape(16.dp)).background(if (on) pal.teal else Color.Transparent)
-                    .tap { onPick(v) }.padding(horizontal = 14.dp),
+                    .tap { onPick(v) }.padding(horizontal = pad),
                 contentAlignment = Alignment.Center,
             ) { Text(label, style = T.body, color = if (on) pal.onTeal else pal.text2, maxLines = 1) }
         }
@@ -163,8 +191,9 @@ internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modi
 internal fun Primary(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     val pal = LocalPal.current
     Box(
-        modifier.height(48.dp).then(if (enabled) Modifier.raised(RoundedCornerShape(24.dp), pal, 3.dp) else Modifier)
-            .clip(RoundedCornerShape(24.dp)).background(if (enabled) pal.teal else pal.hair2)
+        modifier.height(44.dp).then(if (enabled) Modifier.raised(RoundedCornerShape(22.dp), pal, 3.dp) else Modifier)
+            .glow(pal.teal, 12.dp, 22.dp, if (enabled) pal.glow * .8f else 0f)
+            .clip(RoundedCornerShape(22.dp)).background(if (enabled) pal.teal else pal.hair2)
             .then(if (enabled) Modifier.press(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) { Text(text, style = T.leadM, color = if (enabled) pal.onTeal else pal.text2) }
@@ -176,8 +205,8 @@ internal fun Ghost(text: String, modifier: Modifier = Modifier, color: Color? = 
     val pal = LocalPal.current
     val c = color ?: pal.text2
     Box(
-        modifier.height(48.dp).clip(RoundedCornerShape(24.dp))
-            .border(1.dp, if (color != null) color.copy(alpha = .55f) else pal.hair2, RoundedCornerShape(24.dp))
+        modifier.height(44.dp).clip(RoundedCornerShape(22.dp))
+            .border(1.dp, if (color != null) color.copy(alpha = .55f) else pal.hair2, RoundedCornerShape(22.dp))
             .press(onClick = onClick).padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center,
     ) { Text(text, style = T.lead, color = c) }
@@ -187,8 +216,8 @@ internal fun Ghost(text: String, modifier: Modifier = Modifier, color: Color? = 
 @Composable
 internal fun CloseX(onClick: () -> Unit) {
     val pal = LocalPal.current
-    Box(Modifier.size(34.dp).clip(CircleShape).border(1.dp, pal.hair2, CircleShape).press(onClick = onClick), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(10.dp)) {
+    Box(Modifier.size(30.dp).clip(CircleShape).border(1.dp, pal.hair2, CircleShape).press(onClick = onClick), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(9.dp)) {
             val w = 1.4.dp.toPx()
             drawLine(pal.text2, Offset.Zero, Offset(size.width, size.height), w, StrokeCap.Round)
             drawLine(pal.text2, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
@@ -206,7 +235,7 @@ internal fun Field(
     Box(
         modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(pal.field)
             .border(if (focused) 1.3.dp else 1.dp, if (focused) pal.teal else pal.hair2, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         if (value.isEmpty()) Text(placeholder, style = T.lead, color = pal.text2.copy(alpha = .7f))
         BasicTextField(
@@ -222,8 +251,8 @@ internal fun Field(
 internal fun Slot(text: String, hint: String?, modifier: Modifier = Modifier, dim: Boolean = false, onClick: () -> Unit) {
     val pal = LocalPal.current
     Row(
-        modifier.height(48.dp).clip(RoundedCornerShape(12.dp)).background(pal.field)
-            .border(1.dp, pal.hair2, RoundedCornerShape(12.dp)).press(onClick = onClick).padding(horizontal = 16.dp),
+        modifier.height(42.dp).clip(RoundedCornerShape(12.dp)).background(pal.field)
+            .border(1.dp, pal.hair2, RoundedCornerShape(12.dp)).press(onClick = onClick).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, Modifier.weight(1f), style = T.lead, color = if (dim) pal.text2 else pal.text)
@@ -283,7 +312,7 @@ internal fun Hair(modifier: Modifier = Modifier, strong: Boolean = false) {
 internal fun Band(text: String, color: Color? = null) {
     val pal = LocalPal.current
     Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, style = T.label, color = color ?: pal.text2)
+        Text(text, style = T.label.lit(color ?: pal.text2), color = color ?: pal.text2)
         Spacer(Modifier.width(10.dp))
         Hair(Modifier.weight(1f))
     }

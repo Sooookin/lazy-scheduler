@@ -246,6 +246,7 @@ object Cloud {
     private fun editable(t: Task): Map<String, Any?> = mapOf(
         "title" to t.title, "note" to t.note, "kind" to t.kind, "due_date" to t.dueDate,
         "due_time" to t.dueTime, "notify_min" to t.notifyMin, "muted" to t.muted, "rule" to t.rule,
+        "start_date" to t.startDate,
     )
 
     /** Int and Long are the same number here (the form makes Int, Firestore gives back Long). */
@@ -265,7 +266,9 @@ object Cloud {
             val before = editable(existing)
             val changed = fields.filter { (k, v) -> canon(before[k]) != canon(v) }
             if (changed.isEmpty()) return
-            logged("edit") { ref(uid, existing.id).update(changed + ("updated" to FieldValue.serverTimestamp())) }
+            // 기간이 아닌 항목에는 start_date 가 아예 없다 (docs/sync.md) - 빼면 필드를 지운다
+            val out = changed.mapValues { (k, v) -> if (k == "start_date" && v == null) FieldValue.delete() else v }
+            logged("edit") { ref(uid, existing.id).update(out + ("updated" to FieldValue.serverTimestamp())) }
             return
         }
         val id = UUID.randomUUID().toString().replace("-", "")

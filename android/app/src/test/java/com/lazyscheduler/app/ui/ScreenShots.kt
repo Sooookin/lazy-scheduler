@@ -32,7 +32,7 @@ import java.time.LocalDate
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w402dp-h874dp-xxhdpi", application = android.app.Application::class)
+@Config(sdk = [35], qualifiers = "w384dp-h832dp-450dpi", application = android.app.Application::class)
 class ScreenShots {
     private val today = LocalDate.now()
     private val top = 30.dp
@@ -59,10 +59,14 @@ class ScreenShots {
             Task(id = "k", title = "월간 보고서 작성", kind = "routine", dueTime = "11:00", created = "2026-01-01T09:00:00",
                 rule = mapOf("period" to "month", "basis" to "business_day", "n" to 1)),
             Task(id = "m", title = "새 노트북 알아보기", kind = "floating"),
+            // 기간 업무 둘 (겹친다 - 서로 다른 색)
+            Task(id = "s1", title = "신규 입사자 교육 자료", kind = "deadline", startDate = today.minusDays(3).toString(), dueDate = today.plusDays(4).toString()),
+            Task(id = "s2", title = "예산안 초안", kind = "deadline", startDate = today.plusDays(2).toString(), dueDate = today.plusDays(12).toString(), dueTime = "18:00"),
         )
     }
 
-    @Before fun still() { pebbleStill = true }
+    // 글자 크기는 쓰는 휴대폰(갤럭시 S23+)의 설정과 같게 1.1배 - 1.0 으로만 보면 잘림을 놓친다
+    @Before fun still() { pebbleStill = true; org.robolectric.RuntimeEnvironment.setFontScale(1.1f) }
 
     /** 하늘 + 종이 + 탭 (App 과 같은 짜임). */
     @Composable
@@ -84,8 +88,8 @@ class ScreenShots {
                     val d = LocalDensity.current
                     val wPx = with(d) { maxWidth.toPx() }
                     val beads = rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next) } }
-                    Sky(skyH, tallH, top, if (tall) 1f else 0f, beads, nowMin, ghost, null) {
-                        Pebble(wPx, with(d) { skyH.toPx() - 2 * tallH.toPx() / 206f }, night || allDone, true, false, 0, null)
+                    Sky({ skyH }, tallH, top, { if (tall) 1f else 0f }, beads, nowMin, ghost, null) {
+                        Pebble(wPx, { with(d) { skyH.toPx() - 2 * tallH.toPx() / 206f } }, night || allDone, true, false, 0, null)
                     }
                 }
                 Box(Modifier.weight(1f)) { content(ts, rows) }
@@ -94,7 +98,7 @@ class ScreenShots {
         }
     }
 
-    private fun shot(name: String, body: @Composable () -> Unit) = captureRoboImage("build/shots/$name.png") { body() }
+    private fun shot(name: String, body: @Composable () -> Unit) = captureRoboImage("build/shots/$name.png") { LazyTheme { body() } }
 
     @Test fun home10() = shot("1a-home-1000") {
         Frame(600, setOf("b", "c")) { ts, rows -> Home(Plan.overview(ts, today), rows, today, 600, {}, {}) }
@@ -144,7 +148,23 @@ class ScreenShots {
     }
 
     @Test fun calendar() = shot("1h-cal") {
-        Frame(600, setOf("b", "c"), tall = false) { ts, _ -> CalendarScreen(ts, today, 600, {}, {}, {}) }
+        Frame(600, setOf("b", "c"), tall = false) { ts, _ -> CalendarScreen(ts, today, 600, false, {}, {}, {}, {}, {}) }
+    }
+
+    @Test fun calendarWeek() = shot("1h-week") {
+        Frame(600, setOf("b", "c"), tall = false) { ts, _ -> CalendarScreen(ts, today, 600, true, {}, {}, {}, {}, {}) }
+    }
+
+    @Test fun calendarWeekNight() = shot("1h-week-night") {
+        Frame(22 * 60, setOf("b", "c"), tall = false) { ts, _ -> CalendarScreen(ts, today, 22 * 60, true, {}, {}, {}, {}, {}) }
+    }
+
+    @Test fun addSpan() = shot("1e-span") {
+        val t = tasks(emptySet()).first { it.id == "s2" }
+        val dr = draft("deadline", task = t)
+        Frame(600, setOf("b", "c"), tall = false, tabs = false) { ts, _ ->
+            Editor(Editing(t, today), dr, today, true, ts, {}, {}, {}, {}, {})
+        }
     }
 
     @Test fun all() = shot("1i-all") {

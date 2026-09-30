@@ -94,3 +94,14 @@ def test_the_light_palette_is_tokens_light():
         return p[0] + "".join(x[:1].upper() + x[1:] for x in p[1:])
     want = {camel(k): v.lower() for k, v in tokens.LIGHT.items()}
     assert kt == want, "어긋난 것: %s" % sorted(set(kt.items()) ^ set(want.items()))
+
+
+def test_span_colours_match_in_order():
+    """기간 업무의 띠 색 - 같은 기간이 PC 와 휴대폰에서 같은 색이 되려면 순서까지 같아야 한다."""
+    if not os.path.exists(THEME):
+        pytest.skip("휴대폰 소스가 없다")
+    src = io.open(THEME, encoding="utf-8").read()
+    block = re.search(r"val SpanColors = listOf\((.*?)\n\)", src, re.S)
+    assert block, "SpanColors 를 찾지 못했다"
+    got = ["#" + h.lower() for h in re.findall(r"Color\(0xFF([0-9A-Fa-f]{6})\)", block.group(1))]
+    assert got == [c.lower() for c in tokens.SPAN]

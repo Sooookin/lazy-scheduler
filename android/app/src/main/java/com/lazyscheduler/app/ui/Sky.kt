@@ -12,7 +12,12 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -23,6 +28,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -142,36 +148,52 @@ private const val GROUND = "M-6 206C130 202 290 209 450 205S740 201 906 206"
  * 해도 달도 동그라미로 그리지 않는다 - 빛이 어디서 오는지는 그림자가 말한다 (아침엔 오른쪽,
  * 한낮엔 발밑, 저녁엔 왼쪽으로 진다). 돌멩이는 이 위에 따로 얹는다 (Pebble).
  *
+ * 접히고 펴지는 동안 다시 그리지 않는다: 늘 편 높이로 세 장(뒤 · 궤도 · 땅)을 그려 두고,
+ * 접힌 만큼 위로 밀어 올리기만 한다 (각 장은 그려 둔 그림 한 장으로 남는다). 궤도는 장째로
+ * 옅어진다. 높이 · 궤도의 정도는 값이 아니라 읽는 함수로 받는다 - 움직이는 동안 화면을
+ * 다시 짜지 않고 배치 · 그리기 단계에서만 읽는다. 예전에는 한 프레임마다 흐림 그림자 · 종이
+ * 결까지 전부 다시 그려 접히는 동안 끊겼다.
+ *
  * @param ribbon 궤도 · 구슬이 보이는 정도 (하늘이 접히면 0)
  * @param ghost  고르는 중인 시각 - 점선 구슬. onGhost 가 있으면 하늘을 끌어 바꿀 수 있다.
  */
 @Composable
 fun Sky(
-    height: Dp, tallHeight: Dp, top: Dp, ribbon: Float,
+    height: () -> Dp, tallHeight: Dp, top: Dp, ribbon: () -> Float,
     beads: List<Bead>, nowMin: Int, ghost: Int?, onGhost: ((Int) -> Unit)?,
     modifier: Modifier = Modifier, overlay: @Composable () -> Unit = {},
 ) {
     val pal = LocalPal.current
+    val paper = LocalPaper.current
     val tm = rememberTextMeasurer()
     val ghostCb = rememberUpdatedState(onGhost)
-    Box(modifier.fillMaxWidth().height(height)) {
-        Canvas(
-            // 그림자가 캔버스 밖(아래 종이)으로 번지지 않게 자른다
-            Modifier.fillMaxWidth().height(height).clipToBounds().then(
+    fun minute(w: Float, x: Float, d: androidx.compose.ui.unit.Density) =
+        with(d) { geoFor(w, tallHeight.toPx(), tallHeight.toPx(), top.toPx(), density).minuteAt(x) }
+    Box(
+        modifier.fillMaxWidth()
+            .layout { m, c ->
+                val h = height().roundToPx()
+                val p = m.measure(c.copy(minHeight = h, maxHeight = h))
+                layout(p.width, h) { p.place(0, 0) }
+            }
+            // 그림자가 하늘 밖(아래 종이)으로 번지지 않게 자른다
+            .clipToBounds()
+            .then(
                 if (onGhost == null) Modifier else Modifier
-                    .pointerInput(Unit) {
-                        detectTapGestures { o -> ghostCb.value?.let { cb -> cb(geoFor(size.width.toFloat(), size.height.toFloat(), tallHeight.toPx(), top.toPx(), density).minuteAt(o.x)) } }
-                    }
-                    .pointerInput(Unit) {
-                        detectDragGestures { ch, _ ->
-                            ghostCb.value?.let { cb -> cb(geoFor(size.width.toFloat(), size.height.toFloat(), tallHeight.toPx(), top.toPx(), density).minuteAt(ch.position.x)) }
-                        }
-                    }
+                    .pointerInput(Unit) { detectTapGestures { o -> ghostCb.value?.invoke(minute(size.width.toFloat(), o.x, this)) } }
+                    .pointerInput(Unit) { detectDragGestures { ch, _ -> ghostCb.value?.invoke(minute(size.width.toFloat(), ch.position.x, this)) } }
             ),
-        ) {
-            val g = geoFor(size.width, size.height, tallHeight.toPx(), top.toPx(), density)
-            drawSky(g, pal, tm, ribbon, beads, nowMin, ghost)
+    ) {
+        val sheet = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Top, unbounded = true).height(tallHeight)
+        // 궤도 무리는 하늘이 올라가는 동안 먼저 내려앉으며 사라진다 - 잘려 나가는 것이 아니라 비켜 준다 (PC 의 .rib)
+        fun Modifier.lift(alpha: (() -> Float)? = null) = graphicsLayer {
+            translationY = height().toPx() - tallHeight.toPx() + (alpha?.let { (1 - it()) * 20.dp.toPx() } ?: 0f)
+            alpha?.let { this.alpha = it() }
+            compositingStrategy = CompositingStrategy.Offscreen
         }
+        Canvas(sheet.lift()) { drawBack(geoFor(size.width, size.height, size.height, top.toPx(), density), pal, paper) }
+        Canvas(sheet.lift(ribbon)) { drawRibbon(geoFor(size.width, size.height, size.height, top.toPx(), density), pal, paper, tm, beads, nowMin, ghost) }
+        Canvas(sheet.lift()) { drawGround(geoFor(size.width, size.height, size.height, top.toPx(), density), pal, paper) }
         overlay()
     }
 }
@@ -184,35 +206,43 @@ private fun geoFor(w: Float, h: Float, tall: Float, top: Float, dp: Float): SkyG
     return geoCache!!
 }
 
-/** 그림자는 같은 모양을 빛의 반대쪽으로 흐리게 한 번 더 그린 것이다. */
-private fun DrawScope.cast(path: Path, dir: Double, len: Float, blur: Float, op: Float, color: Color) {
+/**
+ * 능선 · 땅의 그림자: 종이를 오려 겹친 그림처럼, 앞 겹이 바로 뒤 겹 위에 드리운다 (PC 의 sky.js Fc).
+ * 앞 겹일수록 아래에 있으므로 그림자는 윗날 위쪽으로 뜨고, 가로만 해를 따른다. 뒤로 갈수록
+ * 겹 사이가 좁다고 보고 k 만큼 짧게 한다.
+ */
+private fun DrawScope.cutCast(path: Path, dir: Double, k: Float, color: Color) {
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = color.copy(alpha = op).toArgb()
-        maskFilter = BlurMaskFilter(max(blur, .5f) * density, BlurMaskFilter.Blur.NORMAL)
+        this.color = color.copy(alpha = .30f * minOf(1f, k + .1f)).toArgb()
+        maskFilter = BlurMaskFilter(4 * k * density, BlurMaskFilter.Blur.NORMAL)
     }
     drawIntoCanvas { c ->
         c.nativeCanvas.save()
-        c.nativeCanvas.translate((dir * len).toFloat() * density, len * .85f * density)
+        c.nativeCanvas.translate((dir * 3 * k).toFloat() * density, -3 * k * density)
         c.nativeCanvas.drawPath(path.asAndroidPath(), paint)
         c.nativeCanvas.restore()
     }
 }
 
-private fun DrawScope.drawSky(g: SkyGeo, p: Pal, tm: TextMeasurer, ribbon: Float, beads: List<Bead>, nowMin: Int, ghost: Int?) {
+private fun DrawScope.drawBack(g: SkyGeo, p: Pal, paper: PaperBrushes) {
     val dp = density
     val sl = p.light
     val dir = sl.dir
     // ── 하늘 ──
     drawRect(Brush.verticalGradient(listOf(p.skyHi, p.skyLo), startY = g.y(0f), endY = g.hz))
+    // 종이 결 (디오라마). 하늘 바탕은 옅게, 능선은 진하게, 궤도 띠는 그 사이 (PC 와 같은 세기)
+    val grain = paper.coarse
+    grain?.let { drawRect(it, alpha = .45f, blendMode = BlendMode.Softlight) }
     drawLight(g, p)
 
     // ── 능선 셋. 뒤일수록 높고 옅으며, 겹 사이마다 지평선 쪽 하늘빛 안개를 한 장씩 ──
     val fills = listOf(p.hill1, p.hill2, p.hill3)
     val mists = listOf(122f to 172f, 148f to 194f, null)
-    HILLS.forEachIndexed { k, (d, sh, edge) ->
+    HILLS.forEachIndexed { k, (d, _, edge) ->
         val fill = g.path(d, true)
-        cast(fill, dir, sh.first, sh.first * .8f, sh.second, p.shade)
+        cutCast(fill, dir, listOf(.5f, .8f, 1f)[k], p.shade)
         drawPath(fill, fills[k])
+        grain?.let { drawPath(fill, it, alpha = .85f, blendMode = BlendMode.Softlight) }
         drawPath(g.path(d, false), p.skyEdge, alpha = edge, style = Stroke(1 * dp))
         mists[k]?.let { (a, b) ->
             drawRect(Brush.verticalGradient(listOf(p.skyLo.copy(alpha = 0f), p.skyLo.copy(alpha = .42f)), startY = g.y(a), endY = g.y(b)),
@@ -220,8 +250,15 @@ private fun DrawScope.drawSky(g: SkyGeo, p: Pal, tm: TextMeasurer, ribbon: Float
         }
     }
 
-    // ── 궤도 · 구슬 (접히면 사라진다) ──
-    if (ribbon > .01f) {
+}
+
+/** 궤도 · 구슬 (접히면 장째로 사라진다). */
+private fun DrawScope.drawRibbon(g: SkyGeo, p: Pal, paper: PaperBrushes, tm: TextMeasurer, beads: List<Bead>, nowMin: Int, ghost: Int?) {
+    val dp = density
+    val dir = p.light.dir
+    val grain = paper.coarse
+    val ribbon = 1f
+    run {
         val a0 = g.t0 - 40; val a1 = g.t1 + 40
         val orbit = g.arc(a0, a1)
         val rib = 12 * dp
@@ -236,6 +273,7 @@ private fun DrawScope.drawSky(g: SkyGeo, p: Pal, tm: TextMeasurer, ribbon: Float
             c.nativeCanvas.drawPath(orbit.asAndroidPath(), shPaint); c.nativeCanvas.restore()
         }
         drawPath(orbit, p.ribbon, alpha = ribbon, style = stroke)
+        grain?.let { drawPath(orbit, it, alpha = .65f * ribbon, style = stroke, blendMode = BlendMode.Softlight) }
         val nowM = nowMin.toDouble()
         val yday = if (nowM < a0) 1 - smooth(nowM, a0 - 120, a0) else 0.0
         if (yday > .003) drawPath(orbit, p.ribPast, alpha = (yday * ribbon).toFloat(), style = stroke)
@@ -246,11 +284,16 @@ private fun DrawScope.drawSky(g: SkyGeo, p: Pal, tm: TextMeasurer, ribbon: Float
         translate(0f, 5.5f * dp) { drawPath(orbit, p.shade, alpha = .16f * ribbon, style = Stroke(1 * dp)) }
         drawBeads(g, p, tm, ribbon, beads, nowMin, ghost)
     }
+}
 
-    // ── 땅. 맨 앞 종이이자 아래 목록의 판 ──
+/** 땅. 맨 앞 종이이자 아래 목록의 판 - 바로 뒤 능선 위에 그림자를 드리운다. */
+private fun DrawScope.drawGround(g: SkyGeo, p: Pal, paper: PaperBrushes) {
+    val dp = density
+    val dir = p.light.dir
     val ground = g.path(GROUND, true)
-    cast(ground, dir, 9f, 5f, .42f, p.shade)
+    cutCast(ground, dir, 1.1f, p.shade)
     drawPath(ground, p.surface)
+    paper.fine?.let { drawPath(ground, it, blendMode = BlendMode.Softlight) }
     drawPath(g.path(GROUND, false), p.skyEdge, alpha = .9f, style = Stroke(1 * dp))
 }
 
@@ -290,10 +333,13 @@ private fun DrawScope.drawBeads(g: SkyGeo, p: Pal, tm: TextMeasurer, a: Float, b
             val fill = b.done || b.next
             val op = (if (b.done) .55f else 1f) * a
             drawIntoCanvas { cv -> cv.nativeCanvas.drawCircle(c.x + (p.light.dir * 5 * dp).toFloat(), c.y + 5 * dp, r, beadShadow) }
+            // 빛: 구슬 둘레에 제 테 색이 옅게 번진다
+            drawIntoCanvas { cv -> cv.nativeCanvas.drawCircle(c.x, c.y, r, beadGlow(ring, p.glow * 1.1f * op)) }
             drawCircle(if (fill) p.teal else p.bead, r, c, alpha = op)
             drawCircle(ring, r, c, alpha = op, style = Stroke(1.6f * dp))
             if (b.next && !b.done) drawCircle(p.onTeal, r - 3 * dp, c, alpha = .6f * a, style = Stroke(1 * dp))
-            val lay = tm.measure(b.n.toString(), T.micro.copy(color = if (fill) p.onTeal else ring))
+            // 밤에는 채우지 않은 구슬의 숫자를 흰 글자로 (테 색 숫자는 어두운 구슬 위에서 잘 안 보였다)
+            val lay = tm.measure(b.n.toString(), T.micro.copy(color = if (fill) p.onTeal else if (p.glowW > 0f) p.text else ring))
             drawText(lay, topLeft = Offset(c.x - lay.size.width / 2f, c.y - lay.size.height / 2f), alpha = op)
         }
     }
@@ -367,4 +413,9 @@ fun lightX(w: Float, sl: SkyLight): Float {
     val l = (-20 + sl.tL * 240) * k
     val r = w + (20 - (1 - sl.tR) * 240) * k
     return ((1 - sl.wR) * l + sl.wR * r).toFloat()
+}
+
+private fun DrawScope.beadGlow(color: Color, a: Float) = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+    this.color = color.copy(alpha = a.coerceIn(0f, 1f)).toArgb()
+    maskFilter = BlurMaskFilter(3 * density, BlurMaskFilter.Blur.NORMAL)
 }

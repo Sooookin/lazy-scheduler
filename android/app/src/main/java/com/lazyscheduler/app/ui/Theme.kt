@@ -1,6 +1,9 @@
 package com.lazyscheduler.app.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -100,6 +103,18 @@ object LitTokens {
     val pupilN = Color(0xFF2B3134)
 }
 
+/**
+ * 기간 업무의 띠 색 (tokens.py 의 SPAN, 순서까지 같다 - tests/test_theme_kt.py 가 지킨다).
+ * 같은 때 겹치는 기간끼리 서로 다른 색이 되게 차례로 돌려 쓴다. 밤에도 그대로.
+ */
+val SpanColors = listOf(
+    Color(0xFFFF7A59),
+    Color(0xFF3FB6E8),
+    Color(0xFF8FD14F),
+    Color(0xFFB58BE0),
+    Color(0xFFF0B43A),
+)
+
 val Paperlogy = FontFamily(
     Font(R.font.paperlogy_light, FontWeight.Light),
     Font(R.font.paperlogy_regular, FontWeight.Normal),
@@ -159,8 +174,21 @@ private val type by lazy { Typography(
     labelSmall = T.micro,
 ) }
 
+/**
+ * 휴대폰의 글자는 PC 의 눈금(tokens.TYPE)을 그대로 쓰되 한꺼번에 0.9 배로 줄인다. 같은 13 이라도
+ * 휴대폰은 눈에 더 가까워 커 보였다 (줄 이름이 잘리고 머리줄이 빽빽했다). 휴대폰의 글자 크기
+ * 설정은 그 위에 그대로 곱해진다.
+ */
+const val PHONE_TEXT = .9f
+
 @Composable
 fun LazyTheme(content: @Composable () -> Unit) {
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale * PHONE_TEXT)) { Material(content) }
+}
+
+@Composable
+private fun Material(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = lightColorScheme(
             primary = Ink.mid, onPrimary = Ink.onMid,
