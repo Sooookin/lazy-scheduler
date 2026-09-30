@@ -526,7 +526,9 @@ function drawSky(all){
     '" r="5.5" fill="var(--bead)" stroke="var(--teal)" stroke-width="1.4"/>');
 
   /* 띠와 그 위의 것은 한 무리다. 종이가 열리면 함께 내려앉으며 사라진다 */
-  g += '<g class="rib">' + rib + cast('sMK', marks.join('')) + labels.join('') + '</g>';
+  const gRib = '<g class="rib">' + rib + cast('sMK', marks.join('')) + labels.join('') + '</g>';
+  const gBack = g;
+  g = '';
 
   /* ── 땅. 디오라마의 맨 앞 종이다. 이 능선이 곧 지평선이고, 아래로는
         창 바닥까지 이어지는 판(.ground)이 같은 색으로 받는다 ── */
@@ -552,10 +554,13 @@ function drawSky(all){
   g += '<g class="ticks">' + ticks + '</g>';
 
   g += '<g id="sky-tip"></g>';
-  skyHover._n = undefined;              /* 이름표 자리를 새로 지었다 */
   /* ── 빛. 하늘 위에 따로 깐다 (drawLite). 게으름뱅이의 눈이 그 광원을 본다 ── */
   const src = drawLite(lightv, W, k);
-  svg.innerHTML = g;
+  /* 세 장 중 바뀐 장만 다시 짓는다. 구슬 하나를 끝내면 궤도 장만 바뀐다 */
+  const put = (el, h) => { if(!el || el._h === h) return false; el._h = h; el.innerHTML = h; return true; };
+  put(svg, gBack);
+  put($('#sky-rib'), gRib);
+  if(put($('#sky-front'), g)) skyHover._n = undefined;    /* 이름표 자리를 새로 지었다 */
 
   /* 게으름뱅이는 궤도가 놓인 만큼을 오간다. 그림자는 빛과 반대쪽으로,
      해가 낮을수록 길게 눕는다 - 능선 · 띠와 같은 빛을 받는다. */
@@ -569,13 +574,14 @@ function drawSky(all){
      무엇을 할지는 돌이 이 값과 지금 상태(시각 · 완료 · 시각 고르기)를 보고 스스로 정한다. */
   if(window.PB) PB.stage({k, onArc, set: T1, dir});
 
-  svg.onmousemove = e => {
+  /* 구슬은 가운데 장에 있지만 맨 위는 앞 장이다 - 마우스는 그림 전체(sky-art)에서 본다 */
+  box.onmousemove = e => {
     const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
     let hit = null;
     for(const b of SKY_BEADS){ if(Math.hypot(b.x-mx, b.y-my) < 12){ hit = b; break; } }
     skyHover(hit ? hit.n : null);
   };
-  svg.onmouseleave = () => skyHover(null);
+  box.onmouseleave = () => skyHover(null);
 }
 
 /* 게으름뱅이의 그림자. 해가 낮을수록 길게 눕고 빛과 반대쪽으로 밀린다 */

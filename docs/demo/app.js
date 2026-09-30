@@ -461,15 +461,22 @@ function itemEl(i, opt){
   return wireRow(el, i, opt.where);
 }
 
+/* 새로 지은 줄(fresh)을 목록에 옮긴다 - 글자 하나까지 같은 줄은 그대로 둔다. 통째로 갈아 끼우면
+   하나를 끝냈을 뿐인데 세 칸의 모든 줄을 다시 칠했다. 같은 줄은 같은 항목이다 (data-id 가 들어 있다).
+   줄 수가 달라지면 (추가 · 삭제) 통째로 바꾼다. */
+function patch(node, fresh){
+  const a = [...node.children], b = [...fresh.children];
+  if(a.length !== b.length){ node.replaceChildren(...b); return; }
+  a.forEach((x, k) => { if(x.outerHTML !== b[k].outerHTML) node.replaceChild(b[k], x); });
+}
 function fill(node, list, emptyMsg, opt, maker){
-  node.innerHTML = '';
+  const f = document.createElement('div');
   if(!list.length){
     /* '<' 로 시작하면 이미 완성된 마크업이다 (아래 emptyToday 같은 안내 화면) */
-    node.innerHTML = emptyMsg.charAt(0) === '<'
+    f.innerHTML = emptyMsg.charAt(0) === '<'
       ? emptyMsg : '<div class="empty">'+emptyMsg+'</div>';
-    return;
-  }
-  list.forEach(i => node.appendChild((maker||itemEl)(i, opt)));
+  } else list.forEach(i => f.appendChild((maker||itemEl)(i, opt)));
+  patch(node, f);
 }
 
 /* 오늘 칸이 비는 경우는 두 가지고, 사용자가 할 일도 서로 다르다.
@@ -527,7 +534,8 @@ const bandOf = t => t == null ? 3 : (mins(t) < 720 ? 0 : mins(t) < 1080 ? 1 : 2)
 
 function fillToday(node, all, empty){
   if(!all.length){ return fill(node, all, empty, {showOverdue:true, where:'today'}); }
-  node.innerHTML = '';
+  const out = node;
+  node = document.createElement('div');
   const head = (cls, txt) => {
     const g = document.createElement('div'); g.className = cls; g.textContent = txt; node.appendChild(g);
   };
@@ -549,6 +557,7 @@ function fillToday(node, all, empty){
     if(b !== band){ band = b; head('band', BAND_NAME[b]); }
     node.appendChild(itemEl(i, {showOverdue:true, where:'today', next:i === nxt}));
   });
+  patch(out, node);
 }
 
 /* 다음에 할 것 하나. 아직 안 끝났고 지금보다 뒤인 것 중 가장 이른 것 */
@@ -845,6 +854,22 @@ function fold(){
   document.body.classList.toggle('sheet', sheet);
   if(!on) peekClose();
 }
+/* 하늘이 접히고 펴질 때 (종이 · 달력 · 시각 고르기). 하늘의 높이는 한 번에 바뀌고, 땅은 옛 자리에서
+   새 자리로 미끄러진다 - 한 번 칠한 채 옮기기만 한다 (skyFlip). ResizeObserver 는 배치 뒤 ·
+   그리기 전에 부르므로 옛 자리가 한 프레임도 비지 않는다. 시각을 고르는 동안 종이의 윗변이
+   하늘을 따라 내려가는 것은 그대로 top 으로 움직인다 - 종이는 아래 끝이 붙어 있어 옮기면 빈다. */
+(function skyFlip(){
+  const sky = $('#sky');
+  let last = sky.offsetHeight;
+  new ResizeObserver(() => {
+    const h = sky.offsetHeight, dy = last - h;
+    last = h;
+    if(!dy || calm()) return;
+    const cs = getComputedStyle(document.documentElement);
+    $('.ground').animate([{transform: 'translateY(' + dy + 'px)'}, {transform: 'none'}],
+      {duration: parseFloat(cs.getPropertyValue('--t-move')) || 480, easing: cs.getPropertyValue('--ease-move').trim() || EASE});
+  }).observe(sky);
+})();
 $('#veil').onclick = closeAll;
 $$('[data-close]').forEach(b => b.onclick = e => closeM('#'+e.target.closest('.modal').id));
 document.onkeydown = e => {
