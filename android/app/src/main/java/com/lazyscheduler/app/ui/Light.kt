@@ -121,6 +121,9 @@ data class Pal(
     val isNight get() = day < .5f
     /** 흐린 글자 (PC 의 --faint): 투명도로 흐리면 밤에 면이 비쳐 탁해진다 - 면 쪽으로 섞은 색 */
     val faint: Color get() = lerp(text2, surface, .32f)
+    /** 일정 판 쪽의 빛 (PC 의 --glow-l · --glow-wl): 하늘의 반쯤. 읽는 곳에서는 네온 느낌이 강했다 */
+    val glowL: Float get() = glow * .45f
+    val glowWL: Float get() = glowW * .45f
 }
 
 private fun mix(a: Color, b: Color, t: Double) = lerp(a, b, t.toFloat().coerceIn(0f, 1f))
@@ -184,6 +187,28 @@ fun palette(litMin: Double): Pal {
 val LocalPal = staticCompositionLocalOf { palette(12 * 60.0) }
 
 /** 분 → "13:30". */
+/**
+ * 보여 주는 시각은 12시간: "13:00" → "01:00 PM" (PC 의 tmText). 저장 · 비교 · 고르기는 24시간 그대로다.
+ * apText 는 그 글자에서 AM · PM 만 작게 줄인다 (숫자 오른쪽에 작게 - PC 의 tmHTML).
+ */
+internal fun t12(t: String): String {
+    val m = minsOf(t) ?: return t
+    val h = m / 60
+    return "%02d:%02d %s".format(if (h % 12 == 0) 12 else h % 12, m % 60, if (h < 12) "AM" else "PM")
+}
+private val AP = Regex("""(\d{2}:\d{2}) (AM|PM)""")
+internal fun apText(s: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    var last = 0
+    for (m in AP.findAll(s)) {
+        append(s.substring(last, m.range.first)); append(m.groupValues[1])
+        pushStyle(androidx.compose.ui.text.SpanStyle(fontSize = androidx.compose.ui.unit.TextUnit(.74f, androidx.compose.ui.unit.TextUnitType.Em),
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+        append(" " + m.groupValues[2]); pop()
+        last = m.range.last + 1
+    }
+    append(s.substring(last))
+}
+
 internal fun hhmm(m: Int): String = "%02d:%02d".format(((m / 60) % 24 + 24) % 24, ((m % 60) + 60) % 60)
 internal fun minsOf(t: String): Int? = runCatching { t.substring(0, 2).toInt() * 60 + t.substring(3, 5).toInt() }.getOrNull()
 internal fun floorMod(a: Double, b: Double) = a - b * floor(a / b)

@@ -372,6 +372,17 @@ function rollBiz(s, dir){
   return iso(d);
 }
 function shift(days){ const d = dObj(STATE.today); d.setDate(d.getDate()+days); return rollBiz(iso(d), 1); }
+/* 시각은 12시간으로 보인다: "13:00" → 01:00 PM (AM · PM 은 오른쪽에 작게). 저장 · 입력 · 비교는
+   24시간 그대로다 - 보여 줄 때만 이 둘을 거친다. tmHTML 은 화면 글자, tmText 는 글자만 (손끝 카드 · 하늘 이름표). */
+function ap12(t){
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t || '');
+  if(!m) return null;
+  const h = +m[1];
+  return {hm: String(h % 12 || 12).padStart(2, '0') + ':' + m[2], ap: h < 12 ? 'AM' : 'PM'};
+}
+const tmText = t => { const a = ap12(t); return a ? a.hm + ' ' + a.ap : (t || ''); };
+const tmHTML = t => { const a = ap12(t); return a ? esc(a.hm) + '<small class="ap">' + a.ap + '</small>' : esc(t || ''); };
+
 function fmtDay(s){
   if(!s) return '';
   const diff = Math.round((dObj(s) - dObj(STATE.today))/864e5);
@@ -442,10 +453,10 @@ function itemEl(i, opt){
   if(opt.next) bits.push('<span class="st">다음</span>');
   if(opt.showOverdue && i.date && i.date < STATE.today && !i.done)
     bits.push('<span class="st late">'+esc(fmtDay(i.date))+'</span>');
-  const when = opt.showDate && i.date ? fmtDay(i.date) + (i.time ? ' ' + i.time : '') : (i.time || '');
+  const when = (opt.showDate && i.date ? esc(fmtDay(i.date)) + (i.time ? ' ' : '') : '') + (i.time ? tmHTML(i.time) : '');
   /* 기간 업무: 시작일을 앞에 적어 "언제부터 하던 일" 인지 보이게 (마감은 끝나는 날) */
   if(i.start) bits.push('<span class="tm">'+esc(md(i.start))+' ~</span>');
-  if(when) bits.push('<span class="tm">'+esc(when)+'</span>');
+  if(when) bits.push('<span class="tm">'+when+'</span>');
   el.innerHTML = '<div class="dot" role="checkbox" tabindex="0" aria-checked="'+(i.done ? 'true' : 'false')+'" title="'+
       (i.done ? '완료 취소' : '완료') + '">'+(i.done ? '\u2713' : (i.n || '')) + '</div>'+
     '<div class="t">'+esc(i.title)+'</div>'+
@@ -494,7 +505,7 @@ function emptyToday(o){
       + '<button class="ghost" data-new="deadline">마감 하나 넣어보기</button></div></div>';
   const n = (o.upcoming || [])[0];
   /* 날짜 표기는 목록과 같은 함수를 쓴다 ("내일" · "9/17 (목)") */
-  const when = n && n.date ? fmtDay(n.date) + (n.time ? ' ' + n.time : '') : '';
+  const when = n && n.date ? fmtDay(n.date) + (n.time ? ' ' + tmText(n.time) : '') : '';
   return '<div class="empty-rich"><div class="ill">' + ICON.check + '</div>'
     + '<div class="eh">오늘 할 일이 없습니다</div>'
     + '<div class="ep">' + (n
@@ -551,7 +562,7 @@ function fillToday(node, all, empty){
     const b = bandOf(i.time);
     /* 지금 선을 시간대 머리보다 먼저 놓는다 - 안 그러면 다음 칸 안으로 밀려 들어간다 */
     if(!ruled && i.time && !i.done && mins(i.time) > mins(STATE.now)){
-      const r = document.createElement('div'); r.className = 'nowrule'; r.textContent = STATE.now;
+      const r = document.createElement('div'); r.className = 'nowrule'; r.innerHTML = '<span>' + tmHTML(STATE.now) + '</span>';
       node.appendChild(r); ruled = true;
     }
     if(b !== band){ band = b; head('band', BAND_NAME[b]); }
@@ -616,7 +627,7 @@ function tickClock(){
   if(SHOT_MIN != null){ return; }                  /* 갈무리 중에는 시계를 묶어 둔다 */
   const n = new Date(), v = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
   const el = $('#clock');
-  if(el.textContent !== v) el.textContent = $('#clock-m').textContent = v;   /* 같은 글자를 다시 넣어도 큰 시계를 새로 그린다 */
+  if(el._v !== v){ el._v = v; el.innerHTML = $('#clock-m').innerHTML = tmHTML(v); }   /* 같은 글자를 다시 넣어도 큰 시계를 새로 그린다 */
 }
 tickClock();
 setInterval(tickClock, 10000);
@@ -1089,7 +1100,7 @@ function Form(box){
         .sort((a, b) => (a.due_time || '99:99').localeCompare(b.due_time || '99:99'));
       h += '<span class="step">같은 날 마감 <i class="opt">'+(others.length ? others.length + '건' : '')+'</i></span>'+
         (others.length ? others.slice(0, 6).map(t => '<div class="due-o"><b>'+esc(t.title)+'</b>'+
-            (t.due_time ? '<span>'+esc(t.due_time)+'</span>' : '')+'</div>').join('') + (others.length > 6 ? '<div class="due-m">외 '+(others.length - 6)+'건</div>' : '')
+            (t.due_time ? '<span>'+tmHTML(t.due_time)+'</span>' : '')+'</div>').join('') + (others.length > 6 ? '<div class="due-m">외 '+(others.length - 6)+'건</div>' : '')
           : '<p class="hint">없음</p>');
       F('due').innerHTML = h;
       const fix = F('fix');
@@ -1549,7 +1560,7 @@ function spanLeft(s, at){
 function spanHov(s){
   const days = dayDiff(s.start_date, s.due_date) + 1;
   return {title: s.title, when: spanRange(s) + ' · ' + days + '일간 · ' + spanLeft(s) +
-          (s.due_time ? ' · 끝나는 날 ' + s.due_time : ''), note: s.note || ''};
+          (s.due_time ? ' · 끝나는 날 ' + tmText(s.due_time) : ''), note: s.note || ''};
 }
 /* 그 날 걸쳐 있는 기간들 */
 const spansOn = key => spanList().filter(s => s.start_date <= key && key <= s.due_date)
@@ -1594,7 +1605,7 @@ function chipEl(t){
   el.title = '';
   el._hov = {
     title: t.title,
-    when: fmtDay(t.due_date) + (t.due_time ? ' ' + t.due_time : ' 시각 없음') +
+    when: fmtDay(t.due_date) + (t.due_time ? ' ' + tmText(t.due_time) : ' 시각 없음') +
           (t.done ? ' · 완료' : ''),
     note: (wk ? '주말 마감이라 앞 영업일 칸에 놓았습니다' : '') +
           (wk && t.note ? String.fromCharCode(10) : '') + (t.note || ''),
@@ -1618,7 +1629,7 @@ function hovShow(el){
                   (d.when ? '<i>' + esc(d.when) + '</i>' : '') +
                   (d.note ? '<i>' + esc(d.note) + '</i>' : '') +
                   (d.rows ? '<div class="hov-rows">' + d.rows.map(r =>
-                    '<div' + (r.done ? ' class="dn"' : '') + '><span class="hr-t">' + esc(r.t || '종일') + '</span>' +
+                    '<div' + (r.done ? ' class="dn"' : '') + '><span class="hr-t">' + (r.t ? tmHTML(r.t) : '종일') + '</span>' +
                     '<span class="hr-x">' + esc(r.x) + '</span><span class="hr-s">' + (r.done ? '완료' : '') + '</span></div>').join('') +
                     '</div>' : '');
   box.classList.toggle('wide', !!d.rows);
@@ -1682,11 +1693,11 @@ function dayModal(key, list){
     const d = dObj(t.due_date);
     const when = (isWeekend(t.due_date)
         ? d.getDate() + '일(' + WD[(d.getDay() + 6) % 7] + ') ' : '') +
-      (t.due_time || (isWeekend(t.due_date) ? '' : '시각 없음'));
+      (t.due_time ? tmHTML(t.due_time) : isWeekend(t.due_date) ? '' : '시각 없음');
     el.innerHTML = '<span class="dot" role="checkbox" aria-checked="' + (t.done ? 'true' : 'false') + '" title="' + (t.done ? '완료 취소' : '완료') + '"></span>' +
                    '<span class="n">' + esc(t.title) + '</span>' +
                    (t.note ? '<span class="note">' + esc(t.note) + '</span>' : '') +
-                   '<span class="w">' + esc(when.trim()) + '</span>';
+                   '<span class="w">' + when.trim() + '</span>';
     el.title = '눌러서 열기';
     /* 목록 줄과 같다: 동그라미는 완료, 줄은 열기 */
     el.onclick = e => {
@@ -1948,7 +1959,7 @@ function wkItem(t, big){
   const past = !t.done && !t._rt && t.due_date < STATE.today;
   el.className = 'wi' + (t._rt ? ' rt' : '') + (t.done ? ' dn' : '') + (past ? ' p' : '') + (big ? ' big' : '');
   const mark = t.done ? '<span class="wm ok">✓</span>'
-             : t.due_time ? '<span class="wm tm">' + esc(t.due_time) + '</span>'
+             : t.due_time ? '<span class="wm tm">' + tmHTML(t.due_time) + '</span>'
              : '<span class="wm dt"></span>';
   el.innerHTML = mark + '<span class="wn">' + esc(t.title) + '</span>';
   return el;
@@ -2130,7 +2141,7 @@ function drawManage(){
     const rt = byId[t.id];
     const when = kind === 'routine' ? (rt ? rt.rule_text : '루틴')
                : kind === 'floating' ? '기한 없음'
-               : (t.due_date ? fmtDay(t.due_date) : '날짜 없음') + (t.due_time ? ' ' + t.due_time : '');
+               : (t.due_date ? fmtDay(t.due_date) : '날짜 없음') + (t.due_time ? ' ' + tmText(t.due_time) : '');
     const el = document.createElement('div');
     /* 지난 것은 시각이 벽돌빛이다 - 홈 · 달력과 같은 말 */
     const late = kind === 'deadline' && !t.done && t.due_date && t.due_date < STATE.today;
@@ -2437,7 +2448,7 @@ function shotHook(){
   document.head.appendChild(st);
   const HHMM = SHOT_MIN === 0 ? '00:00' : '11:00';
   if(RAW){ RAW.now = HHMM; }
-  $('#clock').textContent = $('#clock-m').textContent = HHMM;
+  $('#clock')._v = HHMM; $('#clock').innerHTML = $('#clock-m').innerHTML = tmHTML(HHMM);
   repaint();
   const first = () => (STATE.todays || [])[0] || (STATE.overdue || [])[0];
   const go = {

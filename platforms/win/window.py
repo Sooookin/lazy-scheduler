@@ -35,7 +35,7 @@ _EDGES = ("l", "r", "t", "b", "tl", "tr", "bl", "br")
 VK_LBUTTON = 0x01
 # attach() 가 채운다: pywebview 창, 처음 크기, 가장 작은 크기 (논리 px)
 _WIN = [None]
-DEFAULT_W, DEFAULT_H = 1050, 648
+DEFAULT_W, DEFAULT_H = 1050, 712
 MIN_W, MIN_H = 720, 480
 # 창 테두리를 우리가 그린다 (화면의 .grip · 제목줄) - pywebview 의 끌기는 쓰지 않는다
 CREATE_OPTS = dict(frameless=True, easy_drag=False)

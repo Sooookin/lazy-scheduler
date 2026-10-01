@@ -64,14 +64,14 @@ fun Home(o: Overview?, rows: List<HomeRow>, today: LocalDate, nowMin: Int, onTog
                 Spacer(Modifier.weight(1f))
                 val all = rows.isNotEmpty() && done == rows.size
                 Text("${shortDay(today)} · ", style = T.body.lit(pal.text2), color = pal.text2)
-                Text(if (all) "전부 완료 ${hhmm(nowMin)}" else "완료 $done", style = T.body, color = if (all) pal.teal else pal.text2)
+                Text(if (all) apText("전부 완료 ${t12(hhmm(nowMin))}") else apText("완료 $done"), style = T.body, color = if (all) pal.teal else pal.text2)
             }
             Hair(strong = true)
         }
         if (o == null) item { Empty("불러오는 중…", "") }
         else if (rows.isEmpty()) item {
             val nx = o.upcoming.firstOrNull()
-            Empty("오늘 할 일이 없습니다", nx?.let { "다음 마감은 ${dateLabel(it.date!!, today)} · ${it.task.title}" } ?: "다가오는 7일에도 마감이 없습니다")
+            Empty("오늘 할 일이 없습니다", nx?.let { "다음은 ${dateLabel(it.date!!, today)} · ${it.task.title}" } ?: "다가오는 7일에도 마감이 없습니다")
         }
         var last = -1
         for (r in rows) {
@@ -114,8 +114,8 @@ internal fun ItemLine(n: Int?, i: Instance, late: Boolean, next: Boolean, dayTag
                 textDecoration = if (i.done) T.strike else null, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (next) Text("다음", Modifier.padding(start = 8.dp), style = T.micro, color = pal.teal)
             // 기간 업무는 시작일을 앞에 (끝나는 날이 이 줄의 날이다): "9/28 ~ 17:00"
-            val w = listOfNotNull(dayTag, if (i.task.isSpan) "${md(i.task.start())} ~" else null, i.time.ifEmpty { null }).joinToString(" ")
-            if (w.isNotEmpty()) Text(w, Modifier.padding(start = 8.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2)
+            val w = listOfNotNull(dayTag, if (i.task.isSpan) "${md(i.task.start())} ~" else null, i.time.ifEmpty { null }?.let(::t12)).joinToString(" ")
+            if (w.isNotEmpty()) Text(apText(w), Modifier.padding(start = 8.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2)
             Box(Modifier.clip(RoundedCornerShape(8.dp)).tap(onMenu).padding(horizontal = 6.dp, vertical = 10.dp)) {
                 Text("›", style = T.lead, color = pal.text2.copy(alpha = .6f))
             }

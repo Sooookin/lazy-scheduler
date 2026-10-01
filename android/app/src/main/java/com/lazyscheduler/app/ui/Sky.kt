@@ -50,6 +50,9 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+/** 편 하늘의 높이 (상태 막대 아래). 186 에서 15% 낮췄다. 접힌 하늘은 86dp. 그림의 세로 자는 이 높이/206 이다. */
+val SKY_TALL = 158.dp
+
 /** 궤도 위의 구슬 하나 = 오늘의 일 하나. n 은 아래 목록의 번호와 같다. */
 @Immutable
 data class Bead(val n: Int, val min: Int, val done: Boolean, val late: Boolean, val next: Boolean)

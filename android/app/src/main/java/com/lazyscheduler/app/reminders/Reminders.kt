@@ -171,7 +171,7 @@ object Reminders {
         ensureChannel(ctx)
         val key = extras.getString("key") ?: return
         val time = extras.getString("time").orEmpty()
-        val line = (if (late) "마감 시간 지남" else "곧 마감") + (if (time.isNotEmpty()) " · $time" else "")
+        val line = (if (late) "마감 시간 지남" else "곧 마감") + (if (time.isNotEmpty()) " · ${com.lazyscheduler.app.ui.t12(time)}" else "")
         val detail = extras.getString("detail").orEmpty()
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)

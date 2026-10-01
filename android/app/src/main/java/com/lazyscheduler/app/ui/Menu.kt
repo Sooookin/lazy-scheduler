@@ -70,8 +70,8 @@ fun RowMenu(
                     NumDot(null, it0.done, false)
                     Spacer(Modifier.width(12.dp))
                     Text(it0.task.title, Modifier.weight(1f), style = T.leadM, color = pal.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val w = listOfNotNull(it0.date?.takeIf { it != today }?.let { dateLabel(it, today) }, it0.time.ifEmpty { null }).joinToString(" ")
-                    Text(w, style = T.time, color = pal.text2)
+                    val w = listOfNotNull(it0.date?.takeIf { it != today }?.let { dateLabel(it, today) }, it0.time.ifEmpty { null }?.let(::t12)).joinToString(" ")
+                    Text(apText(w), style = T.time, color = pal.text2)
                 }
                 Spacer(Modifier.height(6.dp))
                 MenuLine(if (it0.done) "완료 취소" else "완료", strong = true, icon = { c -> Check(c, 12.dp) }, onClick = onDone)

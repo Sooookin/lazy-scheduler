@@ -365,3 +365,21 @@ def test_mark_fired_once_and_prunes_old_keys():
     assert not store.mark_fired("a", datetime(2026, 9, 1, 9, 1))
     assert store.mark_fired("b", datetime(2026, 9, 10, 9, 0))   # 3일 넘은 "a" 는 정리됨
     assert store.fired_keys() == {"b"}
+
+
+def test_upcoming_has_the_next_round_of_non_daily_routines():
+    """다가오는 7일에는 할 일과 함께 매주 · 매월 루틴의 다음 회차 하나가 선다. 매일 루틴은 없다."""
+    from datetime import date, datetime, timedelta
+    t = date.today()
+    wd = (t + timedelta(days=2)).weekday()
+    store.add({"title": "주간 회의", "kind": "routine", "due_time": "10:00",
+               "rule": {"period": "week", "weekdays": [wd, (wd + 2) % 7], "interval": 1}})
+    store.add({"title": "매일 점검", "kind": "routine", "rule": {"period": "day", "business_only": False}})
+    store.add({"title": "보고서", "kind": "deadline", "due_date": (t + timedelta(days=3)).isoformat()})
+    o = store.overview(now=datetime.combine(t, datetime.min.time()).replace(hour=8))
+    titles = [i["title"] for i in o["upcoming"]]
+    assert titles.count("주간 회의") == 1 and "매일 점검" not in titles and "보고서" in titles
+    # 주말 · 공휴일이면 회차가 옮겨 가므로 (2026-10-04 일요일 → 그다음 회차) 날짜는 7일 안쪽인지만 본다
+    rt = [i for i in o["upcoming"] if i["title"] == "주간 회의"][0]
+    assert t.isoformat() < rt["date"] <= (t + timedelta(days=7)).isoformat()
+    assert [i["date"] for i in o["upcoming"]] == sorted(i["date"] for i in o["upcoming"])

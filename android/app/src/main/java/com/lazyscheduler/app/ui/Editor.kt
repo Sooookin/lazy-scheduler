@@ -277,7 +277,7 @@ private fun ColumnScope.DeadlinePart(d: Draft, today: LocalDate, businessOnly: B
 private fun TimeAlarm(d: Draft, showHint: Boolean) {
     Label("시각 · 알림")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Slot(if (d.time.isEmpty()) "시각 없음" else d.time, if (showHint) "하늘에서 보기 ↑" else null, Modifier.weight(1f), dim = d.time.isEmpty()) { d.openPicker() }
+        Slot(if (d.time.isEmpty()) "시각 없음" else t12(d.time), if (showHint) "하늘에서 보기 ↑" else null, Modifier.weight(1f), dim = d.time.isEmpty()) { d.openPicker() }
         Spacer(Modifier.width(14.dp))
         Toggle(d.alarm, enabled = d.time.isNotEmpty()) { d.alarm = it }
         if (!showHint) { Spacer(Modifier.width(8.dp)); Text("알림", style = T.body, color = LocalPal.current.text2) }
@@ -313,7 +313,7 @@ private fun TimePanel(d: Draft, onClose: () -> Unit) {
             CloseX(onClose)
         }
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.Bottom) {
-            Text(hhmm(m), style = T.display, color = pal.text)
+            Text(apText(t12(hhmm(m))), style = T.display, color = pal.text)
             Spacer(Modifier.width(10.dp))
             Text("5분 단위", Modifier.padding(bottom = 8.dp), style = T.label, color = pal.text2)
         }
@@ -337,7 +337,7 @@ private fun TimePanel(d: Draft, onClose: () -> Unit) {
             Chip("없음", false) { d.time = ""; d.picking = false }
         }
         Spacer(Modifier.weight(1f))
-        Primary("${hhmm(m)}으로", Modifier.fillMaxWidth().padding(vertical = 14.dp)) { d.time = hhmm(d.pickMin); d.picking = false }
+        Primary("${t12(hhmm(m))}으로", Modifier.fillMaxWidth().padding(vertical = 14.dp)) { d.time = hhmm(d.pickMin); d.picking = false }
     }
 }
 

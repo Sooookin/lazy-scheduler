@@ -81,7 +81,7 @@ class ScreenShots {
         val lit = litMinute(nowMin.toDouble(), "auto", if (allDone) 1.0 else 0.0)
         CompositionLocalProvider(LocalPal provides palette(lit)) {
             val pal = LocalPal.current
-            val tallH = top + 186.dp
+            val tallH = top + SKY_TALL
             val skyH = if (tall) tallH else top + 86.dp
             Column(Modifier.fillMaxSize().background(pal.surface)) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {

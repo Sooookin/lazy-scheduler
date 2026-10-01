@@ -129,7 +129,7 @@ internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 20.dp) {
             }
             .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
             .then(if (!done) Modifier.raised(CircleShape, pal, 1.5.dp) else Modifier)
-            .glow(c, 8.dp, size / 2, if (done || late) pal.glow * (if (done) .9f else .7f) else 0f)
+            .glow(c, 8.dp, size / 2, if (done || late) pal.glowL * (if (done) .9f else .7f) else 0f)
             .clip(CircleShape).background(bg).border(1.5.dp, c, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
@@ -192,7 +192,7 @@ internal fun Primary(text: String, modifier: Modifier = Modifier, enabled: Boole
     val pal = LocalPal.current
     Box(
         modifier.height(44.dp).then(if (enabled) Modifier.raised(RoundedCornerShape(22.dp), pal, 3.dp) else Modifier)
-            .glow(pal.teal, 12.dp, 22.dp, if (enabled) pal.glow * .8f else 0f)
+            .glow(pal.teal, 12.dp, 22.dp, if (enabled) pal.glowL * .8f else 0f)
             .clip(RoundedCornerShape(22.dp)).background(if (enabled) pal.teal else pal.hair2)
             .then(if (enabled) Modifier.press(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
@@ -255,7 +255,7 @@ internal fun Slot(text: String, hint: String?, modifier: Modifier = Modifier, di
             .border(1.dp, pal.hair2, RoundedCornerShape(12.dp)).press(onClick = onClick).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, Modifier.weight(1f), style = T.lead, color = if (dim) pal.text2 else pal.text)
+        Text(apText(text), Modifier.weight(1f), style = T.lead, color = if (dim) pal.text2 else pal.text)
         if (hint != null) Text(hint, style = T.label, color = pal.teal)
     }
 }

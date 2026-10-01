@@ -11,6 +11,7 @@
 220ms 동안 자리를 옮긴다. 곡선은 앱 화면과 같은 cubic-bezier(.2,.8,.2,1).
 그림은 바뀔 때만 다시 만들고, 움직이는 동안에는 위치와 투명도만 바꿔 준다.
 """
+import re
 import functools
 import math
 import queue
@@ -74,14 +75,15 @@ _BASE = dict(
     # 같은 폭이고, 값을 손으로 적어 두면 어긋난다 (64 로 적어 뒀는데 실제는 74 라
     # 시각이 제 칸을 넘어 제목 자리를 먹고 있었다).
     N_MARGIN=18, N_BAR_W=3, N_BARGAP=11, N_COLGAP=16,
-    N_TOP=18, N_BOT=16, N_XCOL=44,          # ✕ 가 차지해 제목이 비워 두는 폭
+    # 위아래 여백은 2.7.2 에서 한 단씩 늘렸다 (18 · 16 · 40 → 22 · 20 · 44) - 카드가 납작해 보였다
+    N_TOP=22, N_BOT=20, N_XCOL=44,          # ✕ 가 차지해 제목이 비워 두는 폭
     # 26px 이었다. 조금 줄여 제목 칸을 벌었다 (시각칸 71→62 · 제목 221→230px).
     # 22px 도 칸 폭은 같아서, 같은 값이면 큰 쪽을 쓴다.
     N_TIME_PX=23, N_TIME_LH=24, N_TIME_GAP=6,
     N_REL_PX=11, N_REL_LH=14,
     N_TTL_PX=13.5, N_TTL_LH=19, N_TTL_GAP=5,
     N_SUB_PX=11, N_SUB_LH=15,
-    N_ACT_H=40, N_ACT_PX=11.5, N_ACT_INSET=4, N_ACT_R=8, N_SEG_PAD=9,
+    N_ACT_H=44, N_ACT_PX=11.5, N_ACT_INSET=4, N_ACT_R=8, N_SEG_PAD=9,
 )
 TITLE_LINES, SUB_LINES = 2, 3
 LIST_MAX = 4
@@ -483,11 +485,20 @@ def _draw_normal(item, hover):
 
     when = (item.get("when") or "").strip()
     rel = (item.get("rel") or "").strip()
+    # 시각은 12시간으로: "13:00" → 큰 01:00 과 그 오른쪽 작은 PM (창 화면의 tmHTML 과 같다)
+    ap = ""
+    m = re.match(r"^(\d{1,2}):(\d{2})$", when)
+    if m:
+        hh = int(m.group(1))
+        when, ap = "%02d:%s" % (hh % 12 or 12, m.group(2)), ("AM" if hh < 12 else "PM")
+    f_ap = _font(500, N_REL_PX)
+    ap_w = int(round(f_ap.getlength(ap))) + s(3) if ap else 0
     # 시각이 없으면 시각 칸을 두지 않는다 (빈 칸을 남기면 카드가 기울어 보인다)
     wx = N_MARGIN + N_BAR_W + N_BARGAP
     # 시각 잉크가 차지하는 실제 폭 (왼쪽 빈 자리를 뺀다)
     lsb_t = _lsb(300, N_TIME_PX, when[:1]) if when else 0
-    time_w = int(round(f_time.getlength(when))) - lsb_t if when else 0
+    num_w = int(round(f_time.getlength(when))) - lsb_t if when else 0
+    time_w = num_w + ap_w
     tx = wx + ((time_w + N_COLGAP) if when else 0)
     # ✕ 는 첫 줄 옆에만 있다. 모든 줄이 그 자리를 비우면 긴 제목에서 둘째 줄이
     # 까닭 없이 짧아진다.
@@ -526,12 +537,16 @@ def _draw_normal(item, hover):
     if when:
         # 시각의 잉크가 wx 에서 시작하게 한다 (띠와의 간격이 시각마다 흔들리지 않게)
         d.text((wx - lsb_t, N_TOP - s(2)), when, font=f_time, fill=_rgb(TEXT) + (255,))
+        if ap:
+            # 큰 숫자의 아랫줄(획의 바닥)에 작은 글자의 바닥을 맞춘다
+            base = N_TOP - s(2) + f_time.getbbox("0")[3]
+            d.text((wx + num_w + s(3), base - f_ap.getbbox("M")[3]), ap, font=f_ap, fill=_rgb(TEXT2) + (255,))
         # 아래 글자는 시각 아래 가운데로. 왼쪽을 맞추려 하면 어느 한쪽은 반드시
         # 어긋난다 - 큰 숫자의 세로 획은 글자 안쪽 깊숙이 있고(26px "1" 은 9px),
         # 작은 글자는 가장자리에 있다(11px "1" 은 3px). 눈은 획을 보므로 왼쪽 끝을
         # 맞춰도 획이 3px 어긋나 보인다. 창 화면의 링도 "큰 숫자 + 작은 라벨" 을
         # 이렇게 가운데로 맞춘다.
-        cx = wx + time_w / 2.0
+        cx = wx + num_w / 2.0          # 아래 글자는 큰 숫자 가운데로 (작은 AM · PM 은 빼고)
         if rel:
             ry = N_TOP + N_TIME_LH + N_TIME_GAP
             if item.get("late"):
@@ -563,6 +578,15 @@ def _draw_normal(item, hover):
     return card, hits
 
 
+def _ap12(t):
+    """"13:00" → "01:00 PM" (창 화면의 tmText 와 같다). 시각이 아니면 그대로."""
+    m = re.match(r"^(\d{1,2}):(\d{2})$", t or "")
+    if not m:
+        return t
+    h = int(m.group(1))
+    return "%02d:%s %s" % (h % 12 or 12, m.group(2), "AM" if h < 12 else "PM")
+
+
 def _draw_list(item, hover):
     """여러 건을 한 장에: 아침 브리핑 · 놓친 알림 · 자리를 비운 동안 쌓인 알림."""
     from PIL import ImageDraw
@@ -587,10 +611,10 @@ def _draw_list(item, hover):
         if i:
             _hline(card, L, y, CW - L * 2, RULE1)
         cy = y + LIST_ROW // 2
-        d.text((L, cy), key or "—", font=f_key, anchor="lm", fill=_rgb(TEAL) + (255,))
+        d.text((L, cy), _ap12(key) or "—", font=f_key, anchor="lm", fill=_rgb(TEAL) + (255,))
         pill_w = int(f_pill.getlength("지남")) + s(14) if over else 0
-        wide = CW - L - (L + s(48)) - (pill_w + s(8) if over else 0)
-        d.text((L + s(48), cy), _wrap(name, f_row, wide, 1)[0], font=f_row, anchor="lm",
+        wide = CW - L - (L + s(62)) - (pill_w + s(8) if over else 0)
+        d.text((L + s(62), cy), _wrap(name, f_row, wide, 1)[0], font=f_row, anchor="lm",
                fill=_rgb(TEXT) + (255,))
         if over:
             px = CW - L - pill_w
@@ -598,7 +622,7 @@ def _draw_list(item, hover):
             d.text((px + pill_w / 2, cy), "지남", font=f_pill, anchor="mm", fill=_rgb(ON_PILL) + (255,))
         y += LIST_ROW
     if more:
-        d.text((L + s(48), y + s(6)), "그 외 %d건" % more, font=f_more, fill=_rgb(FAINT) + (255,))
+        d.text((L + s(62), y + s(6)), "그 외 %d건" % more, font=f_more, fill=_rgb(FAINT) + (255,))
     return card, {"x": _close(card, hover)}
 
 

@@ -340,9 +340,11 @@ function bez(p){
    빛이 어디서 오는지는 그림자가 말한다 - 아침에는 그림자가 오른쪽으로,
    한낮에는 발밑으로, 저녁에는 왼쪽으로 진다. 앞의 겹일수록 그림자가 길고
    짙다. 깊이는 그 하나로만 말한다. */
-const KY = 180 / 206;                  /* 세로 누름 */
-const SKY_W = 900, SKY_H = 184;        /* 도안의 자 (210 을 누른 값) */
-const SKY_HZ = 180, SKY_PK = 47;       /* 지평선 · 궤도 꼭대기 (206 · 54 를 누른 값) */
+/* 편 하늘의 높이는 style.css 의 --sky-tall 하나에서 온다 (152 - 180 에서 15% 낮췄다) */
+const SKY_TALL = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sky-tall')) || 152;
+const KY = SKY_TALL / 206;             /* 세로 누름 */
+const SKY_W = 900, SKY_H = SKY_TALL + 4;   /* 도안의 자 (210 을 누른 값) */
+const SKY_HZ = SKY_TALL, SKY_PK = Math.round(54 * KY);   /* 지평선 · 궤도 꼭대기 (206 · 54 를 누른 값) */
 const SKY_X0 = 150, SKY_X1 = 760;      /* 해 뜨는 자리 · 지는 자리 */
 const SKY_RIB = 13;                    /* 띠 두께 */
 
@@ -508,7 +510,7 @@ function drawSky(all){
       labels.push('<text data-n="' + i.n + '" x="' + cx + '" y="' + (cy + 3.4).toFixed(1) +
         '" text-anchor="middle" font-size="9.5" font-weight="500"' + (fill ? '' : ' class="bn"') + ' fill="' +
         (fill ? 'var(--on-teal)' : ring) + '" opacity="' + (done ? .55 : 1) + '">' + i.n + '</text>');
-      SKY_BEADS.push({n:i.n, x:cx, y:cy, label:(i.time || '') + '  ' +
+      SKY_BEADS.push({n:i.n, x:cx, y:cy, label:tmText(i.time) + '  ' +
         (i.title.length > 22 ? i.title.slice(0,21) + '…' : i.title)});
     });
   });

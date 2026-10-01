@@ -226,7 +226,7 @@ fun App() {
     val tall = draft.picking || (ed != null && ed.task == null) || (ed == null && tab == Tab.HOME)
     val density = LocalDensity.current
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val tallH = top + 186.dp
+    val tallH = top + SKY_TALL
     // 접히고 펴지는 값은 State 째로 넘긴다 - 여기서 읽으면 움직이는 동안 매 프레임 화면 전체를 다시 짠다
     // 하늘이 접히고 펴지는 것 · 화면이 바뀌는 것은 "움직임 줄이기" 와 상관없이 움직인다 (PC 와 같다 -
     // 그 설정은 돌멩이의 폴짝 · 굴림만 멈춘다). 휴대폰의 "애니메이션 제거" 를 켜면 Compose 가 알아서 멈춘다.
@@ -324,7 +324,7 @@ internal fun TabBar(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     if (t == null) {
                         Box(
-                            Modifier.offset(y = (-8).dp).size(50.dp).glow(pal.teal, 14.dp, 25.dp, pal.glow * .9f)
+                            Modifier.offset(y = (-8).dp).size(50.dp).glow(pal.teal, 14.dp, 25.dp, pal.glowL * .9f)
                                 .shadow(8.dp, CircleShape, spotColor = pal.teal, ambientColor = pal.teal)
                                 .clip(CircleShape).background(pal.teal).press(onClick = onAdd),
                             contentAlignment = Alignment.Center,

@@ -51,10 +51,12 @@
   /* 빛의 세기 · 넘어가는 때의 글자 테. 자바스크립트가 해 높이로 다시 쓴다
      (applyLight). 여기 값은 한낮의 것이다. */
   --glow:.13; --glow-w:0; --halo:none;
-  /* 하늘의 높이. 종이가 열리거나 달력을 보면 body.folded 가 이 하나만 바꾼다.
-     그림 자체는 늘 184px 이고, 접힐 때는 88px 만큼 위로 밀려 올라간다.
-     (참고 도안은 210 · 206 이다. 세로만 180/206 로 눌렀다 - drawSky 의 KY) */
-  --sky-h:180px;
+  /* 하늘의 높이. 편 높이는 --sky-tall 하나로 정한다 (sky.js 가 읽어 그림의 세로 자 KY 를 만든다).
+     종이가 열리거나 달력을 보면 body.folded 가 --sky-h 만 92px 로 바꾼다. 그림 자체는 늘
+     편 높이 + 4px 이고, 접힐 때는 그만큼 위로 밀려 올라간다.
+     (참고 도안은 210 · 206 이다. 세로만 --sky-tall/206 로 눌렀다) */
+  --sky-tall:152px;
+  --sky-h:var(--sky-tall);
 }
 
 *{box-sizing:border-box}
@@ -133,7 +135,7 @@ html[data-os="mac"] .tb-gap{order:4}
 /* 그림은 늘 184px 이다. 종이가 열리면 눌러 찌그러뜨리지 않고 통째로 위로
    밀어 올린다 - 찌그러뜨리면 능선과 궤도의 비례가 그때만 달라진다.
    시계 · 단추 · 게으름뱅이도 같이 올라가므로 하늘 한 장이 함께 움직인다. */
-.sky-art{position:absolute; left:0; right:0; top:0; height:184px;
+.sky-art{position:absolute; left:0; right:0; top:0; height:calc(var(--sky-tall) + 4px);
   transition:transform var(--t-move) var(--ease-move)}
 /* 궤도의 양 끝은 지평선보다 조금 아래에서 끝난다. 땅이 그 끝을 덮어
    호가 땅에서 자라 나온 것처럼 보인다 - 그래서 여기서 자르지 않는다. */
@@ -167,11 +169,11 @@ html[data-os="mac"] body.pv .grip{display:none}
 body.sheet .ground::before{opacity:1}
 /* 창이 열리면 하늘이 접힌다 - 시계와 단추는 위로 빠져나가고 능선만 남는다 */
 body.folded{--sky-h:92px}
-body.folded .sky-art{transform:translateY(-88px)}
+body.folded .sky-art{transform:translateY(calc(92px - var(--sky-tall)))}
 /* 새 항목 · 수정에서 시각 칸을 누르면 하늘이 다시 펼쳐지고, 고른 시각이 궤도 위에
    점선 구슬로 먼저 놓인다 (drawSky 의 PEEK). 시계와 단추는 비켜 둔다 - 종이가 열린
    동안 그 자리의 단추를 누를 일이 없다. */
-body.folded.peek{--sky-h:180px}
+body.folded.peek{--sky-h:var(--sky-tall)}
 body.folded.peek .sky-art{transform:none}
 body.folded.peek .rib{opacity:1; transform:none}
 body.peek .clk, body.peek .acts{opacity:0; pointer-events:none}
@@ -186,7 +188,7 @@ body.folded .clk, body.folded .acts, body.peek .clk, body.peek .acts{
 /* 시계. 이름을 .now 로 두면 달력의 '오늘' 칸(.day.now) · 작은 달력의 오늘
    (.mc span.now) · 시각 고르기의 지금 시(.tp-g button.now)가 모두 이 규칙에
    걸려 position:absolute; left:46px 로 튕겨 나간다 - 실제로 그랬다. */
-.clk{position:absolute; left:46px; top:44px; z-index:3}
+.clk{position:absolute; left:46px; top:30px; z-index:3}
 /* 접힌 하늘의 작은 시계. 창 · 달력을 보는 동안에도 지금 몇 시 · 무슨 요일인지는 남는다.
    접힌 띠(92px)에 들어가도록 한 줄로 눕히고 글자를 줄였다 (시각은 제목 크기 · 날짜는 본문 크기).
    큰 시계와 같은 왼쪽 선 · 같은 가는 숫자다. 하늘이 거의 다 접힌 뒤에 나타난다. */
@@ -429,6 +431,10 @@ h2 .note{margin-left:auto; font-style:normal; color:var(--text2);
 .t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .item.done .t{color:var(--text2); text-decoration:line-through}
 .meta{flex:0 0 auto; display:flex; align-items:center; gap:8px}
+/* 12시간 시각의 AM · PM (app.js 의 tmHTML). 숫자 오른쪽에 작게 붙는다 */
+.ap{font-size:var(--fs-micro); letter-spacing:var(--tr-micro); font-weight:var(--w-sec); margin-left:2px}
+.clk-c .ap{font-size:var(--fs-head); letter-spacing:var(--tr-head); font-weight:var(--w-thin); margin-left:4px}
+.clk-m b .ap{font-size:var(--fs-label); letter-spacing:var(--tr-label); margin-left:2px}
 .tm{font-size:var(--fs-label); letter-spacing:var(--tr-label); font-weight:var(--w-thin); color:var(--text2);
   font-variant-numeric:tabular-nums}
 .item.late .tm{color:var(--late)}
@@ -642,7 +648,7 @@ body.v-cal #btn-manage{display:none}
 .wi.big{flex:0 0 auto; gap:8px; height:24px; font-size:var(--fs-label); letter-spacing:var(--tr-label);
   border-radius:var(--r-xs); cursor:pointer; padding:0 4px}
 .wi.big:hover{background-color:var(--hover)}
-.wm{flex:0 0 30px; text-align:right; font-variant-numeric:tabular-nums; font-weight:var(--w-thin);
+.wm{flex:0 0 46px; text-align:right; font-variant-numeric:tabular-nums; font-weight:var(--w-thin);
   color:var(--text2); font-size:var(--fs-micro); letter-spacing:var(--tr-micro)}
 .wm.ok{color:var(--teal); font-weight:var(--w-sec)}
 .wm.dt{height:18px; background:radial-gradient(circle at calc(100% - 5px) 50%, var(--teal) 0 2.5px, transparent 3px)}
@@ -1369,22 +1375,25 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
    네온은 색감만 낸다: 번짐은 짧고 옅게, 세기(--glow)는 낮에 가장 옅고 밤이 깊을수록 조금 짙다
    (applyLight). 작은 글자에는 주지 않는다 - 획이 뭉개진다. 흰 글자의 번짐은 밤의 큰 글자
    (시계 · 칸 제목)에만. 모두 멈춘 그림자라 계속 도는 애니메이션이 아니다. */
+/* 일정 판 · 창 쪽의 빛은 하늘의 반쯤으로 (--glow-l · --glow-wl). 읽는 곳에서는 네온 느낌이 강했다 -
+   하늘의 구슬 · 시계 · 돌멩이 · 하늘의 단추는 그대로 --glow · --glow-w 를 쓴다 */
+:root{--glow-l:calc(var(--glow) * .45); --glow-wl:calc(var(--glow-w) * .45)}
 .ground, .ground *{text-shadow:var(--halo)}
 .rb.fill{box-shadow:0 0 14px color-mix(in srgb, var(--teal) calc(var(--glow) * 90%), transparent)}
-.item.next{box-shadow:inset 0 0 0 1.2px var(--teal), 0 0 12px color-mix(in srgb, var(--teal) calc(var(--glow) * 60%), transparent)}
-.item.done .dot{box-shadow:inset 0 0 0 1.5px var(--ring, var(--teal)), 0 0 8px color-mix(in srgb, var(--teal) calc(var(--glow) * 90%), transparent)}
-.item.late:not(.done) .dot{box-shadow:inset 0 0 0 1.5px var(--ring, var(--teal)), 0 0 8px color-mix(in srgb, var(--late) calc(var(--glow) * 70%), transparent)}
-.seg button.on, .tabs button.on, .seg.tg button, .wd span.on, .tp-g button.on{box-shadow:0 0 10px color-mix(in srgb, var(--teal) calc(var(--glow) * 80%), transparent)}
-.sw input:checked{box-shadow:0 0 8px color-mix(in srgb, var(--teal) calc(var(--glow) * 80%), transparent)}
-.chk input:checked{box-shadow:inset 0 0 0 1.5px var(--ring, var(--hair2)), 0 0 8px color-mix(in srgb, var(--teal) calc(var(--glow) * 80%), transparent)}
-.wr.sel{box-shadow:inset 0 0 0 1.4px var(--teal), 0 0 12px color-mix(in srgb, var(--teal) calc(var(--glow) * 50%), transparent)}
-.nowrule::before, .nowrule::after, .chip.t::before{box-shadow:0 0 5px color-mix(in srgb, var(--teal) calc(var(--glow) * 100%), transparent)}
-.sband:not(.dn), .rail:not(.dn), .sp-bar i{box-shadow:0 0 6px color-mix(in srgb, var(--c) calc(var(--glow) * 140%), transparent)}
-.rail.st:not(.dn){box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--c), 0 0 8px color-mix(in srgb, var(--c) calc(var(--glow) * 140%), transparent)}
+.item.next{box-shadow:inset 0 0 0 1.2px var(--teal), 0 0 12px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 60%), transparent)}
+.item.done .dot{box-shadow:inset 0 0 0 1.5px var(--ring, var(--teal)), 0 0 8px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 90%), transparent)}
+.item.late:not(.done) .dot{box-shadow:inset 0 0 0 1.5px var(--ring, var(--teal)), 0 0 8px color-mix(in srgb, var(--late) calc(var(--glow-l) * 70%), transparent)}
+.seg button.on, .tabs button.on, .seg.tg button, .wd span.on, .tp-g button.on{box-shadow:0 0 10px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 80%), transparent)}
+.sw input:checked{box-shadow:0 0 8px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 80%), transparent)}
+.chk input:checked{box-shadow:inset 0 0 0 1.5px var(--ring, var(--hair2)), 0 0 8px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 80%), transparent)}
+.wr.sel{box-shadow:inset 0 0 0 1.4px var(--teal), 0 0 12px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 50%), transparent)}
+.nowrule::before, .nowrule::after, .chip.t::before{box-shadow:0 0 5px color-mix(in srgb, var(--teal) calc(var(--glow-l) * 100%), transparent)}
+.sband:not(.dn), .rail:not(.dn), .sp-bar i{box-shadow:0 0 6px color-mix(in srgb, var(--c) calc(var(--glow-l) * 140%), transparent)}
+.rail.st:not(.dn){box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--c), 0 0 8px color-mix(in srgb, var(--c) calc(var(--glow-l) * 140%), transparent)}
 .sky-svg circle{filter:drop-shadow(0 0 3px color-mix(in srgb, var(--teal) calc(var(--glow) * 110%), transparent))}
 body.night-ink .clk-c, body.night-ink #clock-m{text-shadow:0 0 18px rgba(214,236,246,calc(var(--glow-w) * .8))}
 body.night-ink .clk-d, body.night-ink .clk-m span{text-shadow:0 0 10px rgba(214,236,246,calc(var(--glow-w) * .6))}
-body.night-ink .home h2, body.night-ink #cal-ym{text-shadow:0 0 12px rgba(214,236,246,calc(var(--glow-w) * .75))}
+body.night-ink .home h2, body.night-ink #cal-ym{text-shadow:0 0 12px rgba(214,236,246,calc(var(--glow-wl) * .75))}
 /* 밤의 돌멩이는 달빛을 머금은 흰 덩어리 - 둘레로 빛이 번진다 */
 body.night-ink .gy-b{opacity:1; box-shadow:var(--gsh,2.8px) 5px 6px rgba(31,42,40,.42), 0 0 22px rgba(214,236,246,calc(var(--glow-w) * .7)),
   0 0 6px rgba(214,236,246,calc(var(--glow-w) * .45)), inset 1px 1px 0 rgba(255,255,255,.18)}
@@ -1392,8 +1401,8 @@ body.night-ink .gy-b{opacity:1; box-shadow:var(--gsh,2.8px) 5px 6px rgba(31,42,4
    흰 빛으로 두면 색 글자(지난 일의 시각 등) 둘레에서는 보이지 않았다 */
 body.night-ink .tm, body.night-ink .st, body.night-ink .band, body.night-ink .grp, body.night-ink .nowrule,
 body.night-ink .day .n, body.night-ink .cal-head span, body.night-ink .wd-n, body.night-ink .wd-w,
-body.night-ink .wm.tm, body.night-ink .wp-h span, body.night-ink .ruler span, body.night-ink .sp-r{text-shadow:0 0 2px color-mix(in srgb, currentColor calc(var(--glow-w) * 55%), transparent), 0 0 9px color-mix(in srgb, currentColor calc(var(--glow-w) * 75%), transparent)}
-body.night-ink .home h2 .n, body.night-ink .wp-h b{text-shadow:0 0 10px rgba(214,236,246,calc(var(--glow-w) * .7))}
+body.night-ink .wm.tm, body.night-ink .wp-h span, body.night-ink .ruler span, body.night-ink .sp-r{text-shadow:0 0 2px color-mix(in srgb, currentColor calc(var(--glow-wl) * 55%), transparent), 0 0 9px color-mix(in srgb, currentColor calc(var(--glow-wl) * 75%), transparent)}
+body.night-ink .home h2 .n, body.night-ink .wp-h b{text-shadow:0 0 10px rgba(214,236,246,calc(var(--glow-wl) * .7))}
 /* 궤도의 구슬 숫자: 밤에는 흰 글자 (테 색 숫자는 어두운 구슬 위에서 잘 안 보였다) */
 body.night-ink .sky-svg text.bn{fill:var(--text); filter:drop-shadow(0 0 2px rgba(214,236,246,calc(var(--glow-w) * .8)))}
 /* 밤의 채운 청록은 네온 민트라 그 위의 체크는 먹빛이다 (--on-teal 과 같은 뜻 · 그림이라 따로 적는다) */

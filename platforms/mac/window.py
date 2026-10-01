@@ -22,7 +22,7 @@ from PyObjCTools import AppHelper
 from desktop import paths
 
 _WIN = [None]
-DEFAULT_W, DEFAULT_H = 1050, 648
+DEFAULT_W, DEFAULT_H = 1050, 712
 MIN_W, MIN_H = 720, 480
 CREATE_OPTS = dict(frameless=True, easy_drag=False)
 _placed = [False]

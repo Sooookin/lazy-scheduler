@@ -126,7 +126,8 @@ fun CalendarScreen(
             label = "month",
         ) { m ->
             val f = m.atDay(1)
-            MonthGrid(f, f.minusDays((f.dayOfWeek.value % 7).toLong()), picked, today, byDay, spans) { d -> pick(d) }
+            // AnimatedContent 는 속을 겹쳐 쌓는 틀이다 - 격자의 줄들이 한 자리에 포개지지 않게 세로로 묶는다
+            Column { MonthGrid(f, f.minusDays((f.dayOfWeek.value % 7).toLong()), picked, today, byDay, spans) { d -> pick(d) } }
         }
         Hair(Modifier.padding(vertical = 14.dp), strong = true)
         // 다른 날을 고르면 아래 목록이 옅게 떠오르며 바뀐다 (같은 날에서 완료 · 삭제는 움직이지 않는다)
@@ -212,7 +213,7 @@ private fun DayCell(d: LocalDate, other: Boolean, picked: Boolean, isToday: Bool
     }
     Box(
         Modifier.size(34.dp).then(if (picked) Modifier.raised(CircleShape, pal) else Modifier)
-            .glow(pal.teal, 10.dp, 17.dp, if (picked) pal.glow else 0f).clip(CircleShape)
+            .glow(pal.teal, 10.dp, 17.dp, if (picked) pal.glowL else 0f).clip(CircleShape)
             .background(if (picked) pal.teal else Color.Transparent)
             .tap(onClick),
         contentAlignment = Alignment.Center,
@@ -233,7 +234,7 @@ private val WK_H = 44.dp                     // 한 줄의 높이 (앞의 둘까
 private val WK_GAP = 6.dp
 private val RAIL_STEP = 7.dp
 private const val WK_BUF = 2                 // 위아래로 더 그려 두는 줄 (하루 · 이틀 넘길 때 빈자리가 없다)
-private val TIME_W = 38.dp                   // "11:00" 이 잘리지 않는 폭 (이름이 이 뒤에서 줄을 맞춘다)
+private val TIME_W = 52.dp                   // "11:00" 이 잘리지 않는 폭 (이름이 이 뒤에서 줄을 맞춘다)
 
 /**
  * 고른 날부터 7일. 한 줄: 날짜 · 요일 | 앞의 둘 (시각 · 이름, 시각이 없으면 점) | 건수.
@@ -322,7 +323,7 @@ private fun Rails(first: LocalDate, rows: Int, vis: List<Task>, lanes: Map<Strin
             val bot = days(first, b) * (h + gap) + h - if (en) inset else 0f
             val x = (lanes[s.id] ?: 0) * RAIL_STEP.toPx()
             val c = spans.color(s).copy(alpha = if (s.done) .3f else 1f)
-            if (!s.done && pal.glow > 0f) drawRoundRect(c.copy(alpha = pal.glow * 1.2f), Offset(x - 1.dp.toPx(), top - 1.dp.toPx()),
+            if (!s.done && pal.glowL > 0f) drawRoundRect(c.copy(alpha = pal.glowL * 1.2f), Offset(x - 1.dp.toPx(), top - 1.dp.toPx()),
                 Size(w + 2.dp.toPx(), bot - top + 2.dp.toPx()), CornerRadius(3.dp.toPx()))
             drawRoundRect(c, Offset(x, top), Size(w, maxOf(w, bot - top)), CornerRadius(2.dp.toPx()))
         }
@@ -340,7 +341,7 @@ private fun WeekRow(d: LocalDate, sel: Boolean, isToday: Boolean, today: LocalDa
     val shape = RoundedCornerShape(10.dp)
     Row(
         Modifier.fillMaxWidth().height(WK_H)
-            .then(if (sel) Modifier.glow(pal.teal, 8.dp, 10.dp, pal.glow * .5f) else Modifier)
+            .then(if (sel) Modifier.glow(pal.teal, 8.dp, 10.dp, pal.glowL * .5f) else Modifier)
             .clip(shape)
             .background(if (isToday) pal.teal.copy(alpha = .13f) else if (sel) pal.field else Color.Transparent)
             .then(if (sel) Modifier.border(1.4.dp, pal.teal, shape) else Modifier)
@@ -383,7 +384,7 @@ private fun WeekLine(i: Instance, today: LocalDate) {
         Box(Modifier.width(TIME_W), contentAlignment = Alignment.CenterEnd) {
             when {
                 i.done -> Text("✓", style = T.label, color = pal.teal)
-                i.time.isNotEmpty() -> Text(i.time, style = T.time.copy(fontSize = T.label.fontSize).lit(if (past) pal.late else pal.text2),
+                i.time.isNotEmpty() -> Text(apText(t12(i.time)), style = T.time.copy(fontSize = T.label.fontSize).lit(if (past) pal.late else pal.text2),
                     color = if (past) pal.late else pal.text2, maxLines = 1)
                 else -> Box(Modifier.padding(end = 3.dp).size(5.dp).clip(CircleShape).background(if (past) pal.text.copy(alpha = .75f) else pal.teal))
             }
@@ -462,7 +463,7 @@ private fun SpanRow(s: Task, at: LocalDate, c: Color, onOpen: () -> Unit, onMenu
     Column(Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(10.dp)).press(onLong = onMenu, onClick = onOpen)
         .padding(horizontal = 6.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).glow(c, 5.dp, 3.dp, if (s.done) 0f else pal.glow * 1.2f).clip(RoundedCornerShape(3.dp)).background(c.copy(alpha = if (s.done) .4f else 1f)))
+            Box(Modifier.size(10.dp).glow(c, 5.dp, 3.dp, if (s.done) 0f else pal.glowL * 1.2f).clip(RoundedCornerShape(3.dp)).background(c.copy(alpha = if (s.done) .4f else 1f)))
             Spacer(Modifier.width(10.dp))
             Text(s.title, Modifier.weight(1f), style = T.lead, color = if (s.done) pal.text2 else pal.text, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, textDecoration = if (s.done) T.strike else null)

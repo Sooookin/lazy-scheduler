@@ -61,7 +61,7 @@ fun AllScreen(tasks: List<Task>, today: LocalDate, onOpen: (Task) -> Unit) {
                     Text(t.title, Modifier.weight(1f), style = T.lead, color = if (t.done) pal.text2 else pal.text,
                         textDecoration = if (t.done) T.strike else null, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val (w, late) = whenText(t, today)
-                    Text(w, Modifier.padding(start = 10.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2, maxLines = 1)
+                    Text(apText(w), Modifier.padding(start = 10.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2, maxLines = 1)
                     Chevron()
                 }
                 Hair()
@@ -79,7 +79,7 @@ private fun whenText(t: Task, today: LocalDate): Pair<String, Boolean> = when (t
     else -> {
         val d = t.dueDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         if (d == null) "기한 없음" to false
-        else ((if (t.isSpan) md(t.start()) + " – " else "") + dateLabel(d, today) + if (t.dueTime.isNotEmpty()) " " + t.dueTime else "") to (!t.done && d.isBefore(today))
+        else ((if (t.isSpan) md(t.start()) + " – " else "") + dateLabel(d, today) + if (t.dueTime.isNotEmpty()) " " + t12(t.dueTime) else "") to (!t.done && d.isBefore(today))
     }
 }
 

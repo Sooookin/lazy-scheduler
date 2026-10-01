@@ -123,9 +123,13 @@ object Plan {
         }
         val todays = ins.filter { it.date == today }.sortedWith(compareBy<Instance> { it.done }.then(order))
         val week = today.plusDays(7)
-        val upcoming = ins.filter {
-            it.kind == "deadline" && it.date != null && it.date.isAfter(today) && !it.date.isAfter(week) && !it.done
-        }.sortedWith(order)
+        // 할 일 전부와, 매일이 아닌 루틴(매주 · 매월 · 분기 …)의 다음 회차 하나 (PC 의 store.overview 와 같다)
+        val soon = ins.filter { it.date != null && it.date.isAfter(today) && !it.date.isAfter(week) && !it.done }
+        val rtSeen = HashSet<String>()
+        val upcoming = (soon.filter { it.kind == "deadline" } +
+            soon.filter { it.kind == "routine" && Recur.normalize(it.task.rule)["period"] != "day" }
+                .sortedBy { it.date }.filter { rtSeen.add(it.task.id) })
+            .sortedWith(compareBy<Instance>({ it.date }, { it.time.ifEmpty { "99:99" } }, { it.kind != "deadline" }))
         val next = HashMap<String, Instance>()
         for (i in ins) {
             if (i.kind != "routine" || i.date == null || i.date.isBefore(today)) continue

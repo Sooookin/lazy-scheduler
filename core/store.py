@@ -1075,10 +1075,19 @@ def _overview_body(d, today):
     # ── 오늘 ────────────────────────────────────────────────
     todays = sorted([i for i in ins if i["date"] == ti], key=lambda i: (i["done"],) + key(i))
 
-    # ── 다가오는 마감 (반복 제외) ────────────────────────────
+    # ── 다가오는 마감 (7일) ──────────────────────────────────
+    # 할 일 전부와, 매일이 아닌 루틴(매주 · 매월 · 분기 …)의 다음 회차 하나. 매일 도는 루틴은
+    # 어차피 오늘 칸에 늘 있으므로 넣지 않는다 - 넣으면 7일 내내 같은 이름이 줄을 채운다.
     wk = (today + timedelta(days=7)).isoformat()
-    upcoming = sorted([i for i in ins if i["kind"] == "deadline" and i["date"]
-                       and ti < i["date"] <= wk and not i["done"]], key=key)
+    upcoming = [i for i in ins if i["kind"] == "deadline" and i["date"]
+                and ti < i["date"] <= wk and not i["done"]]
+    rt_seen = set()
+    for i in sorted(ins, key=lambda x: x["date"] or "9999"):
+        if (i["kind"] == "routine" and i["date"] and ti < i["date"] <= wk and not i["done"]
+                and i.get("period") != "day" and i["id"] not in rt_seen):
+            rt_seen.add(i["id"])
+            upcoming.append(i)
+    upcoming.sort(key=lambda i: (i["date"], i["time"] or "99:99", i["kind"] != "deadline"))
 
     # ── 반복 업무: 항목당 "다음 예정일" 한 줄 ────────────────
     nxt = {}

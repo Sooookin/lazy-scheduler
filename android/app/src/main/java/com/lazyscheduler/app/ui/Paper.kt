@@ -87,7 +87,7 @@ fun Modifier.glow(color: Color, radius: Dp, corner: Dp, strength: Float): Modifi
 @Composable
 @ReadOnlyComposable
 fun TextStyle.lit(color: Color, big: Boolean = false): TextStyle {
-    val w = LocalPal.current.glowW
+    val w = LocalPal.current.glowWL             // 글자는 모두 일정 판 쪽이다 - 하늘의 반쯤
     if (w <= 0f) return this
     val d = LocalDensity.current.density
     return copy(shadow = Shadow(color.copy(alpha = (if (big) .7f else .6f) * w), blurRadius = (if (big) 12f else 7f) * d))
