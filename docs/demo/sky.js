@@ -379,14 +379,6 @@ function drawSky(all){
     while(q[1] > MINY && n++ < 400){ mm += m < MID ? 2 : -2; q = at(mm); }
     return {x:q[0], y:q[1], m:mm};
   };
-  /* 궤도를 따라 d 픽셀 옆. 한 묶음의 구슬은 가로로 늘어놓지 않고 띠를 탄다 -
-     기울어진 자리에서 가로로 놓으면 띠 밖으로 밀려 나간다. */
-  const along = (c, d) => {
-    if(!d) return [c.x, c.y];
-    let m = c.m, q = [c.x, c.y], n = 0;
-    while(Math.hypot(q[0]-c.x, q[1]-c.y) < Math.abs(d) && n++ < 600){ m += d > 0 ? .5 : -.5; q = at(m); }
-    return q;
-  };
 
   /* 빛이 오는 쪽. +1 이면 왼쪽(아침), 0 이면 머리 위(한낮), -1 이면 오른쪽(저녁).
      그림자의 방향 · 길이가 전부 여기서 나온다. */
@@ -477,31 +469,43 @@ function drawSky(all){
   });
   SKY_BEADS = [];
   const marks = [], labels = [], groups = [];
-  /* 가까운 것은 한 덩어리로 묶는다. 겹쳐서 얼룩이 되는 것을 막는다 */
+  /* 가까운 것은 한 덩어리(알약)로 묶는다. 겹쳐서 얼룩이 되는 것을 막는다.
+     알약 하나의 치수: 구슬(반지름 8.5 + 테 0.8) 사이 틈 2.4 → 중심 간격 21, 알약 안 여백은 사방 2.7 로 같게
+     (높이 24 = 구슬 18.6 + 2.7 × 2). 구슬은 알약의 곧은 축 위에 늘어놓는다 - 휜 궤도를 따라 놓으면
+     휜 자리에서 구슬이 알약 가운데선에서 벗어나 삐뚤어 보였다. 알약끼리 닿으면 한 알약으로 합친다. */
+  const BEAD_R = 8.5, BEAD_S = 21, PILL_H = 24;
   timed.sort((a, b) => a.x - b.x).forEach(p => {
     const G = groups[groups.length-1];
     if(G && p.x - G.pts[G.pts.length-1].x < 20) G.pts.push(p); else groups.push({pts:[p]});
   });
+  const span = G => { const c = onArc(G.pts.reduce((t, p) => t + mins(p.i.time), 0) / G.pts.length), h = ((G.pts.length - 1) * BEAD_S + PILL_H) / 2;
+    return [c.x - h, c.x + h]; };
+  for(let k = 1; k < groups.length; ){
+    if(span(groups[k-1])[1] + 4 > span(groups[k])[0]){ groups[k-1].pts.push(...groups[k].pts); groups.splice(k, 1); k = Math.max(1, k - 1); }
+    else k++;
+  }
   groups.forEach(G => {
     const n = G.pts.length;
     const c0 = onArc(G.pts.reduce((t, p) => t + mins(p.i.time), 0) / n);
     const q1 = at(c0.m - 1), q2 = at(c0.m + 1);
     const ang = Math.atan2(q2[1]-q1[1], q2[0]-q1[0]) * 180/Math.PI;
+    const ux = Math.cos(ang * Math.PI / 180), uy = Math.sin(ang * Math.PI / 180);
     /* 아직 안 끝난 것이 있는 묶음만 땅까지 줄기를 내린다 */
     const open = G.pts.filter(p => !p.i.done);
-    if(open.length) marks.push('<line x1="' + c0.x.toFixed(1) + '" y1="' + (c0.y + 12).toFixed(1) +
+    if(open.length) marks.push('<line x1="' + c0.x.toFixed(1) + '" y1="' + (c0.y + PILL_H / 2).toFixed(1) +
       '" x2="' + c0.x.toFixed(1) + '" y2="' + SKY_HZ + '" stroke="' +
       (open.some(p => late(p.i)) ? 'var(--late)' : 'var(--teal)') + '" stroke-width="1.4" opacity=".7"/>');
     /* 알약은 띠의 기울기를 따라 눕는다 - 궤도 위에 놓인 물건으로 읽힌다 */
-    if(n > 1) marks.push('<rect x="' + (c0.x - n*9 - 3).toFixed(1) + '" y="' + (c0.y - 11).toFixed(1) +
-      '" width="' + (n*18 + 6) + '" height="22" rx="11" fill="var(--bead)" stroke="var(--teal)" stroke-width="1" transform="rotate(' +
+    const pw = (n - 1) * BEAD_S + PILL_H;
+    if(n > 1) marks.push('<rect x="' + (c0.x - pw / 2).toFixed(1) + '" y="' + (c0.y - PILL_H / 2).toFixed(1) +
+      '" width="' + pw + '" height="' + PILL_H + '" rx="' + PILL_H / 2 + '" fill="var(--bead)" stroke="var(--teal)" stroke-width="1" transform="rotate(' +
       ang.toFixed(1) + ' ' + c0.x.toFixed(1) + ' ' + c0.y.toFixed(1) + ')"/>');
     G.pts.forEach((p, j) => {
       const i = p.i, done = !!i.done, bad = late(i), isNext = nx && nx.id === i.id;
-      const b = along(c0, (j - (n-1)/2) * 18);
+      const off = (j - (n-1)/2) * BEAD_S, b = [c0.x + ux * off, c0.y + uy * off];
       const cx = +b[0].toFixed(1), cy = +b[1].toFixed(1);
       const ring = bad ? 'var(--late)' : 'var(--teal)', fill = done || isNext;
-      marks.push('<circle data-n="' + i.n + '" cx="' + cx + '" cy="' + cy + '" r="8.5" fill="' +
+      marks.push('<circle data-n="' + i.n + '" cx="' + cx + '" cy="' + cy + '" r="' + BEAD_R + '" fill="' +
         (fill ? 'var(--teal)' : 'var(--bead)') + '" stroke="' + ring +
         '" stroke-width="1.6" opacity="' + (done ? .55 : 1) + '"/>');
       /* 끝낸 것도 채워져 있으므로, 다음에 할 것에는 속에 테를 하나 더 두른다 */
@@ -544,18 +548,26 @@ function drawSky(all){
         (궤도의 숫자가 적힌 시각) 조금 길게. 해가 떠 있는 동안만 - 궤도 밖은 자가 아니다. ── */
   /* 세 시간마다(06 · 09 · 12 · 15 · 18) 그 눈금 바로 아래, 땅의 맨 윗줄에 시각을 적는다
      (#sky-ruler). 궤도의 가로가 곧 시간 자라서 숫자는 자(땅)에 붙는 편이 읽힌다. */
+  /* 30분마다 가장 짧은 눈금을 더한다 - 구슬 줄기가 정시 사이 어디쯤 닿는지 읽힌다 */
   let ticks = '', ruler = '';
-  for(let h = Math.ceil(T0 / 60); h * 60 <= T1; h++){
-    const x = at(h * 60)[0], big = h % 3 === 0;
-    ticks += '<line x1="' + x.toFixed(1) + '" y1="' + (SKY_HZ - 1) + '" x2="' + x.toFixed(1) + '" y2="' + (SKY_HZ - (big ? 10 : 6)) +
-      '" stroke="var(--text)" stroke-width="' + (big ? 1.3 : 1) + '" stroke-linecap="round" opacity="' + (big ? .5 : .32) + '"/>';
+  for(let m = Math.ceil(T0 / 30) * 30; m <= T1; m += 30){
+    const x = at(m)[0], h = m / 60, half = m % 60 !== 0, big = !half && h % 3 === 0;
+    const len = big ? 10 : half ? 3.5 : 6;
+    ticks += '<line x1="' + x.toFixed(1) + '" y1="' + (SKY_HZ - 1) + '" x2="' + x.toFixed(1) + '" y2="' + (SKY_HZ - len) +
+      '" stroke="var(--text)" stroke-width="' + (big ? 1.3 : 1) + '" stroke-linecap="round" opacity="' + (big ? .5 : half ? .24 : .34) + '"/>';
     if(big) ruler += '<span style="left:' + x.toFixed(1) + 'px">' + String(h).padStart(2, '0') + '</span>';
+  }
+  /* 일정 판의 세로선을 12시 눈금 아래로 (style.css 의 .home.at-noon). 해가 12시 전에 지는 일은 없다 */
+  const home = $('#v-home .home') || $('.home');
+  if(home && T0 < 720 && 720 < T1){
+    const nx = at(720)[0].toFixed(1) + 'px';
+    if(home.style.getPropertyValue('--noon') !== nx) home.style.setProperty('--noon', nx);
+    home.classList.add('at-noon');
   }
   const rl = $('#sky-ruler');
   if(rl && rl._h !== ruler){ rl._h = ruler; rl.innerHTML = ruler; }
   g += '<g class="ticks">' + ticks + '</g>';
 
-  g += '<g id="sky-tip"></g>';
   /* ── 빛. 하늘 위에 따로 깐다 (drawLite). 게으름뱅이의 눈이 그 광원을 본다 ── */
   const src = drawLite(lightv, W, k);
   /* 세 장 중 바뀐 장만 다시 짓는다. 구슬 하나를 끝내면 궤도 장만 바뀐다 */
@@ -612,17 +624,18 @@ function skyHover(n){
      지으면 떠오르는 움직임이 매번 처음부터 돈다) */
   if(n === skyHover._n) return;
   skyHover._n = n;
-  const tip = $('#sky-tip');
   $$('#today .item').forEach(el => el.classList.toggle('hi', n != null && +el.dataset.n === n));
-  if(!tip) return;
+  const art = $('#sky-art');
+  if(!art) return;
+  let tip = art.querySelector('.sky-tip');
   const b = n == null ? null : SKY_BEADS.filter(x => x.n === n)[0];
-  if(!b){ tip.innerHTML = ''; return; }
-  let w = 12;
-  for(const ch of b.label) w += ch.charCodeAt(0) > 255 ? 10.5 : 6;
-  tip.innerHTML = '<rect x="'+(b.x-w/2).toFixed(1)+'" y="'+(b.y-31)+'" width="'+w.toFixed(0)+
-    '" height="20" rx="5" fill="var(--text)" opacity=".92"/>' +
-    '<text x="'+b.x.toFixed(1)+'" y="'+(b.y-17)+'" text-anchor="middle" font-size="10.5" fill="var(--bg)">' +
-    svgEsc(b.label) + '</text>';
+  if(!b){ if(tip) tip.remove(); return; }
+  if(!tip){ tip = document.createElement('div'); tip.className = 'sky-tip'; art.appendChild(tip); }
+  tip.textContent = b.label;
+  /* 창 끝에서 잘리지 않게 가운데 자리를 안쪽으로 당긴다 */
+  const W = art.clientWidth, half = tip.offsetWidth / 2 + 8;
+  tip.style.left = Math.min(W - half, Math.max(half, b.x)).toFixed(1) + 'px';
+  tip.style.top = (b.y - 13) + 'px';
 }
 
 /* 창 크기가 바뀌면 궤도도 다시 그린다. 크기를 타는 것은 하늘뿐이다 - 예전에는
