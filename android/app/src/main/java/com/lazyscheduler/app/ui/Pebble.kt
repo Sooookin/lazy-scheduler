@@ -44,10 +44,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 
 /**
  * 하늘의 돌멩이 (규칙서: design/references/LS 돌멩이 행동.dc.html, PC 는 web/pebble.js).
@@ -125,9 +121,9 @@ fun Pebble(
         }
         gaze.snapTo(Offset.Zero)
     }
-    // 걷기 · 쉬기
+    // 걷기 · 쉬기. 빠르기는 PC 와 같이 1.6 배 늦췄다 - 게으름뱅이치고 너무 기민해 보였다
     LaunchedEffect(asleep, walk, calm) {
-        if (!walk) { x.animateTo(width * .5f, tween(900, easing = FastOutSlowInEasing)); return@LaunchedEffect }
+        if (!walk) { x.animateTo(width * .5f, tween(1440, easing = FastOutSlowInEasing)); return@LaunchedEffect }
         if (asleep || calm || pebbleStill) return@LaunchedEffect
         var last = ""
         while (true) {
@@ -139,15 +135,15 @@ fun Pebble(
             when (act) {
                 "shift" -> {
                     val to = (x.value + (if (Random.nextBoolean()) 1 else -1) * Random.nextInt(14, 30) * d).coerceIn(bw, width - bw)
-                    x.animateTo(to, tween(520, easing = FastOutSlowInEasing))
+                    x.animateTo(to, tween(830, easing = FastOutSlowInEasing))
                 }
                 "wander" -> {
                     val to = (width * (.12f + Random.nextFloat() * .76f))
                     val steps = (abs(to - x.value) / (38 * d)).roundToInt().coerceIn(2, 6)
                     val from = x.value
                     for (k in 1..steps) {
-                        scope.launch { x.animateTo(from + (to - from) * k / steps, tween(300, easing = LinearEasing)) }
-                        hopOnce(7f, 300)
+                        scope.launch { x.animateTo(from + (to - from) * k / steps, tween(480, easing = LinearEasing)) }
+                        hopOnce(7f, 480)
                     }
                 }
                 "look" -> repeat(3) {
@@ -228,14 +224,7 @@ fun Pebble(
                 cubicTo(0f, top + bh * .42f, w * .12f, top, w * .5f, top)
                 close()
             }
-            // 밤의 돌멩이는 달빛을 머금은 흰 덩어리 - 불투명하고, 둘레로 빛이 번진다 (PC 와 같다)
-            if (pal.glowW > 0f) drawIntoCanvas { cv ->
-                val glow = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = androidx.compose.ui.graphics.Color(0xFFD6ECF6).copy(alpha = .6f * pal.glowW).toArgb()
-                    maskFilter = android.graphics.BlurMaskFilter(11 * d, android.graphics.BlurMaskFilter.Blur.NORMAL)
-                }
-                cv.nativeCanvas.drawPath(body.asAndroidPath(), glow)
-            }
+            // 밤의 돌멩이는 달빛을 머금은 흰 덩어리 - 불투명하게 (번짐 없이, PC 와 같다)
             drawPath(body, pal.guy, alpha = if (pal.glowW > 0f) 1f else .92f)
             drawPath(body, androidx.compose.ui.graphics.Color.White.copy(alpha = .14f), style = Stroke(1 * d))
             // 눈

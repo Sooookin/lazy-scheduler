@@ -19,26 +19,26 @@ import com.lazyscheduler.app.R
 
 /** Colours from tokens.py (the PC app's single source of design values) - grain C. */
 object Ink {
-    val bg = Color(0xFFE4E9E3)
-    val card = Color(0xFFEEF2EC)
-    val dark = Color(0xFFC8D0CB)
+    val bg = Color(0xFFE2E8E8)
+    val card = Color(0xFFEDF2F1)
+    val dark = Color(0xFFC6D0D0)
     val light = Color(0xFFFFFFFF)
-    val pale = Color(0xFFDBE3DD)
-    val sheet2 = Color(0xFFDFE4DE)
-    val sheet3 = Color(0xFFD6DCD6)
-    val ink2 = Color(0xFF1F2A28)
-    val body = Color(0xFF2F3B38)
-    val muted = Color(0xFF46514E)
-    val faint = Color(0xFF5D6A67)
-    val dim = Color(0xFF8A9491)
-    val mint = Color(0xFF8FC2B9)
-    val mid = Color(0xFF3F6F69)
-    val midInk = Color(0xFF35605A)
-    val deep = Color(0xFF16211F)
-    val onMid = Color(0xFFF2F6F3)
-    val danger = Color(0xFFB0573F)
-    val hol = Color(0xFFB0573F)             // 공휴일 · 일요일 · 지난 것 (tokens.py 의 hol)
-    val warm = Color(0xFFA9682F)            // 임박 (알림 카드에서만)
+    val pale = Color(0xFFD9E2E1)
+    val sheet2 = Color(0xFFDDE4E3)
+    val sheet3 = Color(0xFFD4DCDB)
+    val ink2 = Color(0xFF1F292A)
+    val body = Color(0xFF2E3A3B)
+    val muted = Color(0xFF455152)
+    val faint = Color(0xFF5B6869)
+    val dim = Color(0xFF889394)
+    val mint = Color(0xFF8EB7BF)
+    val mid = Color(0xFF3C656E)
+    val midInk = Color(0xFF335A62)
+    val deep = Color(0xFF161F21)
+    val onMid = Color(0xFFF2F6F6)
+    val danger = Color(0xFF9E2E35)
+    val hol = Color(0xFFA74E44)             // 공휴일 · 일요일 (tokens.py 의 hol)
+    val warm = Color(0xFFA24955)            // 임박 (알림 카드에서만) - 지난 일과 같은 장미 물
 }
 
 /**
@@ -46,24 +46,24 @@ object Ink {
  * 화면의 색은 이것을 시각에 따라 섞어 만든다 (Light.kt 의 palette). 이름은 붙임표를 낙타등으로.
  */
 object LitTokens {
-    val base = Color(0xFFE4E9E3)
-    val panel = Color(0xFFEEF2EC)
-    val ink = Color(0xFF1F2A28)
-    val ink2 = Color(0xFF4C5855)
-    val teal = Color(0xFF39655F)
+    val base = Color(0xFFE2E8E8)
+    val panel = Color(0xFFEDF2F1)
+    val ink = Color(0xFF1F292A)
+    val ink2 = Color(0xFF4B5758)
+    val teal = Color(0xFF3C656E)
     val warm = Color(0xFFF4DCD4)
     val night = Color(0xFF1A2128)
     val pale = Color(0xFFFFFFFF)
-    val pale2 = Color(0xFFE3EAE7)
-    val hol = Color(0xFFB82650)
-    val holLit = Color(0xFFFF94AD)
-    val late = Color(0xFFB0380C)
-    val lateLit = Color(0xFFFFA070)
-    val danger = Color(0xFFB3261E)
-    val dangerLit = Color(0xFFFF7B72)
-    val ribPast = Color(0xFF7AA9A1)
-    val ribPastN = Color(0xFF467571)
-    val tealLit = Color(0xFF7ABAAE)
+    val pale2 = Color(0xFFD9E0DD)
+    val hol = Color(0xFFA74E44)
+    val holLit = Color(0xFFECB5AC)
+    val late = Color(0xFFA24955)
+    val lateLit = Color(0xFFEEB5BC)
+    val danger = Color(0xFF9E2E35)
+    val dangerLit = Color(0xFFF0A3A0)
+    val ribPast = Color(0xFF8EA6AB)
+    val ribPastN = Color(0xFF375B64)
+    val tealLit = Color(0xFF8EB7BF)
     val skyHi = Color(0xFFB7D3E6)
     val skyLo = Color(0xFFE2ECF0)
     val hill1 = Color(0xFFDDE9F0)
@@ -95,11 +95,11 @@ object LitTokens {
     val rayShade = Color(0xFF783C50)
     val moon = Color(0xFFE2ECF8)
     val moonCool = Color(0xFFC4D6EC)
-    val guy = Color(0xFF1F2A28)
+    val guy = Color(0xFF1F292A)
     val guyN = Color(0xFFC9CECC)
-    val eye = Color(0xFFE4E9E3)
+    val eye = Color(0xFFE2E8E8)
     val eyeN = Color(0xFF8E9695)
-    val pupil = Color(0xFF1F2A28)
+    val pupil = Color(0xFF1F292A)
     val pupilN = Color(0xFF2B3134)
 }
 
@@ -108,11 +108,11 @@ object LitTokens {
  * 같은 때 겹치는 기간끼리 서로 다른 색이 되게 차례로 돌려 쓴다. 밤에도 그대로.
  */
 val SpanColors = listOf(
-    Color(0xFFFF7A59),
-    Color(0xFF3FB6E8),
-    Color(0xFF8FD14F),
-    Color(0xFFB58BE0),
-    Color(0xFFF0B43A),
+    Color(0xFFCA7568),
+    Color(0xFF68A1CA),
+    Color(0xFF68CA81),
+    Color(0xFFCA68AD),
+    Color(0xFF68CABD),
 )
 
 val Paperlogy = FontFamily(

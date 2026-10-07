@@ -62,6 +62,12 @@ on its last day; they edit field by field and so never drop `start_date`. Items 
 have no `start_date` key at all. If another device moves `due_date` before `start_date`, the
 PC shows it as a plain deadline. No rules change: `validTask` doesn't restrict extra fields.
 
+An **early reminder** (미리 알림) is `early_days` (int 1–7) on a deadline or routine: one more
+reminder that many days before each due date, at the due time (or the briefing time when there
+is none), shown only on that day. It is separate from `notify_min`, so the usual "30 minutes
+before" still comes. Each device keys it `early:<id>:<date>:<n>` in its own fired list. Items
+without one have no `early_days` key; older apps ignore it.
+
 `id` is the document ID (a uuid made on the device, so creating works offline). It is
 also stored as a field, so the security rules can check that it matches the document ID.
 A deleted item keeps only `id`, `deleted: true`, `updated`, `schema`

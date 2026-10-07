@@ -88,14 +88,6 @@ class SkyGeo(val w: Float, val h: Float, val tallH: Float, val top: Float, dp: F
         return q to m
     }
 
-    /** 궤도를 따라 d 픽셀 옆 (한 묶음의 구슬은 띠를 타고 늘어선다). */
-    fun along(m0: Double, c: Offset, d: Float): Offset {
-        if (d == 0f) return c
-        var m = m0; var q = c; var n = 0
-        while (hypot(q.x - c.x, q.y - c.y) < abs(d) && n++ < 600) { m += if (d > 0) .5 else -.5; q = at(m) }
-        return q
-    }
-
     /** 가로 자리 → 시각 (점선 구슬 끌기). 5분 단위. */
     fun minuteAt(px: Float): Int {
         val m = t0 + (px - x0) / (x1 - x0) * (t1 - t0)
@@ -303,13 +295,24 @@ private fun DrawScope.drawGround(g: SkyGeo, p: Pal, paper: PaperBrushes) {
 private fun DrawScope.drawBeads(g: SkyGeo, p: Pal, tm: TextMeasurer, a: Float, beads: List<Bead>, nowMin: Int, ghost: Int?) {
     val dp = density
     val r = 9.5f * dp
-    // 가까운 것은 한 덩어리 (알약)로 묶는다 - 겹쳐서 얼룩이 되지 않게
+    // 가까운 것은 한 덩어리 (알약)로 묶는다 - 겹쳐서 얼룩이 되지 않게 (PC 와 같은 치수 규칙).
+    // 구슬(반지름 9.5 + 테 0.8) 사이 틈 2.4 → 중심 간격 23, 알약 안 여백은 사방 2.7 (높이 26).
+    // 구슬은 알약의 곧은 축 위에 - 휜 궤도를 따라 놓으면 휜 자리에서 알약 가운데선에서 벗어났다. 알약끼리 닿으면 합친다
+    val step = 23f * dp; val pillH = 26f * dp
     val placed = beads.map { it to g.onArc(it.min.toDouble(), dp).first.x }.sortedBy { it.second }
     val groups = ArrayList<MutableList<Bead>>()
     var lastX = -1e9f
     for ((b, x) in placed) {
         if (groups.isNotEmpty() && x - lastX < 22 * dp) groups.last().add(b) else groups.add(mutableListOf(b))
         lastX = x
+    }
+    fun span(gr: List<Bead>): Pair<Float, Float> {
+        val cx = g.onArc(gr.sumOf { it.min }.toDouble() / gr.size, dp).first.x; val h = ((gr.size - 1) * step + pillH) / 2
+        return cx - h to cx + h
+    }
+    var k = 1
+    while (k < groups.size) {
+        if (span(groups[k - 1]).second + 4 * dp > span(groups[k]).first) { groups[k - 1].addAll(groups.removeAt(k)); k = maxOf(1, k - 1) } else k++
     }
     val beadShadow = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         color = p.shade.copy(alpha = .35f * a).toArgb()
@@ -319,19 +322,21 @@ private fun DrawScope.drawBeads(g: SkyGeo, p: Pal, tm: TextMeasurer, a: Float, b
         val n = grp.size
         val (c0, m0) = g.onArc(grp.sumOf { it.min }.toDouble() / n, dp)
         val open = grp.filter { !it.done }
-        if (open.isNotEmpty()) drawLine(if (open.any { it.late }) p.late else p.teal, Offset(c0.x, c0.y + r + 2 * dp),
+        if (open.isNotEmpty()) drawLine(if (open.any { it.late }) p.late else p.teal, Offset(c0.x, c0.y + pillH / 2),
             Offset(c0.x, g.hz), strokeWidth = 1.4f * dp, alpha = .7f * a)
+        val q1 = g.at(m0 - 1); val q2 = g.at(m0 + 1)
+        val rad = atan2((q2.y - q1.y).toDouble(), (q2.x - q1.x).toDouble())
+        val ux = kotlin.math.cos(rad).toFloat(); val uy = kotlin.math.sin(rad).toFloat()
         if (n > 1) {
-            val q1 = g.at(m0 - 1); val q2 = g.at(m0 + 1)
-            val ang = Math.toDegrees(atan2((q2.y - q1.y).toDouble(), (q2.x - q1.x).toDouble())).toFloat()
-            val pw = n * 20 * dp + 6 * dp
-            rotate(ang, c0) {
-                drawRoundRect(p.bead, Offset(c0.x - pw / 2, c0.y - 12 * dp), Size(pw, 24 * dp), CornerRadius(12 * dp), alpha = a)
-                drawRoundRect(p.teal, Offset(c0.x - pw / 2, c0.y - 12 * dp), Size(pw, 24 * dp), CornerRadius(12 * dp), alpha = a, style = Stroke(1 * dp))
+            val pw = (n - 1) * step + pillH
+            rotate(Math.toDegrees(rad).toFloat(), c0) {
+                drawRoundRect(p.bead, Offset(c0.x - pw / 2, c0.y - pillH / 2), Size(pw, pillH), CornerRadius(pillH / 2), alpha = a)
+                drawRoundRect(p.teal, Offset(c0.x - pw / 2, c0.y - pillH / 2), Size(pw, pillH), CornerRadius(pillH / 2), alpha = a, style = Stroke(1 * dp))
             }
         }
         grp.forEachIndexed { j, b ->
-            val c = g.along(m0, c0, (j - (n - 1) / 2f) * 20 * dp)
+            val off = (j - (n - 1) / 2f) * step
+            val c = Offset(c0.x + ux * off, c0.y + uy * off)
             val ring = if (b.late) p.late else p.teal
             val fill = b.done || b.next
             val op = (if (b.done) .55f else 1f) * a

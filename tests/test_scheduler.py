@@ -99,3 +99,45 @@ def test_notify_plan_explains_skips():
     store.add({"title": "시각 없음", "kind": "deadline", "due_date": datetime.now().date().isoformat()})
     (row,) = app.notify_plan()["rows"]
     assert row["will_notify"] is False and "시각 없음" in row["skip"]
+
+
+def test_early_alert_fires_the_day_before_and_keeps_the_usual_one():
+    """하루 전 미리 알림은 마감 시각에 하루 앞서 한 번, 그리고 마감 30분 전 알림도 그대로 뜬다."""
+    no_brief()
+    store.add({"title": "보고서", "kind": "deadline", "due_date": "2026-09-16", "due_time": "15:00",
+               "early_days": 1})
+    app.tick(now=datetime(2026, 9, 15, 14, 50))
+    assert cards() == []                                 # 아직 이르다
+    app.tick(now=datetime(2026, 9, 15, 15, 0))
+    (card,) = cards()
+    assert card["title"] == "보고서" and card["rel"] == "내일 마감" and "미리 알림" in card["meta"]
+    restart()
+    app.tick(now=datetime(2026, 9, 15, 18, 0))           # 다시 켜도 또 뜨지 않는다
+    assert cards() == []
+    app.tick(now=datetime(2026, 9, 16, 14, 31))
+    assert [c["sub"] for c in cards()] == ["29분 뒤 마감 · 15:00"]
+
+
+def test_early_alert_without_time_uses_the_brief_time_and_only_that_day():
+    store.update_settings({"brief_time": "08:30"})
+    store.add({"title": "분기 자료", "kind": "deadline", "due_date": "2026-09-18", "early_days": 3})
+    app.tick(now=datetime(2026, 9, 15, 8, 0))
+    assert [c for c in cards() if c.get("rel")] == []
+    app.tick(now=datetime(2026, 9, 15, 21, 0))           # 늦게 켰어도 그 날 안이면
+    (card,) = [c for c in cards() if c.get("rel")]
+    assert card["rel"] == "3일 뒤 마감" and card["meta"].startswith("3일 뒤 마감 · 미리 알림")
+    store.add({"title": "그제 것", "kind": "deadline", "due_date": "2026-09-17", "early_days": 3})
+    app.tick(now=datetime(2026, 9, 15, 22, 0))           # 미리 알림 날(9/14)이 지났으면 뜨지 않는다
+    assert [c for c in cards() if c.get("rel")] == []
+
+
+def test_early_days_is_checked_and_dropped_when_off():
+    t = store.add({"title": "x", "kind": "deadline", "due_date": "2026-09-16", "early_days": 2})
+    assert t["early_days"] == 2
+    t = store.update(t["id"], {"early_days": 0})
+    assert "early_days" not in t
+    m = store.add({"title": "메모", "kind": "floating", "early_days": 1})
+    assert "early_days" not in m
+    import pytest
+    with pytest.raises(store.ValidationError):
+        store.add({"title": "y", "kind": "deadline", "due_date": "2026-09-16", "early_days": 9})

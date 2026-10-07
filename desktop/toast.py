@@ -48,8 +48,8 @@ HOVER_HI = (TEXT, .12)
 
 # 예전 호출은 그때의 색을 글자로 적어 보냈다: 짙은 색(#08202b) = 지난 알림, 박하빛 = 안내.
 # 팔레트가 바뀌어도 그 뜻은 그대로이므로 옛 값도 받아 준다.
-LEGACY_LATE = {tokens.COLOR["deep"], "#08202b"}
-LEGACY_INFO = {tokens.COLOR["mint"], "#85bdb3"}
+LEGACY_LATE = {tokens.COLOR["deep"], "#08202b", "#16211f"}
+LEGACY_INFO = {tokens.COLOR["mint"], "#85bdb3", "#8fc2b9"}
 
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(

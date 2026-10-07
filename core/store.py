@@ -59,11 +59,14 @@ _SETTINGS = {
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
-                "notify_min", "muted", "pinned", "rule", "tag", "start_date")
+                "notify_min", "muted", "pinned", "rule", "tag", "start_date", "early_days")
 # 기간 업무 = 시작일(start_date)이 있는 할 일. 마감일(due_date)이 끝나는 날이다.
 # 새 종류로 두지 않았다: 알림 · 다가오는 마감 · 휴대폰(아직 시작일을 모른다) · 옛 버전이
 # 모두 "끝나는 날의 할 일" 로 그대로 다룬다. 기간이 없는 항목에는 이 키 자체가 없다.
 SPAN_MAX_DAYS = 366
+# 미리 알림 = 마감 며칠 전에 한 번 더 (early_days). notify_min 의 "몇 분 전" 알림과 따로 뜬다 -
+# 하루 전을 고르느라 30분 전 알림을 잃지 않게. 그 날의 마감 시각에 (시각이 없으면 브리핑 시각에) 뜬다.
+# 없으면 키 자체가 없다 (옛 버전 · 휴대폰이 모르는 채로 지나가도 아무 일 없게).
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -741,6 +744,13 @@ def clean_task(patch, base=None):
         t.update(rule=None, due_date=_clean_day(t.get("due_date")), due_time=tm, notify_min=nm)
     else:
         t.update(rule=None, due_date=None, due_time="", notify_min=None, muted=False)
+    ed = t.get("early_days")
+    if ed is not None and not (type(ed) is int and 0 <= ed <= 7):
+        raise ValidationError("미리 알림은 0~7일 전 사이의 정수여야 합니다")
+    if ed and kind != "floating":
+        t["early_days"] = ed
+    else:
+        t.pop("early_days", None)
     start = _clean_day(t.get("start_date")) if kind == "deadline" else None
     if start and t.get("due_date"):
         if start > t["due_date"]:
@@ -944,7 +954,7 @@ def occurrences(lo, hi, kinds=None):
 # 화면은 읽지 않는다 (회차의 완료 여부는 overview · occurrences 가 이미 계산해 준다).
 # 동기화는 이 목록이 아니라 저장 형식 전체를 주고받는다.
 PUBLIC_TASK_FIELDS = ("id", "title", "note", "kind", "tag", "start_date", "due_date", "due_time",
-                      "notify_min", "muted", "pinned", "done", "rule")
+                      "notify_min", "early_days", "muted", "pinned", "done", "rule")
 
 
 def public_task(t):
@@ -1013,6 +1023,7 @@ def _inst(t, day, pre=None, done_dates=None):
         "rule_text": rule_text,
         "muted": bool(t.get("muted")),
         "notify_min": t.get("notify_min", None),
+        "early_days": t.get("early_days") or 0,
         "done": done,
     }
 

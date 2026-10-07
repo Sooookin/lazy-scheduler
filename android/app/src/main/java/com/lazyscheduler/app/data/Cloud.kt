@@ -246,7 +246,7 @@ object Cloud {
     private fun editable(t: Task): Map<String, Any?> = mapOf(
         "title" to t.title, "note" to t.note, "kind" to t.kind, "due_date" to t.dueDate,
         "due_time" to t.dueTime, "notify_min" to t.notifyMin, "muted" to t.muted, "rule" to t.rule,
-        "start_date" to t.startDate,
+        "start_date" to t.startDate, "early_days" to t.earlyDays.takeIf { it > 0 },
     )
 
     /** Int and Long are the same number here (the form makes Int, Firestore gives back Long). */
@@ -266,8 +266,9 @@ object Cloud {
             val before = editable(existing)
             val changed = fields.filter { (k, v) -> canon(before[k]) != canon(v) }
             if (changed.isEmpty()) return
-            // 기간이 아닌 항목에는 start_date 가 아예 없다 (docs/sync.md) - 빼면 필드를 지운다
-            val out = changed.mapValues { (k, v) -> if (k == "start_date" && v == null) FieldValue.delete() else v }
+            // 기간이 아닌 항목에는 start_date 가, 미리 알림이 없는 항목에는 early_days 가 아예 없다
+            // (docs/sync.md) - 빼면 필드를 지운다
+            val out = changed.mapValues { (k, v) -> if (k in KEYLESS && v == null) FieldValue.delete() else v }
             logged("edit") { ref(uid, existing.id).update(out + ("updated" to FieldValue.serverTimestamp())) }
             return
         }
@@ -318,6 +319,8 @@ object Cloud {
                     if (lu > cu) {
                         for (k in listOf("title", "note", "kind", "due_date", "due_time", "notify_min", "muted", "rule", "done", "done_at"))
                             if (canon(d[k]) != canon(c[k])) paths += FieldPath.of(k) to d[k]
+                        for (k in KEYLESS)
+                            if (canon(d[k]) != canon(c[k])) paths += FieldPath.of(k) to (d[k] ?: FieldValue.delete())
                     }
                     for (k in listOf("done_dates", "skip_dates")) {
                         val mine = (d[k] as? Map<*, *>).orEmpty().filterValues { it == true }.keys
@@ -339,6 +342,9 @@ object Cloud {
         return true
     }
 }
+
+/** 값이 없으면 키째 없는 필드 (기간의 시작일 · 미리 알림). */
+internal val KEYLESS = setOf("start_date", "early_days")
 
 /** syncdoc.SHARED_SETTINGS 와 같다. */
 internal val SHARED = setOf("notify_min", "brief_time", "business_only")

@@ -112,14 +112,15 @@ class ScreenShots {
         Frame(1260, setOf("a", "b", "c", "d", "e", "f", "g", "h")) { ts, rows -> Home(Plan.overview(ts, today), rows, today, 1260, {}, {}) }
     }
 
+    /** 새 항목은 홈 달력의 어떤 날(오늘 + 2)에서 연 것으로 - 날짜가 비어 있으면 메모가 된다 */
     private fun draft(kind: String, time: String = "15:00", picking: Boolean = false, task: Task? = null) = Draft().apply {
-        load(Editing(task, if (task == null) null else today, kind), today, true, emptyMap())
-        this.time = if (task == null) time else this.time
-        if (picking) { pickMin = 13 * 60 + 30; this.picking = true }
+        load(Editing(task, if (task == null) (if (kind == "routine") null else today.plusDays(2)) else today, kind), today, true, emptyMap())
+        if (task == null) { title = if (kind == "routine") "월말 결산" else "분기 운용보고서 초안"; this.time = time }
+        if (picking) { this.time = "13:30"; this.picking = true }
     }
 
     @Test fun addDeadline() = shot("1d-add") {
-        val dr = draft("deadline")
+        val dr = draft("deadline").apply { early = 1 }
         Frame(600, setOf("b", "c"), tabs = false, ghost = 900) { ts, _ ->
             Editor(Editing(null, null, "deadline"), dr, today, true, ts, {}, {}, {}, {}, {})
         }
@@ -133,7 +134,7 @@ class ScreenShots {
     }
 
     @Test fun addRoutine() = shot("1f-routine") {
-        val dr = draft("routine", time = "")
+        val dr = draft("routine", time = "").apply { pickDay(today.plusDays(2)); chooseFreq("month" to 1) }
         Frame(600, setOf("b", "c"), tabs = false) { ts, _ ->
             Editor(Editing(null, null, "routine"), dr, today, true, ts, {}, {}, {}, {}, {})
         }

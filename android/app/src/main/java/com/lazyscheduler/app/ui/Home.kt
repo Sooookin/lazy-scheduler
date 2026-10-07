@@ -3,7 +3,7 @@ package com.lazyscheduler.app.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -93,7 +93,7 @@ fun Home(o: Overview?, rows: List<HomeRow>, today: LocalDate, nowMin: Int, onTog
 
 /**
  * 한 줄: 동그라미 · 이름 · (다음) · 시각 · ›. 줄을 누르면 완료, › 나 길게 누르면 메뉴.
- * 다음에 할 것은 청록 테를 두른다.
+ * 다음에 할 것은 옅은 면에 왼쪽 강조 선 하나 (둥근 테는 카드 단추처럼 떠 보였다).
  */
 @Composable
 internal fun ItemLine(n: Int?, i: Instance, late: Boolean, next: Boolean, dayTag: String?, onTap: () -> Unit, onMenu: () -> Unit) {
@@ -101,8 +101,8 @@ internal fun ItemLine(n: Int?, i: Instance, late: Boolean, next: Boolean, dayTag
     val bg by animateColorAsState(if (next) pal.teal.copy(alpha = .07f) else Color.Transparent, tween(200), label = "row")
     Column {
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(10.dp)).background(bg)
-                .then(if (next) Modifier.border(1.2.dp, pal.teal, RoundedCornerShape(10.dp)) else Modifier)
+            Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(4.dp)).background(bg)
+                .then(if (next) Modifier.drawBehind { drawRect(pal.teal, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) } else Modifier)
                 .press(onLong = onMenu, onClick = onTap).height(40.dp).padding(start = 6.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

@@ -11,9 +11,9 @@
               같은 행동은 연달아 하지 않는다. 눈은 2.5~6초마다 40% 는 해, 60% 는 아무 데나.
    자리       잠자리 셋(일몰 자리 · 왼쪽 구석 · 가운데) 가운데 어제 잔 곳은 피한다.
               켤 때마다 평상시 자리도 ±60px 다르다.
-   이동       예비 동작 220ms (가는 반대쪽으로 7° 기울고 가는 쪽을 본다) → 110px 미만은
-              340ms 짜리 작은 점프 2~4번, 그 이상은 실제 둘레(r 17)로 도는 굴림 → 도착하면
-              0.5초 흔들리며 자리 잡음. 움직이기 전에는 80% 의 확률로 한숨.
+   이동       예비 동작 350ms (가는 반대쪽으로 7° 기울고 가는 쪽을 본다) → 110px 미만은
+              540ms 짜리 작은 점프 2~4번, 그 이상은 실제 둘레(r 17)로 도는 굴림 → 도착하면
+              0.8초 흔들리며 자리 잡음. (도안의 빠르기에 PACE 1.6 을 곱한 값) 움직이기 전에는 80% 의 확률로 한숨.
 
    순간 → 행동 (위에 있는 것이 먼저)
      밤 (해가 졌거나 · 오늘 일을 다 마침)   잠자리로 가서 파자마 모자 쓰고 잔다. 커서를 보지 않는다.
@@ -132,6 +132,8 @@ window.PB = (() => {
     guy.style.setProperty('--lift', lift.toFixed(1) + 'px');
     guy.style.setProperty('--ls', Math.max(.35, 1 - lift / 160).toFixed(3));
   }
+  /* 움직임의 느리기. 1 이면 처음 도안의 빠르기 - 게으름뱅이치고 너무 기민해 보여 늦췄다 */
+  const PACE = 1.6;
   function moveTo(x, kind, after){
     const dx = x - S.x, dist = Math.abs(dx);
     if(!G || dist < 4 || (off() && !homing)){ if(after) after(); settle(); return; }
@@ -141,7 +143,7 @@ window.PB = (() => {
     /* 예비 동작: 가려는 반대쪽으로 7° 기울어 몸을 일으키고, 가는 쪽을 본다 */
     S.move = 'prep'; S.moveDir = sgn; S.lean = -sgn * 7;
     paint();
-    later(() => travel(x, kind, sgn, dist, after), 220);
+    later(() => travel(x, kind, sgn, dist, after), 220 * PACE);
   }
   function travel(x, kind, sgn, dist, after){
     const k = G.k, x0 = S.x * k - 20, x1 = x * k - 20;
@@ -157,7 +159,7 @@ window.PB = (() => {
       /* 바퀴 수는 정수로 맞춘다 - 둘레대로 1.37 바퀴를 돌면 눈이 비스듬히 누운 채로 멈췄다.
          거리와 한 바퀴 안쪽의 차이는 눈에 띄지 않고, 도착하면 늘 똑바로 선다. */
       const raw = (x1 - x0) / (2 * Math.PI * 17);
-      const dur = Math.min(1600, 420 + dist * 1.7), turns = Math.sign(raw) * Math.max(1, Math.round(Math.abs(raw)));
+      const dur = Math.min(1600, 420 + dist * 1.7) * PACE, turns = Math.sign(raw) * Math.max(1, Math.round(Math.abs(raw)));
       const per = Math.max(120, dur / Math.max(1, Math.abs(turns)));
       const r0 = S.rot; S.rot = r0 + turns * 360;
       S.move = 'roll'; paint();
@@ -167,10 +169,10 @@ window.PB = (() => {
                      {duration: dur, easing: 'cubic-bezier(.25,.6,.3,1)'});
       S.rot = 0;                                   /* 정수 바퀴 - 끝나면 똑바로 */
       E.sq.animate(frames('rollbob'), {duration: per, iterations: dur / per, easing: 'ease-in-out'});
-      later(() => play('wobble', 500, after), dur + 20);
+      later(() => play('wobble', 500 * PACE, after), dur + 20);
     } else {
       /* 총총 = 2~4 번 뛰기. 눌렸다 튀어오르며 한 칸씩 - 공중에 있을 때만 앞으로 간다 */
-      const hops = Math.max(2, Math.min(4, Math.round(dist / 32))), per = 340;
+      const hops = Math.max(2, Math.min(4, Math.round(dist / 32))), per = 340 * PACE;
       const kf = [];
       for(let i = 0; i < hops; i++){
         const a = x0 + (x1 - x0) * i / hops, b = x0 + (x1 - x0) * (i + 1) / hops;

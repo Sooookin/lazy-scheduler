@@ -105,6 +105,7 @@ object Reminders {
     private fun extras(a: Alarm) = Bundle().apply {
         putString("key", a.key); putString("task", a.taskId); putString("date", a.date)
         putString("title", a.title); putString("time", a.time); putString("kind", a.kind); putString("detail", a.detail)
+        putString("rel", a.rel)
     }
 
     private fun pending(ctx: Context, action: String, key: String, extras: Bundle? = null): PendingIntent {
@@ -171,7 +172,9 @@ object Reminders {
         ensureChannel(ctx)
         val key = extras.getString("key") ?: return
         val time = extras.getString("time").orEmpty()
-        val line = (if (late) "마감 시간 지남" else "곧 마감") + (if (time.isNotEmpty()) " · ${com.lazyscheduler.app.ui.t12(time)}" else "")
+        val rel = extras.getString("rel").orEmpty()          // 미리 알림: "내일 마감"
+        val line = (if (rel.isNotEmpty()) rel else if (late) "마감 시간 지남" else "곧 마감") +
+            (if (time.isNotEmpty()) " · ${com.lazyscheduler.app.ui.t12(time)}" else "")
         val detail = extras.getString("detail").orEmpty()
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)

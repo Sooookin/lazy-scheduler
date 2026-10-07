@@ -54,6 +54,29 @@ class ReminderPlanTest {
     }
 
     @Test
+    fun earlyReminderComesTheDayBeforeBesideTheUsualOne() {
+        val t = Task.from("a", mapOf("title" to "a", "kind" to "deadline", "due_date" to day.plusDays(1).toString(),
+            "due_time" to "15:00", "early_days" to 1L))!!
+        val early = ReminderPlan.plan(listOf(t), emptyMap(), at(8)).single { it.key.startsWith("early:") }
+        assertEquals(at(15), early.at)
+        assertEquals("early:a:${day.plusDays(1)}:1", early.key)        // same key as the PC
+        assertEquals("내일 마감", early.rel)
+        // 다음 날에는 보통 알림 (30분 전)만
+        val next = ReminderPlan.plan(listOf(t), emptyMap(), at(8).plusDays(1))
+        assertEquals(listOf(at(14, 30).plusDays(1)), next.map { it.at })
+    }
+
+    @Test
+    fun untimedEarlyReminderUsesTheBriefTimeAndOnlyThatDay() {
+        val t = Task.from("b", mapOf("title" to "b", "kind" to "deadline", "due_date" to day.plusDays(3).toString(),
+            "early_days" to 3L))!!
+        val s = mapOf("brief_time" to "08:30")
+        assertEquals(listOf(at(8, 30)), ReminderPlan.plan(listOf(t), s, at(7)).map { it.at })
+        assertEquals(listOf(at(21)), ReminderPlan.plan(listOf(t), s, at(21)).map { it.at })     // 늦게 켜도 그 날 안이면 지금
+        assertTrue(ReminderPlan.plan(listOf(t), s, at(9).plusDays(1)).isEmpty())                // 그 날이 지났다
+    }
+
+    @Test
     fun briefingIsTodayUntilTwoHoursPastThenTomorrow() {
         val s = mapOf("brief_time" to "08:30")
         assertEquals(at(8, 30), ReminderPlan.nextBrief(s, at(7)))

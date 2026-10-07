@@ -105,7 +105,7 @@ fun CalendarScreen(
                 style = T.head.lit(pal.text, big = true), color = pal.text)
             RoundBtn("›", 30.dp) { if (week) pick(picked.plusDays(1)) else month = ym.plusMonths(1).toString() }
             Spacer(Modifier.width(14.dp))
-            Seg(listOf(false to "월", true to "7일"), week, height = 30.dp, pad = 11.dp) { w ->
+            Seg(listOf(false to "월", true to "한 주"), week, height = 30.dp, pad = 11.dp) { w ->
                 if (w != week) { if (!w) month = YearMonth.from(picked).toString(); onWeek(w) }
             }
             Spacer(Modifier.width(8.dp))

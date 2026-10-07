@@ -118,7 +118,7 @@ object Local {
         if (existing != null) {
             val d = docs[existing.id] ?: return
             d.putAll(fields)
-            if (d["start_date"] == null) d.remove("start_date")
+            for (k in KEYLESS) if (d[k] == null) d.remove(k)
             d["updated"] = now()
             save()
             return
@@ -198,6 +198,6 @@ internal fun newDoc(id: String, fields: Map<String, Any?>): LinkedHashMap<String
         "schema" to SCHEMA,
     )
     doc.putAll(fields)
-    if (doc["start_date"] == null) doc.remove("start_date")      // 기간이 아니면 키가 없다
+    for (k in KEYLESS) if (doc[k] == null) doc.remove(k)      // 기간 · 미리 알림이 아니면 키가 없다
     return doc
 }

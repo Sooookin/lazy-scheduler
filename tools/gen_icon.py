@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """앱 아이콘을 각 크기마다 새로 그린다 (python tools/gen_icon.py).
 
-참고 도안 'LazyScheduler 앱 아이콘' 확정안(8a)을 그대로 옮긴다 - 저녁 하늘에 뜬
-청록 달(속에 체크), 겹겹의 언덕 둘과 땅, 그 앞에 무게중심을 아래로 내린 흰 돌멩이
+참고 도안 'LazyScheduler 앱 아이콘' 확정안(8a)을 그대로 옮긴다 - 맑은 하늘에 뜬
+민트 달(속에 체크), 겹겹의 언덕 둘과 땅, 그 앞에 무게중심을 아래로 내린 흰 돌멩이
 (게으름뱅이). 좌표는 도안의 160×160 자 그대로이고, 판은 22.5% 둥근 사각형이다.
 
 도안은 크기마다 그림을 따로 둔다. 큰 그림을 줄이면 작은 크기에서 선이 뭉개지고
@@ -12,7 +12,8 @@
   small (32px 이하)  그림자 · 윗날을 모두 빼고, 달 · 체크 · 돌 · 눈을 키운다 (흰자 없이 검은 눈)
 각 크기를 8배로 그린 뒤 LANCZOS 로 줄인다.
 
-색은 tokens.ICON 에서 가져온다.
+색은 tokens.ICON 에서 가져온다. 도안보다 밝게 고쳤다 - 하늘과 달의 밝기 차를 벌려, 작은 크기에서도
+달이 하늘에 묻히지 않게.
 결과: assets/app.ico (16~256 다중 해상도) · web/icon*.png (창 · 트레이용)
       android/.../res/mipmap-*/ic_launcher_art.png (휴대폰 적응형 아이콘의 그림 - 판 없이 꽉 차게)
 """
@@ -150,7 +151,14 @@ def draw(px, bleed=False):
     PA = None if tier == "small" else (-6, 5, .6)           # 언덕이 뒤로 드리우는 그림자 (f-pa)
     edge = {"full": 1.4, "mid": 2.0}.get(tier)              # 언덕 윗날
 
-    cv.fill([(0, 0), (160, 0), (160, 160), (0, 160)], _rgb(C["sky"]))
+    if "sky-top" in C:                               # 하늘: 위가 짙고 지평선 쪽이 옅은 결
+        top, bot = _rgb(C["sky-top"]), _rgb(C["sky"])
+        d = ImageDraw.Draw(cv.im)
+        for y in range(n):
+            t = min(1, max(0, (y - box[1]) / (cv.u * 120)))
+            d.line([(0, y), (n, y)], fill=tuple(round(a + (b - a) * t) for a, b in zip(top, bot)))
+    else:
+        cv.fill([(0, 0), (160, 0), (160, 160), (0, 160)], _rgb(C["sky"]))
     if tier == "small":
         cv.circle(MOON, 56, _rgb(C["moon"]))
         cv.stroke(_path(CHECK_S), _rgb(C["check"]), 14)

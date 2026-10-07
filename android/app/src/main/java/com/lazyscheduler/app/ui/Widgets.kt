@@ -100,14 +100,15 @@ internal fun Modifier.raised(shape: androidx.compose.ui.graphics.Shape, pal: Pal
     if (pal.isNight) this else this.shadow(depth, shape, ambientColor = pal.shade.copy(alpha = .5f), spotColor = pal.shade.copy(alpha = .5f))
 
 /**
- * 목록의 동그라미. 번호(아직) → 채운 청록에 체크(끝남). 지난 것은 벽돌빛 테.
+ * 목록의 동그라미. 번호(아직) → 채운 강조색에 체크(끝남). 지난 것은 장미 물.
  * 아직 안 한 것은 도드라지고, 끝낸 것은 눌려 들어간다 (그림자로만 말한다).
  */
 @Composable
 internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 20.dp) {
     val pal = LocalPal.current
     val c = if (late && !done) pal.late else pal.teal
-    val bg by animateColorAsState(if (done) c else if (pal.isNight) Color.Transparent else pal.field, tween(180), label = "dot")
+    // 지난 일은 같은 빛깔을 옅게 푼 물(16%)로 채운다 - 경고가 아니라 파스텔 한 방울 (PC 와 같다)
+    val bg by animateColorAsState(if (done) c else if (late) c.copy(alpha = .16f) else if (pal.isNight) Color.Transparent else pal.field, tween(180), label = "dot")
     // 방금 끝냈으면 톡: 작게 눌렸다 살짝 넘쳐 돌아오고, 테 하나가 번지며 사라진다 (PC 의 dot-pop · dot-ring).
     // 처음부터 끝나 있던 것은 가만히 있다.
     val pop = remember { Animatable(1f) }

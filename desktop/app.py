@@ -505,13 +505,16 @@ def preview(rule):
     try:
         r = recur.validate_rule(rule)
     except recur.RuleError as e:
-        return {"text": "", "dates": [], "error": str(e)}
+        return {"text": "", "dates": [], "days": [], "error": str(e)}
     today = date.today()
     if r["period"] == "week":
         r.setdefault("anchor", today.isoformat())   # 저장하면 오늘이 기준 주가 된다
-    ds = recur.occurrences(r, today, today + timedelta(days=430))[:5]
+    every = recur.occurrences(r, today, today + timedelta(days=430))
+    ds = every[:5]
+    # days: 달력에 앞으로 돌 날을 찍으려고 (새 항목 창). 매일 도는 규칙도 430개를 넘지 않는다
     return {"text": recur.describe(r),
-            "dates": [f"{d.month}/{d.day}({WEEK[d.weekday()]})" for d in ds] or ["해당 날짜 없음"]}
+            "dates": [f"{d.month}/{d.day}({WEEK[d.weekday()]})" for d in ds] or ["해당 날짜 없음"],
+            "days": [d.isoformat() for d in every]}
 
 
 # ---------------- 알림 스케줄러 ----------------
@@ -647,6 +650,12 @@ def tick(now=None):
         except Exception:
             log("알림 처리 실패 (%s)" % i.get("id") + chr(10) + traceback.format_exc())
 
+    for i in _early_items(d, now):
+        try:
+            _maybe_early(i, now, brief)
+        except Exception:
+            log("미리 알림 처리 실패 (%s)" % i.get("id") + chr(10) + traceback.format_exc())
+
     # 프로그램을 늦게 켰을 때: 지나간 알림을 한 장으로 모아 보여준다.
     # 예전에는 조용히 버려서 "오늘 알림이 안 떴다" 가 됐고, 그렇다고 다 띄우면
     # 카드가 무더기로 겹쳐 떴다.
@@ -745,6 +754,56 @@ def _maybe_notify(i, now, default_lead, first_tick):
     return "shown"
 
 
+EARLY_MAX = 7                   # 미리 알림은 일주일 전까지 (store.clean_task 와 같다)
+
+
+def _early_items(d, now):
+    """미리 알림을 건 항목의 내일 ~ 일주일 뒤 회차. 건 것이 없으면 펼치지 않는다."""
+    keep = [t for t in d["tasks"] if t.get("early_days") and not t.get("deleted")]
+    if not keep:
+        return []
+    today = now.date()
+    return store.between(today + timedelta(days=1), today + timedelta(days=EARLY_MAX), data={"tasks": keep})
+
+
+def _early_plan(i, now, brief):
+    """미리 알림의 시각과 건너뛸 까닭. 마감 n 일 전, 마감 시각에 (시각이 없으면 브리핑 시각에).
+    늦게 켰어도 그 날 안이면 띄운다 - 하루 전 알림은 하루 안에만 뜻이 있다."""
+    n = i.get("early_days") or 0
+    if not n or not i["date"]:
+        return None, "미리 알림 없음"
+    day = date.fromisoformat(i["date"]) - timedelta(days=n)
+    hm = i["time"] or brief or "09:00"
+    at = datetime.combine(day, datetime.strptime(hm, "%H:%M").time())
+    if i["done"]:
+        return at, "이미 완료"
+    if i.get("muted"):
+        return at, "알림 끔"
+    if now < at:
+        return at, "아직 이르다"
+    if now.date() != day:
+        return at, "그 날이 지났다"
+    return at, None
+
+
+def _maybe_early(i, now, brief):
+    at, skip = _early_plan(i, now, brief)
+    if skip or not store.mark_fired("early:%s:%s:%d" % (i["id"], i["date"], i["early_days"]), now):
+        return
+    due = date.fromisoformat(i["date"])
+    left = (due - now.date()).days
+    rel = "내일 마감" if left == 1 else "모레 마감" if left == 2 else "%d일 뒤 마감" % left
+    kind = {"routine": "루틴", "deadline": "마감"}.get(i.get("kind"), "")
+    meta = " · ".join(x for x in ("" if i["time"] else rel, "미리 알림",
+                                  "%d월 %d일 %s요일" % (due.month, due.day, WEEK[due.weekday()]), kind) if x)
+    tid, day = i["id"], i["date"]
+    toast.notify(i["title"], rel + (" · %s" % i["time"] if i["time"] else ""),
+                 on_done=lambda tid=tid, day=day: _complete(tid, day),
+                 extra={"when": i["time"], "rel": rel, "meta": meta},
+                 key="early:%s:%s" % (tid, day))
+    log("미리 알림 띄움: %s %s (%s)" % (tid, day, rel))
+
+
 def alert_near(now=None, minutes=None):
     """앞뒤 minutes 분 안에 알림(또는 아침 브리핑)이 있는지. 자동 업데이트는 이때 바꾸지 않는다 -
     다시 켜지는 몇 초 사이에 알림이 빠지면 안 된다."""
@@ -764,6 +823,10 @@ def alert_near(now=None, minutes=None):
         due = datetime.fromisoformat(i["due"])
         lead = timedelta(minutes=i["notify_min"]) if i["notify_min"] is not None else default_lead
         if abs(due - lead - now) <= win:
+            return True
+    for i in _early_items(d, now):
+        at, _skip = _early_plan(i, now, brief)
+        if at and abs(at - now) <= win:
             return True
     return False
 

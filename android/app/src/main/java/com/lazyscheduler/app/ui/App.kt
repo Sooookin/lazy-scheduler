@@ -268,6 +268,7 @@ fun App() {
                                 onDelete = { s.task?.let { removeSoon(it) }; editing = null },
                                 onLater = { s.task?.let { later(it) }; editing = null },
                                 onSkip = { if (s.task != null && s.date != null) skip(Instance(s.task, s.date, false)); editing = null },
+                                brief = settings["brief_time"] as? String ?: "09:00",
                             )
                             Tab.HOME -> Home(o, rows, today, nowMin, onToggle = ::toggle, onMenu = { menu = it })
                             Tab.CAL -> CalendarScreen(visible.orEmpty(), today, nowMin, prefs.calWeek, onWeek = { prefs.calWeek(it) },

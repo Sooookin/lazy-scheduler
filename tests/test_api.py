@@ -3,6 +3,7 @@ import http.client
 import json
 import sys
 import threading
+from datetime import date
 import types
 
 import pytest
@@ -161,6 +162,10 @@ def test_preview_reports_rule_errors_and_uses_today_as_anchor(server):
     status, body = call(server, "POST", "/api/preview",
                         {"rule": {"period": "week", "weekdays": [0, 1, 2, 3, 4], "interval": 2}})
     assert status == 200 and len(body["dates"]) == 5 and "격주" in body["text"]
+    # 새 항목 창의 달력은 앞으로 돌 날을 날짜 그대로 받아 찍는다
+    days = body["days"]
+    assert len(days) > 5 and days == sorted(days) and all(len(d) == 10 for d in days)
+    assert date.fromisoformat(days[0]).weekday() < 5
 
 
 # ---------- 창 프로세스(ui.py) 와의 약속 ----------

@@ -17,6 +17,7 @@ data class Task(
     val startDate: String? = null,           // 기간 업무의 시작일 (끝나는 날 = dueDate, docs/sync.md)
     val dueTime: String = "",
     val notifyMin: Int? = null,
+    val earlyDays: Int = 0,                  // 미리 알림: 마감 며칠 전에 한 번 더 (없으면 0 - 키가 없다)
     val muted: Boolean = false,
     val pinned: Boolean = false,
     val done: Boolean = false,
@@ -48,6 +49,7 @@ data class Task(
                 startDate = (m["start_date"] as? String)?.takeIf { it.length == 10 },
                 dueTime = m["due_time"] as? String ?: "",
                 notifyMin = (m["notify_min"] as? Number)?.toInt(),
+                earlyDays = (m["early_days"] as? Number)?.toInt()?.takeIf { it in 0..7 } ?: 0,
                 muted = m["muted"] == true,
                 pinned = m["pinned"] == true,
                 done = m["done"] == true,

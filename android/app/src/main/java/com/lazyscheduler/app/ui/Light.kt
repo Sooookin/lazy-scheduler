@@ -115,15 +115,16 @@ data class Pal(
     val skyHi: Color, val skyLo: Color, val hill1: Color, val hill2: Color, val hill3: Color,
     val ribbon: Color, val ribHi: Color, val bead: Color, val guy: Color, val eye: Color, val pupil: Color,
     val skyEdge: Color, val shade: Color,
-    /** 빛 (PC 의 --glow · --glow-w): 칠한 것 둘레의 옅은 번짐 세기와, 밤에만 켜지는 흰 글자 번짐 세기 */
+    /** 빛 (PC 의 --glow · --glow-w). 번짐은 PC 의 큰 시계에만 남기고 휴대폰 화면은 매트하게 둔다 -
+     *  glow 는 늘 0, glowW 는 "밤의 흰 글자" 표시로만 쓴다 (구슬 숫자 색 · 돌멩이 불투명) */
     val glow: Float = 0f, val glowW: Float = 0f,
 ) {
     val isNight get() = day < .5f
     /** 흐린 글자 (PC 의 --faint): 투명도로 흐리면 밤에 면이 비쳐 탁해진다 - 면 쪽으로 섞은 색 */
     val faint: Color get() = lerp(text2, surface, .32f)
-    /** 일정 판 쪽의 빛 (PC 의 --glow-l · --glow-wl): 하늘의 반쯤. 읽는 곳에서는 네온 느낌이 강했다 */
+    /** 일정 판 쪽의 빛. 모아 놓으니 네온 장난감처럼 읽혀 걷어 냈다 (늘 0) */
     val glowL: Float get() = glow * .45f
-    val glowWL: Float get() = glowW * .45f
+    val glowWL: Float get() = 0f
 }
 
 private fun mix(a: Color, b: Color, t: Double) = lerp(a, b, t.toFloat().coerceIn(0f, 1f))
@@ -178,7 +179,7 @@ fun palette(litMin: Double): Pal {
         pupil = mix(L.pupil, L.pupilN, 1 - day),
         skyEdge = Color.White.copy(alpha = (.32 + .58 * day).toFloat()),
         shade = L.ink,
-        glow = (if (flip) .12 + .12 * smooth(1 - day, .5, 1.0) else .13).toFloat(),
+        glow = 0f,
         glowW = (if (flip) .75 + .25 * smooth(1 - day, .5, 1.0) else 0.0).toFloat(),
     )
 }

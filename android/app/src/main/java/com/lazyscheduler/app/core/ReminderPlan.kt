@@ -14,6 +14,8 @@ data class Alarm(
     val time: String,
     val kind: String,
     val detail: String,
+    /** 미리 알림이면 "내일 마감" · "3일 뒤 마감" (알림 첫 줄). 보통 알림은 빈 글자. */
+    val rel: String = "",
 )
 
 /**
@@ -22,6 +24,8 @@ data class Alarm(
  *   no date or no time → no reminder (the morning briefing covers it)
  *   done or muted → none
  *   more than 90 min past due → too late, none
+ * And early reminders (app.py _early_plan): early_days before the due date, at the due time
+ * (or the briefing time when there is none), only on that day.
  * Each device reminds from its own copy (docs/sync.md section 8).
  */
 object ReminderPlan {
@@ -52,7 +56,37 @@ object ReminderPlan {
                 detail = listOf(kindText, i.task.ruleText).filter { it.isNotEmpty() }.joinToString(" · "),
             ))
         }
+        out += early(tasks, settings, now, until)
         return out.sortedBy { it.at }
+    }
+
+    /** 미리 알림. 키는 PC 와 같은 "early:id:date:n" - 한 기기에서 한 번만 뜬다. */
+    private fun early(tasks: List<Task>, settings: Map<String, Any?>, now: LocalDateTime, until: LocalDateTime): List<Alarm> {
+        val keep = tasks.filter { it.earlyDays > 0 && !it.deleted }
+        if (keep.isEmpty()) return emptyList()
+        val today = now.toLocalDate()
+        val brief = (settings["brief_time"] as? String)?.takeIf { it.isNotEmpty() } ?: "09:00"
+        val out = ArrayList<Alarm>()
+        for (i in Plan.instances(keep, today.plusDays(1), today.plusDays(8))) {
+            val date = i.date ?: continue
+            if (i.done || i.task.muted) continue
+            val n = i.task.earlyDays
+            val day = date.minusDays(n.toLong())
+            val hm = runCatching { LocalTime.parse(i.time.ifEmpty { brief }) }.getOrNull() ?: continue
+            val at = LocalDateTime.of(day, hm)
+            if (at.isAfter(until) || (at.isBefore(now) && day != today)) continue
+            val left = date.toEpochDay() - today.toEpochDay()
+            val rel = when (left) { 1L -> "내일 마감"; 2L -> "모레 마감"; else -> "${left}일 뒤 마감" }
+            val kindText = mapOf("routine" to "반복", "deadline" to "마감")[i.kind] ?: ""
+            out.add(Alarm(
+                key = "early:${i.task.id}:$date:$n",
+                at = if (at.isBefore(now)) now else at,
+                taskId = i.task.id, date = date.toString(), title = i.task.title, time = i.time, kind = i.kind,
+                detail = listOf("미리 알림", kindText, i.task.ruleText).filter { it.isNotEmpty() }.joinToString(" · "),
+                rel = rel,
+            ))
+        }
+        return out
     }
 
     /** Next morning briefing time: today's if not yet 2 h past it, otherwise tomorrow's. Null when turned off. */
