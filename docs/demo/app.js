@@ -503,6 +503,7 @@ function rowActs(i, where){
       a.push('<button type="button" data-a="later">' + (i.date > STATE.today ? '하루 뒤로' : '내일로') + '</button>');
     }
   }
+  if(!i.done && i.id) a.push('<button type="button" data-a="imp">' + (i.pinned ? '보통으로' : '중요') + '</button>');
   /* 오늘 목록의 루틴 회차에서 "삭제" 는 루틴 전체를 지운다 - 거기서는 건너뛰기만 둔다 */
   if(!(i.kind === 'routine' && where !== 'routines'))
     a.push('<button type="button" class="del" data-a="del">삭제</button>');
@@ -538,7 +539,7 @@ function itemEl(i, opt){
   const pop = i.done && POP && POP.id === i.id && Date.now() - POP.t < 1500 && !calm();
   if(pop) POP.used = true;
   el.className = 'item k-' + (i.kind || 'deadline') + (i.done ? ' done' : '') + (late ? ' late' : '') +
-                 (opt.next ? ' next' : '') + (pop ? ' pop' : '') +
+                 (opt.next ? ' next' : '') + (pop ? ' pop' : '') + (i.pinned && !i.done ? ' imp' : '') +
                  (ARRIVE.has(i.id) && !calm() ? ' arrive' : '');
   if(i.id) el.dataset.id = i.id;
   if(i.n) el.dataset.n = i.n;
@@ -678,6 +679,7 @@ function render(o){
   HOL = new Set(o.holidays || []);
   THEME = (o.settings && o.settings.theme) || 'auto';
   document.body.classList.toggle('guy-still', !!o.settings && o.settings.guy_walk === false);
+  document.body.classList.toggle('no-sky', !!o.settings && o.settings.show_sky === false);
   /* 일정 파일이 손상돼 백업에서 되살렸다면, 조용히 넘어가지 않고 한 번 알린다 */
   /* alert 는 창을 막고 알림 처리까지 멈춰 세운다. 띠로 남겨 두고 직접 닫게 한다. */
   if(o.notice && o.notice !== render._notice){
@@ -891,6 +893,12 @@ function rowAct(a, i){
   if(a === 'del') return removeSoon(i);
   if(a === 'done') return setDone(i, !i.done);
   if(a === 'edit') return openEdit(i);
+  if(a === 'imp') return setImp(i, !i.pinned);
+}
+/* 중요 표시 (저장 칸은 pinned - 메모는 예전부터 이 값으로 위에 고정됐다). 루틴은 모든 회차가 같이 바뀐다 */
+function setImp(i, on){
+  return change(taskUrl(i), {pinned: on}).then(() =>
+    undoToast(on ? '중요로 표시' : '중요 표시 끔', i.title, () => change(taskUrl(i), {pinned: !on})));
 }
 
 /* ══════════ 오른쪽 단추 차림표 ══════════
@@ -910,6 +918,7 @@ function ctxRows(i, where){
       r.push(['later', i.date > STATE.today ? '하루 뒤로' : '내일로']);
     }
   }
+  if(i.id) r.push(['imp', i.pinned ? '중요 표시 끄기' : '중요로 표시' + (i.kind === 'routine' ? ' (모든 회차)' : '')]);
   /* 오늘 목록의 루틴 회차에서 지우면 그 날짜가 아니라 루틴 자체가 없어진다.
      막지 않되 글자로 밝혀 둔다 - 매번 루틴 칸까지 찾아가게 할 일은 아니다 */
   r.push(['del', i.kind === 'routine' && where !== 'routines' ? '루틴 전체 삭제' : '삭제', 'danger']);
@@ -1082,6 +1091,7 @@ function Form(win, pre){
           '<input class="tin" autocomplete="off" aria-label="시각" title="예: 930 · 21 · 930p · ↑↓ 5분"><span class="tr" data-t="time"></span></div>' +
         '<button type="button" class="cp-p" data-p="rule"><span class="pl">반복</span><span class="pv" data-v="rule"></span><span class="tr" data-t="rule"></span></button>' +
         '<button type="button" class="cp-p" data-p="alert"><span class="pl">알림</span><span class="pv" data-v="alert"></span><span class="tr"></span></button>' +
+        '<button type="button" class="cp-p cp-imp" data-p="imp" aria-pressed="false"><span class="pl">중요</span><span class="pv" data-v="imp"></span><span class="tr"><i class="sw"></i></span></button>' +
         '<div class="cp-note"></div>' +
       '</div>' +
     '</div>' +
@@ -1099,7 +1109,7 @@ function Form(win, pre){
      pending: 여러 날에서 시작만 누르고 끝을 기다리는 중. freq: [단위, 간격] - 날을 아직 안 고른 반복도 여기 남는다.
      items: 그 날 · 그 빈도로 도는 규칙들 (엔진이 준다). occ: 고른 규칙이 앞으로 도는 날 (달력의 표시). */
   const blank = () => ({mode:'none', date:null, end:null, span:false, pending:false, time:'', rule:null, ruleText:'', keep:null,
-    freq:null, items:null, occ:new Set(), lead:null, muted:false, early:0, noteOpen:false, pane:'date'});
+    freq:null, items:null, occ:new Set(), lead:null, muted:false, early:0, noteOpen:false, pane:'date', imp:false});
   const has = () => S.mode !== 'none';
   self.kind = () => S.mode === 'none' ? 'floating' : S.mode === 'rule' ? 'routine' : 'deadline';
   const kindWord = () => S.mode === 'none' ? '메모' : S.mode === 'rule' ? '루틴' : S.mode === 'range' && S.end ? '기간 업무' : '할 일';
@@ -1282,6 +1292,9 @@ function Form(win, pre){
     Q('[data-p=time]').classList.toggle('lock', lock);
     Q('[data-p=alert]').classList.toggle('lock', lock);
     Q('[data-p=alert]').setAttribute('aria-disabled', lock ? 'true' : 'false');
+    pv('imp', S.imp ? '중요 · 목록에 음영' : '', '보통');
+    Q('[data-p=imp]').classList.toggle('is', S.imp);
+    Q('[data-p=imp]').setAttribute('aria-pressed', S.imp ? 'true' : 'false');
     body.querySelectorAll('.cp-p').forEach(p => p.classList.toggle('on', p.dataset.p === S.pane));
     /* 설명: 쓸 때만 칸이 열린다 */
     const w = Q('.cp-note');
@@ -1439,7 +1452,7 @@ function Form(win, pre){
     else if(S.mode === 'range' && S.end) w = '<b>' + mdw(S.date) + '</b>부터 <b>' + mdw(S.end) + tm + '</b>까지';
     else w = '<b>' + mdw(S.date) + tm + '</b>까지 · ' + relW(S.date) + (S.mode === 'range' ? ' · 끝 날을 누르면 기간' : '');
     const a = alertText();
-    return w + (a && has() ? ' · 알림 ' + a : '');
+    return w + (a && has() ? ' · 알림 ' + a : '') + (S.imp ? ' · <b>중요</b>' : '');
   }
   function draw(){
     if(!S) return;
@@ -1547,6 +1560,7 @@ function Form(win, pre){
     }
     if(ds.goto){ setPane(ds.goto); return; }
     if(ds.p){
+      if(ds.p === 'imp'){ S.imp = !S.imp; draw(); return; }
       if(ds.p === 'note'){ S.noteOpen = true; draw(); Q('.cp-memo').focus(); return; }
       if(b.classList.contains('lock')){ when.focus(); return; }
       setPane(ds.p); return;
@@ -1589,7 +1603,7 @@ function Form(win, pre){
   /* Tab 으로 줄을 옮기면 판도 따라간다 */
   Q('.cp-props').addEventListener('focusin', e => {
     const p = e.target.closest('.cp-p');
-    if(p && p.dataset.p && p.dataset.p !== 'note' && !p.classList.contains('lock')) setPane(p.dataset.p);
+    if(p && p.dataset.p && p.dataset.p !== 'note' && p.dataset.p !== 'imp' && !p.classList.contains('lock')) setPane(p.dataset.p);
   });
 
   /* ---------- 달력: 누르기 · 끌기 (기간) · 휠 (달 넘기기) ---------- */
@@ -1702,6 +1716,7 @@ function Form(win, pre){
       S.time = I.time || ''; S.lead = I.notify_min != null ? I.notify_min : null;
       S.muted = !!I.muted; S.early = I.early_days || 0;
     }
+    S.imp = !!I.pinned;
     showMonth(S.date);
     lastGroup = null;
     draw();
@@ -1715,7 +1730,7 @@ function Form(win, pre){
   self.note = () => { const t = Q('.cp-memo'); return t ? t.value.trim() : (I.note || '').trim(); };
   self.focusName = () => name.focus();
   self.read = function(){
-    const k = self.kind(), p = {kind:k};
+    const k = self.kind(), p = {kind:k, pinned:!!S.imp};
     if(k === 'floating') return Object.assign(p, {due_date:null, start_date:null, due_time:'', rule:null, notify_min:null, muted:false, early_days:0});
     Object.assign(p, {due_time:S.time || '', notify_min:S.lead, muted:S.muted,
                       early_days:S.rule && S.rule.period === 'day' ? 0 : S.early});
@@ -1943,7 +1958,7 @@ function asItem(t){
   return {id:t.id, title:t.title, note:t.note || '', kind:'deadline', rule:null,
           date:t.due_date || null, start:isSpan(t) ? t.start_date : null, time:t.due_time || '',
           notify_min:t.notify_min != null ? t.notify_min : null, early_days:t.early_days || 0,
-          muted:!!t.muted, rule_text:'', done:!!t.done};
+          muted:!!t.muted, pinned:!!t.pinned, rule_text:'', done:!!t.done};
 }
 
 /* 주말에 걸린 마감을 어느 칸에 놓을지.
@@ -1972,7 +1987,7 @@ function chipEl(t){
   const cls = t.done ? 'done' : t.due_date < STATE.today ? 'p'
             : t.due_date === STATE.today ? 't' : 'f';
   const wk = isWeekend(t.due_date) && !weekendOn();   /* 앞 영업일 칸에 얹힌 것 */
-  el.className = 'chip ' + cls + (wk ? ' wk' : '');
+  el.className = 'chip ' + cls + (wk ? ' wk' : '') + (t.pinned && !t.done ? ' imp' : '');
   el.innerHTML = '<span class="n2">' + esc(t.title) + '</span>';
   el.title = '';
   el._hov = {
@@ -2226,7 +2241,7 @@ function drawCal(){
            그 달에 하나뿐인 진짜 마감이 그 속에 묻힌다. 몇 건인지만 알려 준다. */
         if(rts.length){
           const rl = document.createElement('div');
-          rl.className = 'rtline';
+          rl.className = 'rtline' + (rts.some(t => t.pinned && !t.done) ? ' imp' : '');
           const left = rts.filter(t => !t.done).length;
           rl.innerHTML = '루틴 <b>' + rts.length + '</b>' +
             (left && left !== rts.length ? '<span class="lf">' + left + ' 남음</span>' : '');
@@ -2346,7 +2361,7 @@ function weekItems(key){
 function wkItem(t, big){
   const el = document.createElement('div');
   const past = !t.done && !t._rt && t.due_date < STATE.today;
-  el.className = 'wi' + (t._rt ? ' rt' : '') + (t.done ? ' dn' : '') + (past ? ' p' : '') + (big ? ' big' : '');
+  el.className = 'wi' + (t._rt ? ' rt' : '') + (t.done ? ' dn' : '') + (past ? ' p' : '') + (big ? ' big' : '') + (t.pinned && !t.done ? ' imp' : '');
   const mark = t.done ? '<span class="wm ok">✓</span>'
              : t.due_time ? '<span class="wm tm">' + tmHTML(t.due_time) + '</span>'
              : '<span class="wm dt"></span>';
@@ -2641,6 +2656,8 @@ function fillSettings(){
   $('#s-auto').checked = !!st.autostart;
   $('#s-hold').checked = st.hold_when_busy !== false;
   $('#s-walk').checked = st.guy_walk !== false;
+  $('#s-sky').checked = st.show_sky !== false;
+  $('#s-walk').disabled = st.show_sky === false;
   $('#s-upd').checked = st.auto_update !== false;
   $('#s-ver').textContent = '버전 ' + (STATE.version || '');
   paintUpdate();
@@ -2661,7 +2678,7 @@ function saveSetting(patch){
   }).catch(e => { say(e.message); if(STATE) fillSettings(); });
 }
 [['#s-biz', 'business_only'], ['#s-auto', 'autostart'], ['#s-hold', 'hold_when_busy'], ['#s-walk', 'guy_walk'],
- ['#s-upd', 'auto_update']]
+ ['#s-upd', 'auto_update'], ['#s-sky', 'show_sky']]
   .forEach(([id, key]) => { $(id).addEventListener('change', e => saveSetting({[key]: e.target.checked})); });
 $('#s-lead').addEventListener('change', e => {
   const v = +e.target.value;

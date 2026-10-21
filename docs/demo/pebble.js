@@ -48,7 +48,7 @@ window.PB = (() => {
   const frozen = () => SHOT_MIN != null;
   const rnd = (a, b) => frozen() ? (a + b) / 2 : a + Math.random() * (b - a);
   const chance = p => !frozen() && Math.random() < p;
-  const off = () => document.body.classList.contains('guy-still');
+  const off = () => document.body.classList.contains('guy-still') || document.body.classList.contains('no-sky');
   const nowMin = () => SHOT_MIN != null ? SHOT_MIN : (d => d.getHours() * 60 + d.getMinutes())(new Date());
 
   /* ── 상태. 자리 x 는 도안의 자(900 폭) 단위다 - 창 폭이 바뀌어도 같은 자리에 있다 ── */
