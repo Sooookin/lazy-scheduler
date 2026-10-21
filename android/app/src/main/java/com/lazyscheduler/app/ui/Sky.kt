@@ -1,5 +1,15 @@
 package com.lazyscheduler.app.ui
 
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.Crossfade
 import android.graphics.BlurMaskFilter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -15,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -55,7 +66,7 @@ val SKY_TALL = 158.dp
 
 /** 궤도 위의 구슬 하나 = 오늘의 일 하나. n 은 아래 목록의 번호와 같다. */
 @Immutable
-data class Bead(val n: Int, val min: Int, val done: Boolean, val late: Boolean, val next: Boolean)
+data class Bead(val n: Int, val min: Int, val done: Boolean, val late: Boolean, val next: Boolean, val imp: Boolean = false)
 
 /**
  * 하늘의 자. PC 의 참고 도안(900 × 206)을 그대로 쓰고, 가로는 화면 폭으로 늘린다. 세로는
@@ -343,7 +354,7 @@ private fun DrawScope.drawBeads(g: SkyGeo, p: Pal, tm: TextMeasurer, a: Float, b
             drawIntoCanvas { cv -> cv.nativeCanvas.drawCircle(c.x + (p.light.dir * 5 * dp).toFloat(), c.y + 5 * dp, r, beadShadow) }
             // 빛: 구슬 둘레에 제 테 색이 옅게 번진다
             drawIntoCanvas { cv -> cv.nativeCanvas.drawCircle(c.x, c.y, r, beadGlow(ring, p.glow * 1.1f * op)) }
-            drawCircle(if (fill) p.teal else p.bead, r, c, alpha = op)
+            drawCircle(if (fill) p.teal else if (b.imp) lerp(p.bead, p.imp, .3f) else p.bead, r, c, alpha = op)
             drawCircle(ring, r, c, alpha = op, style = Stroke(1.6f * dp))
             if (b.next && !b.done) drawCircle(p.onTeal, r - 3 * dp, c, alpha = .6f * a, style = Stroke(1 * dp))
             // 밤에는 채우지 않은 구슬의 숫자를 흰 글자로 (테 색 숫자는 어두운 구슬 위에서 잘 안 보였다)
@@ -426,4 +437,46 @@ fun lightX(w: Float, sl: SkyLight): Float {
 private fun DrawScope.beadGlow(color: Color, a: Float) = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
     this.color = color.copy(alpha = a.coerceIn(0f, 1f)).toArgb()
     maskFilter = BlurMaskFilter(3 * density, BlurMaskFilter.Blur.NORMAL)
+}
+
+
+internal val MINI_TALL = 116.dp
+internal val MINI_LOW = 60.dp
+
+/**
+ * 하늘을 끈 모양 (설정 "하늘과 궤도"). 같은 자리에 날짜와 큰 시계만 - 바탕은 일정 판의 종이에 강조색을 8% 푼 한 장
+ * (PC 와 같다). 낮에는 옅은 청자빛, 밤에는 판보다 반 단 밝은 청회색이라 아래 판과는 선 없이 색으로 갈린다. 접힌 화면(달력 · 설정 …)에서는 한 줄로 눕는다 (PC 의 접힌 작은 시계).
+ */
+@Composable
+fun MiniSky(height: () -> Dp, top: Dp, tall: Boolean, now: java.time.LocalTime, today: java.time.LocalDate) {
+    val pal = LocalPal.current
+    val hm = t12("%02d:%02d".format(now.hour, now.minute))
+    val day = "${today.monthValue}월 ${today.dayOfMonth}일 ${WDS[today.dayOfWeek.value - 1]}요일"
+    Box(
+        Modifier.fillMaxWidth()
+            .layout { m, c ->
+                val h = height().roundToPx()
+                val p = m.measure(c.copy(minHeight = h, maxHeight = h))
+                layout(p.width, h) { p.place(0, 0) }
+            }
+            .background(lerp(pal.surface, pal.teal, .08f))
+            .padding(top = top, start = 20.dp, end = 20.dp),
+    ) {
+        Crossfade(tall, Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp), animationSpec = tween(220), label = "mini") { t ->
+            if (t) Column {
+                Text(day, style = T.body, color = pal.text)
+                Spacer(Modifier.height(6.dp))
+                // 큰 시계의 AM · PM 은 숫자의 1/3 쯤 (PC 의 .clk-c .ap - 머리 글자 크기 · 가는 굵기)
+                val big = androidx.compose.ui.text.buildAnnotatedString {
+                    append(hm.substringBefore(' '))
+                    pushStyle(androidx.compose.ui.text.SpanStyle(fontSize = T.head.fontSize, fontWeight = FontWeight.Light)); append(" " + hm.substringAfter(' ')); pop()
+                }
+                Text(big, style = T.display.copy(fontWeight = FontWeight.Light, fontFeatureSettings = "tnum"), color = pal.text, maxLines = 1)
+            } else Row(verticalAlignment = Alignment.Bottom) {
+                Text(apText(hm), Modifier.alignByBaseline(), style = T.title.copy(fontWeight = FontWeight.Light, fontFeatureSettings = "tnum"), color = pal.text, maxLines = 1)
+                Spacer(Modifier.width(10.dp))
+                Text(day, Modifier.alignByBaseline(), style = T.body, color = pal.text, maxLines = 1)
+            }
+        }
+    }
 }

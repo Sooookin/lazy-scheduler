@@ -94,10 +94,13 @@ class ViewPrefs(ctx: Context) {
     var walk by mutableStateOf(p.getBoolean("walk", true)); private set
     var calm by mutableStateOf(p.getBoolean("calm", false)); private set
     var calWeek by mutableStateOf(p.getBoolean("cal_week", false)); private set
+    /** 위의 하늘(궤도 · 능선 · 빛 · 돌멩이)을 그릴지. 끄면 시계와 날짜만 (PC 의 show_sky) */
+    var sky by mutableStateOf(p.getBoolean("sky", true)); private set
     fun theme(v: String) { theme = v; p.edit().putString("theme", v).apply() }
     fun walk(v: Boolean) { walk = v; p.edit().putBoolean("walk", v).apply() }
     fun calm(v: Boolean) { calm = v; p.edit().putBoolean("calm", v).apply() }
     fun calWeek(v: Boolean) { calWeek = v; p.edit().putBoolean("cal_week", v).apply() }
+    fun sky(v: Boolean) { sky = v; p.edit().putBoolean("sky", v).apply() }
 }
 
 /** 3초 동안의 "되돌리기" (PC 와 같다). */
@@ -207,6 +210,11 @@ fun App() {
         Repo.save(t, mapOf("due_date" to to.toString()))
         undo = Undo("${dateLabel(to, today)}로", t.title) { Repo.save(t.copy(dueDate = to.toString()), mapOf("due_date" to from)) }
     }
+    /** 중요 표시 (저장 칸은 pinned - PC 와 같다). 루틴은 모든 회차가 같이 바뀐다 */
+    fun setImp(t: Task, on: Boolean) {
+        Repo.save(t, mapOf("pinned" to on))
+        undo = Undo(if (on) "중요로 표시" else "중요 표시 끔", t.title) { Repo.save(t.copy(pinned = on), mapOf("pinned" to !on)) }
+    }
     fun openEditor(e: Editing) { draft.load(e, today, businessOnly, settings); editing = e }
 
     BackHandler(enabled = menu != null || editing != null || tab != Tab.HOME) {
@@ -230,7 +238,9 @@ fun App() {
     // 접히고 펴지는 값은 State 째로 넘긴다 - 여기서 읽으면 움직이는 동안 매 프레임 화면 전체를 다시 짠다
     // 하늘이 접히고 펴지는 것 · 화면이 바뀌는 것은 "움직임 줄이기" 와 상관없이 움직인다 (PC 와 같다 -
     // 그 설정은 돌멩이의 폴짝 · 굴림만 멈춘다). 휴대폰의 "애니메이션 제거" 를 켜면 Compose 가 알아서 멈춘다.
-    val skyH = animateDpAsState(if (tall) tallH else top + 86.dp, tween(560, easing = EaseMove), label = "sky")
+    val skyH = animateDpAsState(
+        if (!prefs.sky) (if (tall) top + MINI_TALL else top + MINI_LOW) else if (tall) tallH else top + 86.dp,
+        tween(560, easing = EaseMove), label = "sky")
     val ribbon = animateFloatAsState(if (tall) 1f else 0f, tween(360), label = "ribbon")
 
     CompositionLocalProvider(LocalPal provides pal, LocalPaper provides rememberPaper()) {
@@ -238,9 +248,10 @@ fun App() {
             Column(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val wPx = with(density) { maxWidth.toPx() }
-                    val beads = remember(rows) { rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next) } } }
+                    val beads = remember(rows) { rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next, r.i.task.pinned) } } }
                     val ghost = if (ed != null || draft.picking) draft.ghostMinute() else null
-                    Sky(
+                    if (!prefs.sky) MiniSky(height = { skyH.value }, top = top, tall = tall, now = now, today = today)
+                    else Sky(
                         height = { skyH.value }, tallHeight = tallH, top = top, ribbon = { ribbon.value },
                         beads = beads, nowMin = nowMin, ghost = ghost,
                         onGhost = if (draft.picking || (ed != null && ed.task == null && ed.kind != "floating")) ({ m -> draft.pickFromSky(m) }) else null,
@@ -304,7 +315,8 @@ fun App() {
                 onEdit = { menu?.let { openEditor(Editing(it.task, it.date)) }; menu = null },
                 onLater = { menu?.let { later(it.task) }; menu = null },
                 onSkip = { menu?.let(::skip); menu = null },
-                onDelete = { menu?.let { removeSoon(it.task) }; menu = null })
+                onDelete = { menu?.let { removeSoon(it.task) }; menu = null },
+                onImp = { menu?.let { setImp(it.task, !it.task.pinned) }; menu = null })
         }
     }
 }

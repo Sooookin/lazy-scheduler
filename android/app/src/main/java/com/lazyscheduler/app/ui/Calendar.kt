@@ -196,7 +196,7 @@ private fun marks(list: List<Instance>, d: LocalDate, today: LocalDate): List<St
     val dl = list.filter { it.kind == "deadline" }
     if (dl.isNotEmpty()) out += when { d.isBefore(today) -> "past"; d == today -> "today"; else -> "ring" }
     if (list.any { it.kind == "routine" }) out += "routine"
-    return out.take(2)
+    return out.take(2) + (if (list.any { it.task.pinned && !it.done }) listOf("imp") else emptyList())
 }
 
 @Composable
@@ -214,13 +214,13 @@ private fun DayCell(d: LocalDate, other: Boolean, picked: Boolean, isToday: Bool
     Box(
         Modifier.size(34.dp).then(if (picked) Modifier.raised(CircleShape, pal) else Modifier)
             .glow(pal.teal, 10.dp, 17.dp, if (picked) pal.glowL else 0f).clip(CircleShape)
-            .background(if (picked) pal.teal else Color.Transparent)
+            .background(if (picked) pal.teal else if ("imp" in marks && !other) pal.imp.copy(alpha = .2f) else Color.Transparent)
             .tap(onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text("${d.dayOfMonth}", style = if (isToday) T.leadM else T.lead, color = color)
-        if (!other && marks.isNotEmpty()) Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            for (m in marks) {
+        if (!other && marks.any { it != "imp" }) Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            for (m in marks.filter { it != "imp" }) {
                 val c = if (picked) pal.onTeal else when (m) { "past" -> pal.text; "routine" -> pal.teal.copy(alpha = .45f); else -> pal.teal }
                 Box(Modifier.size(5.dp).clip(CircleShape).then(if (m == "ring") Modifier.border(1.2.dp, c, CircleShape) else Modifier.background(c)))
             }
@@ -390,7 +390,9 @@ private fun WeekLine(i: Instance, today: LocalDate) {
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(i.task.title, style = T.label, color = if (i.done) pal.text2 else pal.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        val imp = i.task.pinned && !i.done
+        Text(i.task.title, (if (imp) Modifier.clip(RoundedCornerShape(4.dp)).background(pal.imp.copy(alpha = .14f)).padding(horizontal = 4.dp) else Modifier),
+            style = T.label, color = if (i.done) pal.text2 else pal.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
             textDecoration = if (i.done) T.strike else null)
     }
 }

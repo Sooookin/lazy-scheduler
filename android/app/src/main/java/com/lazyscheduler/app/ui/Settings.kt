@@ -87,6 +87,7 @@ fun SettingsScreen(
             Seg(listOf("auto" to "해를 따라", "light" to "밝게", "dark" to "어둡게"), prefs.theme, Modifier.weight(1f), fill = true) { prefs.theme(it) }
         }
         Spacer(Modifier.height(6.dp))
+        CheckRow(prefs.sky, "하늘과 궤도", "끄면 그 자리에 시계와 날짜만") { prefs.sky(it) }
         CheckRow(prefs.walk, "돌멩이 움직임", "끄면 가운데에 앉아 눈만 굴립니다") { prefs.walk(it) }
         CheckRow(prefs.calm, "움직임 줄이기", "폴짝 · 굴림 → 즉시 전환") { prefs.calm(it) }
 

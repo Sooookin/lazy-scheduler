@@ -694,8 +694,8 @@ def _brief(now, o):
         return
     d = now.date()
     title = "%d월 %d일 %s요일" % (d.month, d.day, WEEK[d.weekday()])
-    toast.notify_list("아침 브리핑", title, rows[:toast.LIST_MAX],
-                      max(0, len(rows) - toast.LIST_MAX),
+    toast.notify_list("아침 브리핑", title, rows[:toast.BRIEF_MAX],
+                      max(0, len(rows) - toast.BRIEF_MAX),
                       accent="#85bdb3", key="brief:%s" % d)
 
 

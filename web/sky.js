@@ -72,7 +72,7 @@ const LIT = (() => {
    'sky-hi-n','sky-lo-n','hill1-n','hill2-n','hill3-n','ribbon-n','rib-hi-n',
    'sky-hi-d','sky-lo-d','hill1-d','hill2-d','hill3-d','ribbon-d','rib-hi-d','bead-d',
    'ray-hot','ray-hot-d','ray-pale','ray-pale-d','ray-warm','ray-warm-d','ray-shade',
-   'moon','moon-cool','guy','guy-n','eye','eye-n','pupil','pupil-n','rib-past-n']
+   'moon','moon-cool','guy','guy-n','eye','eye-n','pupil','pupil-n','rib-past-n','imp','imp-lit']
     .forEach(k => { o[k] = cs.getPropertyValue('--lit-' + k).trim(); });
   return o;
 })();
@@ -193,8 +193,8 @@ function applyLight(min){
      4.5:1 을 넘지 못한다. 예전에는 하늘을 따라 고르게 섞어 그 회색에 수십 분 머물렀고,
      글자까지 같이 섞여 19:10 무렵 본문이 1.2:1 로 사라졌다. 이제 그 구간은 몇 분이다. */
   const dk = smooth(1 - day, .30, .70);
-  const surface = mixc(mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, dk*.836);
-  setLit('--bg',      mixc(mixc(LIT.base,  LIT.warm, warm*.70), LIT.night, dk*.904));
+  const surface = mixc(mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, dk*.80);
+  setLit('--bg',      mixc(mixc(LIT.base,  LIT.warm, warm*.70), LIT.night, dk*.88));
   setLit('--surface', surface);
   /* 글자는 섞지 않고 한 번에 뒤집는다 - 섞으면 그 사이에 회색 글자가 생긴다. 뒤집는 곳은
      먹빛 · 흰빛 대비가 같아지는 휘도(.215)보다 조금 밝은 .30 이다: 회색 면 위에서는 밝은
@@ -211,6 +211,7 @@ function applyLight(min){
   /* 색 글자도 밤에는 밝은 짝으로. 이 색만 고정이면 지난 일 · 공휴일 · 삭제가 밤 면에 잠긴다 */
   setLit('--hol',     pull(flip ? LIT['hol-lit'] : LIT.hol));
   setLit('--late',    pull(flip ? LIT['late-lit'] : LIT.late));
+  setLit('--imp',     flip ? LIT['imp-lit'] : LIT.imp);
   setLit('--danger',  pull(flip ? LIT['danger-lit'] : LIT.danger));
   /* 한 단 더 흐린 글자 (옆 달 날짜 · 비어 있음 · 입력칸 안내). 예전에는 보조 글자에 투명도를
      걸었는데, 투명도는 면이 바뀔 때마다 대비가 따라 움직여 낮에 맞추면 노을 · 밤에 사라졌다 */
@@ -506,7 +507,7 @@ function drawSky(all){
       const cx = +b[0].toFixed(1), cy = +b[1].toFixed(1);
       const ring = bad ? 'var(--late)' : 'var(--teal)', fill = done || isNext;
       marks.push('<circle data-n="' + i.n + '" cx="' + cx + '" cy="' + cy + '" r="' + BEAD_R + '" fill="' +
-        (fill ? 'var(--teal)' : 'var(--bead)') + '" stroke="' + ring +
+        (fill ? 'var(--teal)' : i.pinned ? 'color-mix(in srgb, var(--imp) 30%, var(--bead))' : 'var(--bead)') + '" stroke="' + ring +
         '" stroke-width="1.6" opacity="' + (done ? .55 : 1) + '"/>');
       /* 끝낸 것도 채워져 있으므로, 다음에 할 것에는 속에 테를 하나 더 두른다 */
       if(isNext && !done) marks.push('<circle cx="' + cx + '" cy="' + cy +

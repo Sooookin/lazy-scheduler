@@ -49,7 +49,7 @@ HOVER_HI = (TEXT, .12)
 # 예전 호출은 그때의 색을 글자로 적어 보냈다: 짙은 색(#08202b) = 지난 알림, 박하빛 = 안내.
 # 팔레트가 바뀌어도 그 뜻은 그대로이므로 옛 값도 받아 준다.
 LEGACY_LATE = {tokens.COLOR["deep"], "#08202b", "#16211f"}
-LEGACY_INFO = {tokens.COLOR["mint"], "#85bdb3", "#8fc2b9"}
+LEGACY_INFO = {tokens.COLOR["mint"], "#85bdb3", "#8fc2b9", "#8eb7bf"}
 
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(
@@ -87,6 +87,9 @@ _BASE = dict(
 )
 TITLE_LINES, SUB_LINES = 2, 3
 LIST_MAX = 4
+# 아침 브리핑은 하루의 목록 전부라 더 길게 (4줄이면 거의 늘 '그 외 N건' 으로 잘렸다).
+# 놓친 · 밀린 알림은 카드가 여럿 겹칠 수 있어 그대로 넷.
+BRIEF_MAX = 10
 SCALE = 1.0
 globals().update(_BASE)
 
@@ -593,7 +596,7 @@ def _draw_list(item, hover):
     f_lab, f_ttl = _font(500, s(10)), _font(500, s(14.5))
     f_key, f_row, f_n = _font(400, s(10.5)), _font(500, s(11.5)), _font(500, s(11))
     f_pill, f_more = _font(500, s(9.5)), _font(500, s(10.5))
-    rows = item["rows"][:LIST_MAX]
+    rows = item["rows"][:BRIEF_MAX]          # 몇 줄까지 보일지는 부르는 쪽이 자른다 (브리핑 10 · 나머지 4)
     more = item.get("more", 0)
     L = LIST_PAD
     head = s(15 + 14 + 3 + 20 + 9)

@@ -6,6 +6,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -132,6 +133,8 @@ class Draft {
     var lead by mutableStateOf<Int?>(null)
     var early by mutableIntStateOf(0)
     var alarm by mutableStateOf(true)
+    /** 중요 (저장 칸은 pinned) - 목록 · 달력에 음영 */
+    var imp by mutableStateOf(false)
     var rule by mutableStateOf<Map<String, Any?>?>(null)
     var ruleText by mutableStateOf("")
     /** 고치기로 연 규칙이 제안에 없으면(예전 분기 규칙 등) 목록 맨 위에 그대로 남긴다 */
@@ -160,7 +163,7 @@ class Draft {
         title = t?.title ?: ""; note = t?.note ?: ""; noteOpen = false
         mode = "none"; date = null; end = null; span = false; pending = false
         rule = null; ruleText = ""; keep = null; freq = null; apLock = false; error = null
-        time = t?.dueTime ?: ""; lead = t?.notifyMin; early = t?.earlyDays ?: 0; alarm = !(t?.muted ?: false)
+        time = t?.dueTime ?: ""; lead = t?.notifyMin; early = t?.earlyDays ?: 0; alarm = !(t?.muted ?: false); imp = t?.pinned ?: false
         defaultLead = ReminderPlan.defaultLead(settings)
         when {
             t != null && t.kind == "routine" && t.rule != null -> {
@@ -254,7 +257,7 @@ class Draft {
     fun fields(): Map<String, Any?>? {
         val t = title.trim()
         if (t.isEmpty()) { error = "이름을 입력하세요"; return null }
-        val f = linkedMapOf<String, Any?>("title" to t.take(200), "note" to note.trim().take(2000), "kind" to kind)
+        val f = linkedMapOf<String, Any?>("title" to t.take(200), "note" to note.trim().take(2000), "kind" to kind, "pinned" to imp)
         when (kind) {
             "routine" -> {
                 if (freq != null && rule == null) { error = "반복할 날을 달력에서 고르세요"; pane = "rule"; return null }
@@ -330,7 +333,7 @@ class Draft {
             else -> "${mdw(d)}${tm}까지 · ${relW(d, today)}"
         }
         val a = alertText()
-        return w + if (a.isNotEmpty()) " · 알림 $a" else ""
+        return w + (if (a.isNotEmpty()) " · 알림 $a" else "") + (if (imp) " · 중요" else "")
     }
 }
 
@@ -376,6 +379,7 @@ fun Editor(
             Pane(d.pane == "rule") { RulePane(d, today) }
             Prop("알림", if (d.has) d.alertText() else "날짜를 정하면", empty = !d.has, on = d.pane == "alert", locked = !d.has) { open("alert") }
             Pane(d.pane == "alert") { AlertPane(d, brief) }
+            ImpRow(d.imp) { d.imp = !d.imp }
             if (d.noteOpen || d.note.isNotEmpty()) NoteField(d.note) { if (it.length <= 2000) d.note = it }
             else Prop("설명", "덧붙이기", empty = true, on = false) { d.noteOpen = true }
             d.error?.let { Text(it, Modifier.padding(top = 12.dp), style = T.body, color = pal.danger) }
@@ -454,6 +458,31 @@ private fun Prop(label: String, value: String, empty: Boolean, on: Boolean, tail
                     drawLine(pal.faint, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
                 }
             } else Spacer(Modifier.width(8.dp))
+        }
+        Hair()
+    }
+}
+
+/** 중요 줄: 누르면 바로 켜고 끈다 (펼치는 도구가 없다). 켜지면 줄이 목록에서처럼 음영을 입는다 */
+@Composable
+private fun ImpRow(on: Boolean, onClick: () -> Unit) {
+    val pal = LocalPal.current
+    val knob by animateFloatAsState(if (on) 1f else 0f, tween(160), label = "imp")
+    Column {
+        Row(
+            Modifier.fillMaxWidth().height(48.dp).background(if (on) pal.imp.copy(alpha = .12f) else Color.Transparent)
+                .press(onClick = onClick).padding(start = 12.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("중요", Modifier.width(56.dp), style = T.label, color = pal.text2)
+            Text(if (on) "중요 · 목록에 음영" else "보통", Modifier.weight(1f), style = T.head.copy(fontWeight = FontWeight.Normal),
+                color = if (on) pal.text else pal.faint, maxLines = 1)
+            Canvas(Modifier.size(32.dp, 18.dp)) {
+                val h = size.height
+                drawRoundRect(if (on) pal.imp else pal.text.copy(alpha = .14f), cornerRadius = CornerRadius(h / 2))
+                val r = h / 2 - 2.dp.toPx()
+                drawCircle(pal.field, r, Offset(h / 2 + (size.width - h) * knob, h / 2))
+            }
         }
         Hair()
     }
@@ -570,7 +599,7 @@ private fun LineCal(d: Draft, today: LocalDate) {
         var cur = grid0
         repeat(6) {
             Row {
-                repeat(7) {
+                repeat(7) { col ->
                     val day = cur
                     val out = day.month != first.month
                     val (r0, r1) = shown ?: (null to null)
@@ -581,8 +610,10 @@ private fun LineCal(d: Draft, today: LocalDate) {
                     val now = day == today
                     val sun = Recur.isHoliday(day) || day.dayOfWeek.value == 7
                     val color = when {
+                        rs || re -> pal.onTeal           // 채운 동그라미 위 - 옆 달의 날이어도 흐리게 하지 않는다
                         out -> (if (sun) pal.hol else pal.text).copy(alpha = .3f)
-                        on || inRange || oc -> pal.teal
+                        inRange -> pal.text
+                        on || oc -> pal.teal
                         sun -> pal.hol
                         else -> pal.text
                     }
@@ -590,14 +621,27 @@ private fun LineCal(d: Draft, today: LocalDate) {
                         Modifier.weight(1f).height(40.dp).drawBehind {
                             val w = size.width; val h = size.height; val cx = w / 2; val half = 9.dp.toPx()
                             drawLine(pal.hair, Offset(0f, 0f), Offset(w, 0f), 1.dp.toPx())
-                            if (on) drawRect(pal.teal.copy(alpha = .07f), Offset(0f, 1.dp.toPx()))
-                            else if (inRange) drawRect(pal.teal.copy(alpha = .04f), Offset(0f, 1.dp.toPx()))
+                            // 기간: 고른 날들을 한 덩어리 옅은 띠로 잇고 시작 · 끝 날은 채운 동그라미 (PC 와 같다).
+                            // 띠 · 동그라미의 가운데는 숫자의 가운데(칸 위에서 18dp)에 맞춘다. 주가 바뀌는 줄 끝은 둥글게 닫는다
+                            val my = 18.dp.toPx(); val bh = 13.dp.toPx(); val band = pal.teal.copy(alpha = .13f)
+                            if (inRange) {
+                                val x0 = if (rs) cx else if (col == 0) 4.dp.toPx() else 0f
+                                val x1 = if (re) cx else if (col == 6) w - 4.dp.toPx() else w
+                                if (x1 > x0) {
+                                    val cr = CornerRadius(bh)
+                                    val path = androidx.compose.ui.graphics.Path().apply {
+                                        addRoundRect(androidx.compose.ui.geometry.RoundRect(x0, my - bh, x1, my + bh,
+                                            topLeftCornerRadius = if (col == 0 && !rs) cr else CornerRadius.Zero, bottomLeftCornerRadius = if (col == 0 && !rs) cr else CornerRadius.Zero,
+                                            topRightCornerRadius = if (col == 6 && !re) cr else CornerRadius.Zero, bottomRightCornerRadius = if (col == 6 && !re) cr else CornerRadius.Zero))
+                                    }
+                                    drawPath(path, band)
+                                }
+                                if (rs || re) drawCircle(pal.teal, 15.dp.toPx(), Offset(cx, my))
+                            } else if (on) drawRect(pal.teal.copy(alpha = .07f), Offset(0f, 1.dp.toPx()))
                             fun bar(x0: Float, x1: Float, t: Float, c: Color) = drawRoundRect(c, Offset(x0, h - 6.dp.toPx() - t / 2), Size(x1 - x0, t), CornerRadius(t / 2))
                             val t3 = 3.dp.toPx(); val t2 = 2.dp.toPx()
                             when {
-                                rs && !re -> bar(cx - half, w, t3, pal.teal)
-                                re && !rs -> bar(0f, cx + half, t3, pal.teal)
-                                inRange -> bar(0f, w, t2, pal.teal.copy(alpha = .5f))
+                                inRange -> {}
                                 on -> bar(cx - half, cx + half, t3, pal.teal)
                                 oc -> bar(cx - half, cx + half, t2, pal.teal.copy(alpha = .5f))
                                 now -> bar(cx - half, cx + half, t2, pal.text.copy(alpha = .35f))
@@ -606,7 +650,7 @@ private fun LineCal(d: Draft, today: LocalDate) {
                         contentAlignment = Alignment.Center,
                     ) {
                         Text("${day.dayOfMonth}", Modifier.padding(bottom = 4.dp),
-                            style = T.head.copy(fontWeight = if (on || now) FontWeight.Medium else FontWeight.Normal, fontFeatureSettings = "tnum"), color = color)
+                            style = T.head.copy(fontWeight = if (on || now || rs || re) FontWeight.Medium else FontWeight.Normal, fontFeatureSettings = "tnum"), color = color)
                     }
                     cur = cur.plusDays(1)
                 }

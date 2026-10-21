@@ -118,6 +118,8 @@ data class Pal(
     /** 빛 (PC 의 --glow · --glow-w). 번짐은 PC 의 큰 시계에만 남기고 휴대폰 화면은 매트하게 둔다 -
      *  glow 는 늘 0, glowW 는 "밤의 흰 글자" 표시로만 쓴다 (구슬 숫자 색 · 돌멩이 불투명) */
     val glow: Float = 0f, val glowW: Float = 0f,
+    /** 중요한 일의 음영 빛깔 (PC 의 --imp). 면으로만 옅게 깐다 */
+    val imp: Color = LitTokens.imp,
 ) {
     val isNight get() = day < .5f
     /** 흐린 글자 (PC 의 --faint): 투명도로 흐리면 밤에 면이 비쳐 탁해진다 - 면 쪽으로 섞은 색 */
@@ -137,7 +139,7 @@ fun palette(litMin: Double): Pal {
     // 어두워지는 곡선은 가운데서 가파르다 (PC 의 applyLight 와 같다): 면이 중간 회색을 지나는 동안에는
     // 먹빛도 흰빛도 4.5:1 을 넘지 못하므로 그 구간을 몇 분으로 줄인다.
     val dk = smooth(1 - day, .30, .70)
-    val surface = mix(mix(L.panel, L.warm, warm * .85), L.night, dk * .836)
+    val surface = mix(mix(L.panel, L.warm, warm * .85), L.night, dk * .80)
     val ink = mix(L.ink, Color(0xFFE8ECE9), smooth(1 - day, .3, .7))
     // 글자는 섞지 않고 한 번에 뒤집는다 - 섞으면 회색 글자가 생겨 19:10 무렵 본문이 1.2:1 로 사라졌다.
     // 뒤집는 곳은 대비가 같아지는 휘도(.215)보다 조금 밝은 .30 (회색 면 위에서는 밝은 글자가 더 또렷하다).
@@ -150,7 +152,7 @@ fun palette(litMin: Double): Pal {
     fun layer(d: Color, dusk: Color, n: Color) = mix(mix(d, dusk, sl.dusk), n, sl.night)
     return Pal(
         light = sl, day = day.toFloat(),
-        bg = mix(mix(L.base, L.warm, warm * .70), L.night, dk * .904),
+        bg = mix(mix(L.base, L.warm, warm * .70), L.night, dk * .88),
         surface = surface,
         text = textC,
         text2 = pull(if (flip) L.pale2 else L.ink2),
@@ -180,6 +182,7 @@ fun palette(litMin: Double): Pal {
         skyEdge = Color.White.copy(alpha = (.32 + .58 * day).toFloat()),
         shade = L.ink,
         glow = 0f,
+        imp = if (flip) L.impLit else L.imp,
         glowW = (if (flip) .75 + .25 * smooth(1 - day, .5, 1.0) else 0.0).toFloat(),
     )
 }

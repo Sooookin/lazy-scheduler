@@ -47,6 +47,7 @@ import java.time.LocalDate
 fun RowMenu(
     i: Instance?, today: LocalDate, onDismiss: () -> Unit,
     onDone: () -> Unit, onEdit: () -> Unit, onLater: () -> Unit, onSkip: () -> Unit, onDelete: () -> Unit,
+    onImp: () -> Unit = {},
 ) {
     val pal = LocalPal.current
     var shown by remember { mutableStateOf<Instance?>(null) }
@@ -80,6 +81,8 @@ fun RowMenu(
                     MenuLine(if (it0.date.isAfter(today)) "하루 뒤로" else "내일로", icon = { c -> Glyph("arrow", c) }, onClick = onLater)
                 if (it0.kind == "routine" && !it0.done && it0.date != null)
                     MenuLine("이번만 건너뛰기", tag = "루틴", icon = { c -> Glyph("skip", c) }, onClick = onSkip)
+                if (!it0.done) MenuLine(if (it0.task.pinned) "중요 표시 끄기" else "중요로 표시", tag = if (it0.kind == "routine") "모든 회차" else null,
+                    icon = { _ -> Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(pal.imp.copy(alpha = .55f))) }, onClick = onImp)
                 Hair(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 MenuLine("삭제", color = pal.late, icon = { c -> Glyph("x", c) }, onClick = onDelete)
             }

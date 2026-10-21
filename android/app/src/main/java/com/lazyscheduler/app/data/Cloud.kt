@@ -246,7 +246,7 @@ object Cloud {
     private fun editable(t: Task): Map<String, Any?> = mapOf(
         "title" to t.title, "note" to t.note, "kind" to t.kind, "due_date" to t.dueDate,
         "due_time" to t.dueTime, "notify_min" to t.notifyMin, "muted" to t.muted, "rule" to t.rule,
-        "start_date" to t.startDate, "early_days" to t.earlyDays.takeIf { it > 0 },
+        "start_date" to t.startDate, "early_days" to t.earlyDays.takeIf { it > 0 }, "pinned" to t.pinned,
     )
 
     /** Int and Long are the same number here (the form makes Int, Firestore gives back Long). */

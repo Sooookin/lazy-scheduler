@@ -72,7 +72,7 @@ class ScreenShots {
     @Composable
     private fun Frame(
         nowMin: Int, done: Set<String>, tall: Boolean = true, tabs: Boolean = true, night: Boolean = false,
-        ghost: Int? = null, content: @Composable (List<Task>, List<HomeRow>) -> Unit,
+        ghost: Int? = null, sky: Boolean = true, content: @Composable (List<Task>, List<HomeRow>) -> Unit,
     ) {
         val ts = tasks(done)
         val o = Plan.overview(ts, today)
@@ -82,13 +82,14 @@ class ScreenShots {
         CompositionLocalProvider(LocalPal provides palette(lit)) {
             val pal = LocalPal.current
             val tallH = top + SKY_TALL
-            val skyH = if (tall) tallH else top + 86.dp
+            val skyH = if (!sky) (if (tall) top + MINI_TALL else top + MINI_LOW) else if (tall) tallH else top + 86.dp
             Column(Modifier.fillMaxSize().background(pal.surface)) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val d = LocalDensity.current
                     val wPx = with(d) { maxWidth.toPx() }
                     val beads = rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next) } }
-                    Sky({ skyH }, tallH, top, { if (tall) 1f else 0f }, beads, nowMin, ghost, null) {
+                    if (!sky) MiniSky({ skyH }, top, tall, java.time.LocalTime.of(nowMin / 60, nowMin % 60), today)
+                    else Sky({ skyH }, tallH, top, { if (tall) 1f else 0f }, beads, nowMin, ghost, null) {
                         Pebble(wPx, { with(d) { skyH.toPx() - 2 * tallH.toPx() / 206f } }, night || allDone, true, false, 0, null)
                     }
                 }
@@ -102,6 +103,14 @@ class ScreenShots {
 
     @Test fun home10() = shot("1a-home-1000") {
         Frame(600, setOf("b", "c")) { ts, rows -> Home(Plan.overview(ts, today), rows, today, 600, {}, {}) }
+    }
+
+    @Test fun homeNoSky() = shot("1m-home-nosky") {
+        Frame(600, setOf("b", "c"), sky = false) { ts, rows -> Home(Plan.overview(ts, today), rows, today, 600, {}, {}) }
+    }
+
+    @Test fun calNoSky() = shot("1m-cal-nosky") {
+        Frame(600, setOf("b", "c"), tall = false, sky = false) { ts, _ -> CalendarScreen(ts, today, 600, false, {}, {}, {}, {}, {}) }
     }
 
     @Test fun home1830() = shot("1b-home-1830") {
@@ -162,7 +171,7 @@ class ScreenShots {
 
     @Test fun addSpan() = shot("1e-span") {
         val t = tasks(emptySet()).first { it.id == "s2" }
-        val dr = draft("deadline", task = t)
+        val dr = draft("deadline", task = t).apply { pane = "date"; imp = true }
         Frame(600, setOf("b", "c"), tall = false, tabs = false) { ts, _ ->
             Editor(Editing(t, today), dr, today, true, ts, {}, {}, {}, {}, {})
         }

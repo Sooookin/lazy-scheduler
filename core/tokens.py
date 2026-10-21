@@ -45,8 +45,8 @@ LIGHT = {
     "warm":     "#f4dcd4",   # 해 뜰 · 질 무렵의 땅 · 면 (참고 도안 '디오라마 하루' 의 노을 땅)
     "night":    "#1a2128",   # 해가 지고 섞어 넣는 밤
     "pale":     "#ffffff",   # 밤의 글자 (ink 가 여기로 간다)
-    # 밤의 보조 글자. 흰빛에서 한 단 가라앉힌 회백 - 번짐을 걷어 낸 매트한 밤에서 본문과 위계가 선다.
-    "pale2":    "#d9e0dd",
+    # 밤의 보조 글자. 9월 이전의 옅은 회백으로 되돌렸다 (밤 면에서 7.1:1).
+    "pale2":    "#e2e7e4",
     # 색 글자는 낮 · 밤 짝으로 둔다. 낮 것은 같은 빛깔의 짙은 쪽(면에서 4.6:1 이상), 밤 것은 그 빛깔을
     # 옅게 푼 파스텔이다. 9월의 네온(탠저린 · 코랄 핑크)은 장난감처럼 읽혔고, 흙빛(황토)은 탁했다.
     "hol":      "#a74e44",   # 공휴일 · 일요일: 벽돌 홍
@@ -57,14 +57,18 @@ LIGHT = {
     "late-lit": "#eeb5bc",
     # 되돌릴 수 없는 일 (삭제 · 완전히 종료 · 계정 지우기). 지난 일 · 공휴일보다 짙은 진홍.
     "danger":     "#9e2e35",
-    "danger-lit": "#f0a3a0",
+    "danger-lit": "#f1a9a7",
+    # 중요한 일의 음영 (pinned). 줄 전체를 이 색을 옅게(12%) 깐 면으로 짚는다 - 글자색이 아니라 면의 빛깔이다.
+    # 강조(청자 남)와 다른 결의 옅은 남보라: '다음' 줄(강조의 옅은 면 + 왼쪽 선)과 섞이지 않게.
+    "imp":        "#6a78af",
+    "imp-lit":    "#b0bbe8",
     # 궤도에서 지나온 쪽. 강조색을 그대로 쓰면 낮 하늘 위에서 너무 무겁다 - 낮에는 강조를 흰빛에
     # 42% 푼 것, 밤에는 남색 하늘에 가라앉은 강조다.
     "rib-past":   "#8ea6ab",
     "rib-past-n": "#375b64",
-    # 밤의 강조. 밤 면에서 4.6:1. 채운 원 · 단추 위의 글자는 먹빛이다 (--on-teal).
+    # 밤의 강조. 밤 면(밤빛 80%)에서 4.6:1. 채운 원 · 단추 위의 글자는 먹빛이다 (--on-teal).
     # 번짐(빛)은 이제 밤의 큰 시계에만 있다 (style.css 의 "빛").
-    "teal-lit": "#8eb7bf",
+    "teal-lit": "#9ec1c8",
     # 하늘은 종이를 여러 겹 세운 디오라마다. 뒤로 갈수록 옅고, 앞으로 올수록
     # 짙으면서 그림자가 길어진다 - 그 깊이가 색으로도 한 번 더 말해진다.
     #
@@ -131,8 +135,10 @@ def _mix(a, b, t):
 # 밤 한 벌. 창 화면이 한밤(노을 0 · 밤 1)에 섞어 내는 색과 같다 (web/sky.js 의 applyLight).
 # 새 색을 짓지 않고 LIGHT 의 재료만 섞는다. (알림 카드는 예전에 이 색을 입었다 - 지금은 아래 DAY)
 NIGHT = {
-    "surface": _mix(LIGHT["panel"], LIGHT["night"], .836),    # 면 (--surface)
-    "bg":      _mix(LIGHT["base"], LIGHT["night"], .904),     # 바탕 (--bg). 밝은 알약 위의 글자로도 쓴다
+    # 밤의 면 · 바탕은 밤빛을 80% · 88% 섞는다. 9월에 대비를 올리려고 83.6% · 90.4% 로 한 단 어둡게 했다가
+    # 되돌렸다 - 밤 화면이 먹처럼 무거웠다. 그만큼 밤의 강조 · 삭제 색을 한 단 밝혀 4.5:1 을 지킨다.
+    "surface": _mix(LIGHT["panel"], LIGHT["night"], .80),     # 면 (--surface)
+    "bg":      _mix(LIGHT["base"], LIGHT["night"], .88),      # 바탕 (--bg). 밝은 알약 위의 글자로도 쓴다
     "text":    LIGHT["pale"],                                 # 글자 (--text)
     "text2":   LIGHT["pale2"],                                # 보조 글자 (--text2)
     "teal":    LIGHT["teal-lit"],                             # 강조 (--teal)
@@ -178,7 +184,7 @@ COLOR = {
     "dim":     "#889394",      # 흐림(지난 것) - 글자에는 쓰지 않는다
 
     # 강조 (청자 남)
-    "mint":    "#8eb7bf",      # 밤 · 먹빛 띠 위의 강조
+    "mint":    "#9ec1c8",      # 밤 · 먹빛 띠 위의 강조
     "mid":     "#3c656e",      # 강조 · 궤도 · 구슬
     "mid-ink": "#335a62",      # 강조를 글자로 쓸 때
     "hol":     "#a74e44",      # 공휴일
@@ -333,7 +339,7 @@ def css_root():
         "  --on-teal:%(onmid)s; --teal-inv:%(mint)s; --field:%(field)s; --faint:%(dim)s;" % c,
         ("  --sky-hi:%(sky-hi)s; --sky-lo:%(sky-lo)s; --hill1:%(hill1)s; "
          "--hill2:%(hill2)s; --hill3:%(hill3)s; --ribbon:%(ribbon)s; "
-         "--rib-hi:%(rib-hi)s; --bead:%(rib-hi)s; --guy:%(guy)s; --late:%(late)s;") % LIGHT,
+         "--rib-hi:%(rib-hi)s; --bead:%(rib-hi)s; --guy:%(guy)s; --late:%(late)s; --imp:%(imp)s;") % LIGHT,
         "  --eye:%(eye)s;" % COLOR,
         "  --hair:%s; --hair2:%s; --next:%s;" % (rgba("rule"), rgba("rule2"), rgba("next")),
         "  --hover:%s; --hover-hi:%s;" % (rgba("hover"), rgba("hover-hi")),

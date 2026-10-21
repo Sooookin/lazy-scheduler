@@ -98,7 +98,9 @@ fun Home(o: Overview?, rows: List<HomeRow>, today: LocalDate, nowMin: Int, onTog
 @Composable
 internal fun ItemLine(n: Int?, i: Instance, late: Boolean, next: Boolean, dayTag: String?, onTap: () -> Unit, onMenu: () -> Unit) {
     val pal = LocalPal.current
-    val bg by animateColorAsState(if (next) pal.teal.copy(alpha = .07f) else Color.Transparent, tween(200), label = "row")
+    // 중요한 일은 줄 전체에 음영 (PC 의 .item.imp). '다음' 과 겹치면 면은 음영, 왼쪽 선은 '다음' 그대로
+    val imp = i.task.pinned && !i.done
+    val bg by animateColorAsState(if (imp) pal.imp.copy(alpha = .12f) else if (next) pal.teal.copy(alpha = .07f) else Color.Transparent, tween(200), label = "row")
     Column {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(4.dp)).background(bg)
