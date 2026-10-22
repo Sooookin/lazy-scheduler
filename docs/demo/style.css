@@ -122,16 +122,12 @@ html[data-os="mac"] .tb-gap{order:4}
 .sky{position:relative; flex:0 0 var(--sky-h); z-index:1; clip-path:inset(0 0 -200px 0);
   background-image:linear-gradient(var(--sky-hi), var(--sky-lo) 80%)}
 /* 종이 결 (tools/make_paper.py 가 만든 미술 종이의 '이'). soft-light 라 빛깔은 그대로 두고 결만
-   드러낸다. 하늘 바탕과 땅에 옅게 깐다 - 능선 · 궤도 띠는 하늘 그림(sky.js 의 pPaper)이 따로
-   칠한다. 멈춘 그림 한 장이라 다시 그릴 일이 없다. */
+   드러낸다. 하늘 디오라마에만 아주 옅게 깐다 - 능선 · 궤도 띠는 하늘 그림(sky.js 의 pPaper)이 따로
+   칠한다. 멈춘 그림 한 장이라 다시 그릴 일이 없다. 예전 세기(.45)는 밤의 어두운 바탕에서 얼룩처럼 보였다. */
 .sky::before{content:""; position:absolute; inset:0; pointer-events:none;
-  background-image:url("paper.png"); background-size:256px 256px; mix-blend-mode:soft-light; opacity:.45}
-/* 글자를 읽는 판 - 일정 판 · 달력 칸 · 설정 같은 종이 창 · 줄 메뉴 · 손끝 카드 - 은 훨씬 고운 결
-   (paper-fine, 세기까지 구워 둔 것)을 바탕색과 바로 섞는다. "종이 위" 라는 느낌만 남긴다.
-   반투명 층을 따로 얹지 않는 것은 그 층이 합성 레이어가 되어 글자가 회색조로 그려질 수 있어서다.
-   입력칸 · 단추 · 알약은 종이가 아니다 (자기 바탕색이 결을 덮는다). */
-.ground, .day, .modal, .ctx, .hov{background-image:url("paper-fine.png"); background-size:256px 256px;
-  background-blend-mode:soft-light}
+  background-image:url("paper.png"); background-size:256px 256px; mix-blend-mode:soft-light; opacity:.15}
+/* 글자를 읽는 판 - 일정 판 · 달력 칸 · 종이 창 · 줄 메뉴 · 손끝 카드 - 에는 결을 깔지 않는다. 예전에는 고운 결
+   (paper-fine)을 섞었는데, 밤에는 어두운 바탕 위에서 soft-light 가 결을 키워 글자 둘레가 얼룩져 보였다. */
 /* 그림은 늘 184px 이다. 종이가 열리면 눌러 찌그러뜨리지 않고 통째로 위로
    밀어 올린다 - 찌그러뜨리면 능선과 궤도의 비례가 그때만 달라진다.
    시계 · 단추 · 게으름뱅이도 같이 올라가므로 하늘 한 장이 함께 움직인다. */
@@ -189,16 +185,35 @@ body.folded .clk, body.folded .acts, body.peek .clk, body.peek .acts{
    (.mc span.now) · 예전 시각 고르기의 지금 시(.tp-g button.now)가 모두 이 규칙에
    걸려 position:absolute; left:46px 로 튕겨 나간다 - 실제로 그랬다. */
 .clk{position:absolute; left:46px; top:30px; z-index:3}
-/* 하늘을 끈 모양 (설정 "하늘과 궤도"). 같은 자리에 시계 · 날짜 · 단추만 남는다 - 바탕은 일정 판의 종이에 강조색(청자 남)을
-   8% 푼 한 장. 낮에는 옅은 청자빛, 밤에는 판보다 반 단 밝은 청회색이라 하루 내내 아래 판과 한 가족이면서 선 없이 갈린다.
-   (하늘의 지평선 색을 깔아 봤더니 낮에는 푸른 기가 따로 놀고 밤에는 판보다 짙어 무거웠다.) 종이 결은 옅게 남긴다.
-   능선 · 궤도 · 빛 · 돌멩이 · 눈금은 그리지 않는다 */
-body.no-sky .sky{background-image:none; background-color:color-mix(in srgb, var(--teal) 8%, var(--surface))}
+/* 하늘을 끈 모양 (설정 "하늘과 궤도"). 같은 자리에 시계 · 날짜 · 단추만 남는다. 창 전체를 일정 판의 색(--surface)
+   한 가지로 두고, 일정 판은 네 둘레를 띄운 둥근 판이 되어 빛과 그늘로만 떠오른다 (옅은 뉴모피즘: 왼쪽 위에 흰 빛,
+   오른쪽 아래에 그늘 - 실선 없음). 색 덩어리로 가르지 않는다. (판 색에 청자를 푼 머리 · 하늘빛을 물들인 머리는
+   하늘 쪽 색으로 읽혀 따로 놀았다.) 볼록한 것은 이 판 하나뿐이다 - 단추 · 입력칸까지 볼록하면 눌림이 안 읽힌다.
+   능선 · 궤도 · 빛 · 돌멩이 · 눈금 · 종이 결은 그리지 않는다.
+   판과 바깥(시계 자리)은 빛으로 가른다: 낮에는 판이 흰빛을 45% 받아 한 단 밝고, 바깥은 판과 창 바탕 사이의 색에
+   지난 일의 붉은 기를 4% 섞어 푸른 기를 걷어 낸 오프화이트. 밤에는 판을 밝히면 청자 글자(다음 · 시각)의 대비가
+   4.5:1 아래로 떨어져서(3% 만 밝혀도 4.25) 판은 그대로 두고 바깥을 창 바탕 색으로 둔다.
+   판 안의 것은 모두 판 색(--surface 를 판에서 --board 로 바꾼다) 위에 그려진다 */
+body.no-sky{--board:color-mix(in srgb, var(--surface) 55%, white);
+  --outside:color-mix(in srgb, color-mix(in srgb, var(--surface) 45%, var(--bg)) 96%, var(--late))}
+body.no-sky.night-ink{--board:var(--surface); --outside:var(--bg)}
+body.no-sky .ground, body.no-sky .modal.sheet{--surface:var(--board)}
+body.no-sky{background-color:var(--outside)}
+body.no-sky .sky{background-color:var(--outside); background-image:none}
+body.no-sky .ground{margin:0 16px 16px; border-radius:var(--r-lg);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7), -6px -6px 16px rgba(255,255,255,.75), 6px 8px 20px rgba(31,41,42,.10)}
+body.no-sky.night-ink .ground{box-shadow:inset 0 1px 0 rgba(255,255,255,.07), -5px -5px 14px rgba(255,255,255,.04), 6px 8px 20px rgba(0,0,0,.30)}
+/* 판 아래로 덧대는 종이(.ground::after)와 하늘에 드리우는 그림자(.ground::before)는 판이 떠 있으니 필요 없다.
+   종이 창(설정 · 새 항목 …)은 판과 같은 자리 · 같은 모서리로 연다 - 그늘은 아래 판의 것이 그대로 둘레에 보인다
+   (창 자체에 흐린 그림자를 주면 합성 레이어가 되어 글자가 회색조로 그려진다) */
+body.no-sky .ground::before, body.no-sky .ground::after{display:none}
+body.no-sky .modal.sheet{left:16px; right:16px; bottom:16px; border-radius:var(--r-lg)}
+/* 하늘이 펴질 때 종이 아래 틈을 메우던 덧칠(.form)도 필요 없다 - 하늘을 끄면 펴지지 않는다 (app.js peekOpen) */
+body.no-sky .modal.sheet.form{box-shadow:none}
 /* 그림이 없으니 높이를 시계 · 단추에 맞게 줄이고 (152 → 116), 그 아래 일정 판의 윗 여백도 32 → 20. 접힐 때는 그대로 92 */
 body.no-sky:not(.folded){--sky-h:116px}
 body.no-sky #v-home{padding-top:20px}
-body.no-sky .sky::before{opacity:.3}
-body.no-sky .sky-svg, body.no-sky .sky-lite, body.no-sky .guy, body.no-sky .ruler, body.no-sky .sky-tip{display:none}
+body.no-sky .sky::before, body.no-sky .sky-svg, body.no-sky .sky-lite, body.no-sky .guy, body.no-sky .ruler, body.no-sky .sky-tip{display:none}
 /* 구슬의 이름표. 하늘 그림 안이 아니라 시계보다 위 층에 둔다 - 아침 구슬의 이름표가 큰 시계 밑에
    깔려 글자가 보이지 않았다. 바탕은 불투명 - 빛살 · 노을 · 시계 숫자 어디 위에서도 같은 대비 */
 .sky-tip{position:absolute; z-index:4; transform:translate(-50%, -100%); pointer-events:none; white-space:nowrap;
