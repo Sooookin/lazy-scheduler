@@ -19,6 +19,13 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import android.graphics.BlurMaskFilter
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -244,7 +251,7 @@ fun App() {
     val ribbon = animateFloatAsState(if (tall) 1f else 0f, tween(360), label = "ribbon")
 
     CompositionLocalProvider(LocalPal provides pal, LocalPaper provides rememberPaper()) {
-        Box(Modifier.fillMaxSize().background(pal.surface).paper()) {
+        Box(Modifier.fillMaxSize().background(if (prefs.sky) pal.surface else pal.outside)) {
             Column(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val wPx = with(density) { maxWidth.toPx() }
@@ -261,7 +268,7 @@ fun App() {
                             lookX = ghost?.let { g -> SkyGeo(wPx, with(density) { tallH.toPx() }, with(density) { tallH.toPx() }, with(density) { top.toPx() }, density.density).onArc(g.toDouble(), density.density).first.x })
                     }
                 }
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+                Board(prefs.sky, Modifier.weight(1f).fillMaxWidth()) {
                     val screen: Any = ed ?: tab
                     AnimatedContent(
                         targetState = screen,
@@ -321,6 +328,48 @@ fun App() {
     }
 }
 
+/**
+ * 하늘을 끄면 화면 전체가 일정 판의 색 한 가지가 되고, 일정 판은 네 둘레를 띄운 둥근 판으로 빛과 그늘로만 떠오른다
+ * (PC 의 body.no-sky .ground - 옅은 뉴모피즘: 왼쪽 위에 흰 빛, 오른쪽 아래에 그늘, 실선 없음). 밤으로 갈수록 흰 빛은
+ * 거의 사라지고 그늘이 짙어진다. 볼록한 것은 이 판 하나뿐이다.
+ * 판과 바깥은 빛으로 가른다 (PC 의 --board · --outside): 낮에는 판이 흰빛을 받아 한 단 밝고 바깥은 푸른 기를 걷은
+ * 오프화이트, 밤에는 판을 밝히면 청자 글자의 대비가 4.5:1 아래로 떨어져 판은 그대로 두고 바깥을 창 바탕 색으로 둔다. 판 안은 판 색을 surface 로 받는다.
+ */
+@Composable
+internal fun Board(sky: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    val pal = LocalPal.current
+    if (sky) Box(modifier) { content() }
+    else Box(modifier.board(pal)) { CompositionLocalProvider(LocalPal provides pal.copy(surface = pal.board)) { content() } }
+}
+
+internal val Pal.board: Color get() = if (isNight) surface else lerp(surface, Color.White, .45f)
+internal val Pal.outside: Color get() = if (isNight) bg else lerp(lerp(surface, bg, .55f), late, .04f)
+
+private fun Modifier.board(pal: Pal): Modifier = run {
+    val shape = RoundedCornerShape(16.dp)
+    val hi = Color.White.copy(alpha = .045f + (.75f - .045f) * pal.day)
+    val lo = lerp(Color.Black.copy(alpha = .32f), Color(0xFF1F292A).copy(alpha = .12f), pal.day)
+    this.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+        .drawBehind {
+            val r = 16.dp.toPx()
+            fun soft(c: Color, dx: Float, dy: Float, blur: Float) = drawIntoCanvas {
+                val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = c.toArgb(); maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
+                }
+                it.nativeCanvas.drawRoundRect(dx, dy, size.width + dx, size.height + dy, r, r, p)
+            }
+            soft(hi, -6.dp.toPx(), -6.dp.toPx(), 16.dp.toPx() / 2)
+            soft(lo, 6.dp.toPx(), 8.dp.toPx(), 20.dp.toPx() / 2)
+        }
+        // 윗날에 맺힌 빛 한 줄 (PC 의 inset 0 1px 0)
+        .drawWithContent {
+            drawContent()
+            drawLine(Color.White.copy(alpha = if (pal.isNight) .07f else .7f), androidx.compose.ui.geometry.Offset(16.dp.toPx(), .5f),
+                androidx.compose.ui.geometry.Offset(size.width - 16.dp.toPx(), .5f), 1.dp.toPx())
+        }
+        .clip(shape).background(pal.board)
+}
+
 /** 움직임 곡선 (tokens.MOTION): ease-move 큰 면이 옮겨 가는 것 · ease-exit 사라지는 것 (머뭇거리지 않고 빠진다). */
 val EaseMove = androidx.compose.animation.core.CubicBezierEasing(.32f, .72f, 0f, 1f)
 val EaseExit = androidx.compose.animation.core.CubicBezierEasing(.4f, 0f, 1f, 1f)
@@ -330,7 +379,7 @@ val EaseExit = androidx.compose.animation.core.CubicBezierEasing(.4f, 0f, 1f, 1f
 @Composable
 internal fun TabBar(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit) {
     val pal = LocalPal.current
-    Box(Modifier.fillMaxWidth().background(pal.surface).paper().navigationBarsPadding()) {
+    Box(Modifier.fillMaxWidth().background(pal.surface).navigationBarsPadding()) {
         Hair(Modifier.align(Alignment.TopCenter))
         Row(Modifier.fillMaxWidth().height(58.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in listOf(Tab.HOME, Tab.CAL, null, Tab.ALL, Tab.SET)) {

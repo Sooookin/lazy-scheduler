@@ -83,7 +83,7 @@ class ScreenShots {
             val pal = LocalPal.current
             val tallH = top + SKY_TALL
             val skyH = if (!sky) (if (tall) top + MINI_TALL else top + MINI_LOW) else if (tall) tallH else top + 86.dp
-            Column(Modifier.fillMaxSize().background(pal.surface)) {
+            Column(Modifier.fillMaxSize().background(if (sky) pal.surface else pal.outside)) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val d = LocalDensity.current
                     val wPx = with(d) { maxWidth.toPx() }
@@ -93,7 +93,7 @@ class ScreenShots {
                         Pebble(wPx, { with(d) { skyH.toPx() - 2 * tallH.toPx() / 206f } }, night || allDone, true, false, 0, null)
                     }
                 }
-                Box(Modifier.weight(1f)) { content(ts, rows) }
+                Board(sky, Modifier.weight(1f)) { content(ts, rows) }
                 if (tabs) TabBar(Tab.HOME, {}, {})
             }
         }

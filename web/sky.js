@@ -409,17 +409,14 @@ function drawSky(all){
     Fc('sH1', .5) + Fc('sH2', .8) + Fc('sH3', 1) +
     F('sRB', 11, 6, '.36') + F('sMK', 13, 5, '.4') + Fc('sGR', 1.1) +
     '<clipPath id="sClip"><rect x="0" y="0" width="' + W + '" height="' + SKY_H + '"/></clipPath>' +
-    /* 종이. 능선 · 땅 · 궤도 띠는 미술 종이를 오려 세운 것이다: 결(pPaper - tools/make_paper.py 가
+    /* 종이. 능선 · 궤도 띠는 미술 종이를 오려 세운 것이다: 결(pPaper - tools/make_paper.py 가
        만든 web/paper.png 를 soft-light 로 얹어 빛깔은 그대로 두고 결만 드러낸다). 가장자리는 깨끗하게
        둔다 (오린 듯 흔들어 봤더니 자글자글해 보였다). 돌멩이 · 구슬 · 단추 · 글자는 종이가 아니다. */
     '<pattern id="pPaper" patternUnits="userSpaceOnUse" width="256" height="256">' +
     '<image href="paper.png" width="256" height="256"/></pattern>' +
-    /* 땅(일정 판)은 글자를 읽는 곳이라 훨씬 고운 결 (style.css 의 .ground::before 와 같은 그림) */
-    '<pattern id="pPaperFine" patternUnits="userSpaceOnUse" width="256" height="256">' +
-    '<image href="paper-fine.png" width="256" height="256"/></pattern>' +
     '</defs>';
   /* 종이 결 한 장 - 같은 도형을 결로 한 번 더 칠한다 (그림자 사본에는 넣지 않는다) */
-  const grain = (d, op, pat) => '<path d="' + d + '" fill="url(#' + (pat || 'pPaper') + ')" opacity="' + op + '" style="mix-blend-mode:soft-light"/>';
+  const grain = (d, op) => '<path d="' + d + '" fill="url(#pPaper)" opacity="' + op + '" style="mix-blend-mode:soft-light"/>';
 
   /* ── 능선 셋. 뒤에서 앞으로, 뒤일수록 높고 옅으며 앞일수록 낮고 짙다. 겹마다
         굴곡이 여럿 - 한 겹에 한두 번 오르내리면 풍경이 아니라 띠로 보인다. 겹 사이마다
@@ -436,7 +433,7 @@ function drawSky(all){
                         'S%782 146 %852 156S%900 170 %906 168', [148, 194]],
    ['sH3', 'hill3', .45, 'M%-6 192C%70 184 %140 178 %210 184S%320 198 %400 192S%520 176 %600 182S%740 198 %820 190' +
                         'S%890 180 %906 184', null]].forEach(h => {
-    g += cast(h[0], ridge(sc(h[3]), 'var(--' + h[1] + ')', h[2])) + grain(body(sc(h[3])), .85);
+    g += cast(h[0], ridge(sc(h[3]), 'var(--' + h[1] + ')', h[2])) + grain(body(sc(h[3])), .3);
     if(h[4]) g += mistBand(h[4][0], h[4][1]);
   });
 
@@ -446,7 +443,7 @@ function drawSky(all){
   let rib = cast('sRB', '<path d="' + orbit + '" fill="none" stroke="var(--ribbon)" stroke-width="' +
     SKY_RIB + '" stroke-linecap="round" stroke-linejoin="round"/>') +
     '<path d="' + orbit + '" fill="none" stroke="url(#pPaper)" stroke-width="' + SKY_RIB +
-    '" stroke-linecap="round" opacity=".65" style="mix-blend-mode:soft-light"/>';
+    '" stroke-linecap="round" opacity=".22" style="mix-blend-mode:soft-light"/>';
   /* 자정에 날이 바뀌어도 궤도가 한 번에 남색으로 돌아가지 않게 한다. 어제 하루를
      다 지나온 하늘색 띠가 자정을 넘어서도 그대로 남아 있다가, 새 날의 띠가 땅에서
      솟기 전 두 시간 동안 천천히 옅어진다 (23:59 과 00:00 이 같은 궤도다). */
@@ -541,7 +538,7 @@ function drawSky(all){
         창 바닥까지 이어지는 판(.ground)이 같은 색으로 받는다 ── */
   const gl = sc('M%-6 206C%130 202 %290 209 %450 205S%740 201 %906 206');
   const gd = gl + 'L' + X(906) + ' ' + Y(232) + 'L' + X(-6) + ' ' + Y(232) + 'Z';
-  g += cast('sGR', '<path d="' + gd + '" fill="var(--surface)"/>') + grain(gd, 1, 'pPaperFine') +
+  g += cast('sGR', '<path d="' + gd + '" fill="var(--surface)"/>') +
        '<path d="' + gl + '" fill="none" stroke="var(--sky-edge)" stroke-width="1" opacity=".9"/>';
 
   /* ── 땅의 눈금. 궤도의 가로는 해 뜸 ~ 해 짐을 고르게 편 시간 자라서, 땅에 매시

@@ -10,9 +10,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.ShaderBrush
@@ -30,39 +28,34 @@ import com.lazyscheduler.app.R
 import kotlin.math.roundToInt
 
 /**
- * 종이 결. PC 의 web/paper.png(디오라마) · web/paper-fine.png(글자를 읽는 판)와 같은 그림이다
- * (tools/make_paper.py 가 만든다 - res/drawable-nodpi 에 그대로 복사). 가운데 회색 둘레로만
- * 오르내리므로 soft-light 로 섞으면 빛깔은 그대로이고 결만 드러난다.
+ * 종이 결. PC 의 web/paper.png 와 같은 그림이다 (tools/make_paper.py 가 만든다 - res/drawable-nodpi 에
+ * 그대로 복사). 하늘 디오라마(능선 · 궤도 띠)에만 아주 옅게 깐다 - 글자를 읽는 판 · 창에는 깔지 않는다
+ * (예전의 고운 결은 밤에 얼룩처럼 보였다). 가운데 회색 둘레로만 오르내리므로 soft-light 로 섞으면
+ * 빛깔은 그대로이고 결만 드러난다.
  *
  * 한 칸 256 을 dp 로 맞춰 키운다 (PC 의 256 CSS px 와 같은 결의 크기). soft-light 는 안드로이드 10
  * (API 29) 부터라 그 아래에서는 결을 그리지 않는다 - 맨 면 그대로다.
  */
 @Immutable
-class PaperBrushes(val coarse: ShaderBrush?, val fine: ShaderBrush?)
+class PaperBrushes(val coarse: ShaderBrush?)
 
-val LocalPaper = staticCompositionLocalOf { PaperBrushes(null, null) }
+val LocalPaper = staticCompositionLocalOf { PaperBrushes(null) }
 
 @Composable
 fun rememberPaper(): PaperBrushes {
     val res = LocalContext.current.resources
     val d = LocalDensity.current.density
     return remember(d) {
-        if (Build.VERSION.SDK_INT < 29) PaperBrushes(null, null) else {
+        if (Build.VERSION.SDK_INT < 29) PaperBrushes(null) else {
             fun load(id: Int): ShaderBrush {
                 val src = BitmapFactory.decodeResource(res, id, BitmapFactory.Options().apply { inScaled = false })
                 val n = (256 * d).roundToInt()
                 val img = Bitmap.createScaledBitmap(src, n, n, true).asImageBitmap()
                 return ShaderBrush(ImageShader(img, TileMode.Repeated, TileMode.Repeated))
             }
-            PaperBrushes(load(R.drawable.paper), load(R.drawable.paper_fine))
+            PaperBrushes(load(R.drawable.paper))
         }
     }
-}
-
-/** 판 · 창의 고운 결. background(...) 바로 뒤에 둔다 (바탕색 위에, 글자 아래에 깔린다). */
-fun Modifier.paper(): Modifier = composed {
-    val b = LocalPaper.current.fine
-    if (b == null) this else this.drawBehind { drawRect(b, blendMode = BlendMode.Softlight) }
 }
 
 /**

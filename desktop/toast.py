@@ -306,42 +306,18 @@ def _shadow(w, h):
     return out
 
 
-@functools.lru_cache(maxsize=4)
-def _paper(w, h):
-    """카드 크기의 종이 결 (L). 창 화면의 일정 판 · 종이 창과 같은 고운 결(web/paper-fine.png,
-    세기까지 구워 둔 것)을 배율만큼 키워 깐다. 디오라마의 굵은 결은 카드에서 너무 거칠었다.
-    그림이 없으면 None (맨 면으로 그린다)."""
-    import os
-    from PIL import Image
-    src = os.path.join(paths.WEB_DIR, "paper-fine.png")
-    if not os.path.exists(src):
-        return None
-    t = Image.open(src).convert("L")
-    n = max(64, int(round(t.width * SCALE)))
-    t = t.resize((n, n), Image.BICUBIC)
-    out = Image.new("L", (w, h))
-    for y in range(0, h, n):
-        for x in range(0, w, n):
-            out.paste(t, (x, y))
-    return out
-
-
 @functools.lru_cache(maxsize=16)
 def _card_face(w, h):
-    """한낮의 면 + 종이 결. 글자 없이.
+    """한낮의 면. 글자 없이.
 
-    창 화면의 종이(일정 판 · 디오라마)와 같은 재질이다. 예전에는 위가 조금 밝고 아래로
-    가라앉는 빛과 둘레의 달빛 윤곽을 두었는데, 빛나는 판처럼 읽혀 뺐다 - 이제 빛은 없고,
-    맨 면에 결만 soft-light 로 섞는다 (빛깔은 그대로, 결만 드러난다). 떠 있다는 것은
+    예전에는 위가 조금 밝고 아래로 가라앉는 빛과 둘레의 달빛 윤곽을 두었는데, 빛나는 판처럼
+    읽혀 뺐다. 종이 결도 뺐다 - 창 화면의 글자 판과 같이 매끈한 면이다. 떠 있다는 것은
     밑의 그림자(_shadow)가 말한다.
     마우스를 올릴 때마다 카드를 새로 그리므로 바탕은 크기별로 기억해 두고,
     받은 쪽이 .copy() 해서 그 위에 그린다.
     """
-    from PIL import Image, ImageChops
+    from PIL import Image
     face = Image.new("RGB", (w, h), _rgb(SURFACE))
-    grain = _paper(w, h)
-    if grain is not None:
-        face = ImageChops.soft_light(face, grain.convert("RGB"))
     card = face.convert("RGBA")
     card.putalpha(_rounded_mask(w, h, R))
     return card

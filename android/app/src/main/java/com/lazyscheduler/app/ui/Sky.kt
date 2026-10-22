@@ -238,7 +238,7 @@ private fun DrawScope.drawBack(g: SkyGeo, p: Pal, paper: PaperBrushes) {
     drawRect(Brush.verticalGradient(listOf(p.skyHi, p.skyLo), startY = g.y(0f), endY = g.hz))
     // 종이 결 (디오라마). 하늘 바탕은 옅게, 능선은 진하게, 궤도 띠는 그 사이 (PC 와 같은 세기)
     val grain = paper.coarse
-    grain?.let { drawRect(it, alpha = .45f, blendMode = BlendMode.Softlight) }
+    grain?.let { drawRect(it, alpha = .15f, blendMode = BlendMode.Softlight) }
     drawLight(g, p)
 
     // ── 능선 셋. 뒤일수록 높고 옅으며, 겹 사이마다 지평선 쪽 하늘빛 안개를 한 장씩 ──
@@ -248,7 +248,7 @@ private fun DrawScope.drawBack(g: SkyGeo, p: Pal, paper: PaperBrushes) {
         val fill = g.path(d, true)
         cutCast(fill, dir, listOf(.5f, .8f, 1f)[k], p.shade)
         drawPath(fill, fills[k])
-        grain?.let { drawPath(fill, it, alpha = .85f, blendMode = BlendMode.Softlight) }
+        grain?.let { drawPath(fill, it, alpha = .3f, blendMode = BlendMode.Softlight) }
         drawPath(g.path(d, false), p.skyEdge, alpha = edge, style = Stroke(1 * dp))
         mists[k]?.let { (a, b) ->
             drawRect(Brush.verticalGradient(listOf(p.skyLo.copy(alpha = 0f), p.skyLo.copy(alpha = .42f)), startY = g.y(a), endY = g.y(b)),
@@ -279,7 +279,7 @@ private fun DrawScope.drawRibbon(g: SkyGeo, p: Pal, paper: PaperBrushes, tm: Tex
             c.nativeCanvas.drawPath(orbit.asAndroidPath(), shPaint); c.nativeCanvas.restore()
         }
         drawPath(orbit, p.ribbon, alpha = ribbon, style = stroke)
-        grain?.let { drawPath(orbit, it, alpha = .65f * ribbon, style = stroke, blendMode = BlendMode.Softlight) }
+        grain?.let { drawPath(orbit, it, alpha = .22f * ribbon, style = stroke, blendMode = BlendMode.Softlight) }
         val nowM = nowMin.toDouble()
         val yday = if (nowM < a0) 1 - smooth(nowM, a0 - 120, a0) else 0.0
         if (yday > .003) drawPath(orbit, p.ribPast, alpha = (yday * ribbon).toFloat(), style = stroke)
@@ -299,7 +299,6 @@ private fun DrawScope.drawGround(g: SkyGeo, p: Pal, paper: PaperBrushes) {
     val ground = g.path(GROUND, true)
     cutCast(ground, dir, 1.1f, p.shade)
     drawPath(ground, p.surface)
-    paper.fine?.let { drawPath(ground, it, blendMode = BlendMode.Softlight) }
     drawPath(g.path(GROUND, false), p.skyEdge, alpha = .9f, style = Stroke(1 * dp))
 }
 
@@ -459,7 +458,7 @@ fun MiniSky(height: () -> Dp, top: Dp, tall: Boolean, now: java.time.LocalTime, 
                 val p = m.measure(c.copy(minHeight = h, maxHeight = h))
                 layout(p.width, h) { p.place(0, 0) }
             }
-            .background(lerp(pal.surface, pal.teal, .08f))
+            .background(pal.outside)
             .padding(top = top, start = 20.dp, end = 20.dp),
     ) {
         Crossfade(tall, Modifier.align(Alignment.BottomStart).padding(bottom = 16.dp), animationSpec = tween(220), label = "mini") { t ->

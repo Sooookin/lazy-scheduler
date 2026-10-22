@@ -5,7 +5,7 @@
 #   git push origin main v2.4.1
 #
 # 설치된 앱(desktop/updater.py)은 이 릴리스의 LazyScheduler-win.zip · LazyScheduler-mac.zip 과 그 .sha256 을
-# 받아 스스로 바꾸고,
+# 받아 스스로 바꾸고 (2.5.0 까지의 Windows 설치본은 같은 파일을 LazyScheduler.zip 이름으로 받는다 - 늘 함께 싣는다),
 # LazyScheduler-notes.txt(태그 설명)를 새 버전 창에 보인다.
 # 둘 중 하나라도 빠지면 받지 않으므로, 손으로 릴리스를 만들지 않는다.
 #
@@ -68,6 +68,10 @@ jobs:
         run: |
           $h = (Get-FileHash release/LazyScheduler-win.zip -Algorithm SHA256).Hash.ToLower()
           [IO.File]::WriteAllText("release/LazyScheduler-win.zip.sha256", "$h  LazyScheduler-win.zip`n")
+          # 2.5.0 까지의 설치본이 찾는 이름으로도 (같은 파일). 2.5.1 한 번만 싣고 뺐더니 그 뒤로 켜지 않았던
+          # 옛 설치본(회사 PC 등)이 해시를 못 찾아(404) 아무 말 없이 영영 머물렀다 - 이제 빼지 않는다
+          Copy-Item release/LazyScheduler-win.zip release/LazyScheduler.zip
+          [IO.File]::WriteAllText("release/LazyScheduler.zip.sha256", "$h  LazyScheduler.zip`n")
           Write-Output "sha256 $h"
 
       - name: 릴리스
@@ -78,7 +82,8 @@ jobs:
           git tag -l --format="%(contents)" $tag | Out-File -Encoding utf8 notes.txt
           # 앱은 GitHub API 를 쓰지 않으므로 바뀐 것 목록도 파일로 붙인다 (새 버전 창에 보인다)
           Copy-Item notes.txt release/LazyScheduler-notes.txt
-          gh release create $tag release/LazyScheduler-win.zip release/LazyScheduler-win.zip.sha256 release/LazyScheduler-notes.txt `
+          gh release create $tag release/LazyScheduler-win.zip release/LazyScheduler-win.zip.sha256 `
+            release/LazyScheduler.zip release/LazyScheduler.zip.sha256 release/LazyScheduler-notes.txt `
             --title "LazyScheduler $($tag.TrimStart('v'))" --notes-file notes.txt --latest
 
   # macOS 판: Windows 릴리스가 나간 뒤 같은 릴리스에 LazyScheduler-mac.zip 과 해시를 붙인다.

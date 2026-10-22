@@ -204,7 +204,8 @@ function sheetFlip(change){
   return d;
 }
 function peekOpen(el){
-  if(!el.closest('#m-add, #m-edit')) return 0;
+  /* 하늘을 끄면 펼쳐 보일 궤도가 없다 - 종이만 괜히 내려앉는다 */
+  if(!el.closest('#m-add, #m-edit') || document.body.classList.contains('no-sky')) return 0;
   const d = sheetFlip(() => document.body.classList.add('peek'));
   peekSet(el.value);
   return d;

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""web/paper.png · web/paper-fine.png - 하늘 디오라마와 일정 판(땅)에 까는 종이 결을 만든다.
+"""web/paper.png - 하늘 디오라마(능선 · 궤도 띠)에 아주 옅게 까는 종이 결을 만든다.
 
     python tools/make_paper.py
 
@@ -8,10 +8,7 @@
 가운데 회색(128) 둘레로만 오르내리므로 화면에서 soft-light 로 섞으면 빛깔은 그대로이고
 결만 드러난다 (web/style.css 의 "종이", web/sky.js 의 pPaper).
 
-paper.png 는 디오라마(하늘 · 능선 · 궤도 띠)의 결이고, paper-fine.png 는 글자를 읽는 일정 판의
-결이다 - 훨씬 곱고 옅어서 "종이 위" 라는 느낌만 남긴다 (굵은 결은 글자 둘레를 소란하게 했다).
-paper-fine 은 세기까지 구워 둔다 - 화면에서 투명도 없이 바탕색과 바로 섞는다(background-blend-mode).
-판 위에 반투명 층을 따로 얹으면 그 층이 합성 레이어가 되어 글자가 회색조로 그려질 수 있다.
+글자를 읽는 판 · 창 · 카드에는 결을 깔지 않는다 (예전의 고운 결 paper-fine 은 밤에 얼룩처럼 보여 뺐다).
 256px 이음매 없는 타일이다(잡음을 감싸 흐린다). 씨앗을 고정해 두어 다시 만들어도 같다.
 numpy · scipy 가 필요하다 (앱 실행에는 필요 없다 - 결과물만 web/ 에 들어간다).
 """
@@ -43,8 +40,7 @@ def tooth(seed, radii, amp, mott_r, mott_amp):
 
 
 def main():
-    for name, img in [("paper.png", tooth(11, [(.85, 1), (2.1, 1.6), (.5, .35)], 10, 10, 2.5)),
-                      ("paper-fine.png", tooth(12, [(.45, 1), (.9, .6)], 3, 0, 0))]:
+    for name, img in [("paper.png", tooth(11, [(.85, 1), (2.1, 1.6), (.5, .35)], 10, 10, 2.5))]:
         out = os.path.join(WEB, name)
         Image.fromarray(img, "L").save(out, optimize=True)
         print(out, os.path.getsize(out), "bytes")
