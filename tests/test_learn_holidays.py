@@ -85,7 +85,7 @@ def test_fetch_script_writes_only_on_change(tmp_path):
     assert fetch_holidays.write(doc, str(out)) is True
     assert fetch_holidays.write(doc, str(out)) is False
     body = out.read_bytes()
-    assert (tmp_path / "holidays.json.sha256").read_text().split()[0] == hashlib.sha256(body).hexdigest()
+    assert (tmp_path / "holidays.json.sha256").read_text(encoding="ascii").split()[0] == hashlib.sha256(body).hexdigest()
     assert holidays.parse(json.loads(body)) == {"2028-01-26": "설날"}
 
 
@@ -93,7 +93,7 @@ def test_shipped_table_parses():
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "holidays.json")
     with open(p, "rb") as f:
         body = f.read()
-    with open(p + ".sha256") as f:
+    with open(p + ".sha256", encoding="ascii") as f:
         assert f.read().split()[0] == hashlib.sha256(body).hexdigest()
     assert holidays.parse(json.loads(body))
 

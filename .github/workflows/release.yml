@@ -51,8 +51,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r tools/requirements-build.txt pytest pytest-github-actions-annotate-failures
 
+      # 실패하면 출력 끝부분을 annotation 으로 남긴다 (단계 로그는 로그인해야 보이지만 annotation 은 공개 API 로 읽힌다)
       - name: 테스트
-        run: python -m pytest -q
+        run: python tools/ci_tail.py pytest -- python -m pytest -q
 
       - name: 동기화 설정
         env:
