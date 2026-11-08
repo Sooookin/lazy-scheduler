@@ -95,22 +95,16 @@ internal fun timeLabel(t: String): String {
     return (if (v.hour < 12) "오전 " else "오후 ") + h12 + ":" + "%02d".format(v.minute)
 }
 
-/** 빛이 오는 쪽으로 도드라진 면의 그림자 (돌출) - 번호 동그라미 · 고른 칩. */
-internal fun Modifier.raised(shape: androidx.compose.ui.graphics.Shape, pal: Pal, depth: Dp = 2.dp): Modifier =
-    if (pal.isNight) this else this.shadow(depth, shape, ambientColor = pal.shade.copy(alpha = .5f), spotColor = pal.shade.copy(alpha = .5f))
-
 /**
- * 목록의 동그라미. 번호(아직) → 채운 강조색에 체크(끝남). 지난 것은 장미 물.
- * 아직 안 한 것은 도드라지고, 끝낸 것은 눌려 들어간다 (그림자로만 말한다).
+ * 목록의 동그라미 - 끝내기 하나만 맡는다. 비어 있음(아직) → 채운 강조색에 체크(끝남).
+ * (예전에는 하늘 구슬과 짝을 맞추는 번호가 들어 있었고, 늦은 것은 빨간 테 · 물을 입었다 - 늦음은 시각과 글이 말한다)
  */
 @Composable
-internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 20.dp) {
+internal fun Dot(done: Boolean, size: Dp = 16.dp) {
     val pal = LocalPal.current
-    val c = if (late && !done) pal.late else pal.teal
-    // 지난 일은 같은 빛깔을 옅게 푼 물(16%)로 채운다 - 경고가 아니라 파스텔 한 방울 (PC 와 같다)
-    val bg by animateColorAsState(if (done) c else if (late) c.copy(alpha = .16f) else if (pal.isNight) Color.Transparent else pal.field, tween(180), label = "dot")
-    // 방금 끝냈으면 톡: 작게 눌렸다 살짝 넘쳐 돌아오고, 테 하나가 번지며 사라진다 (PC 의 dot-pop · dot-ring).
-    // 처음부터 끝나 있던 것은 가만히 있다.
+    val c = pal.teal
+    val bg by animateColorAsState(if (done) c else pal.board, tween(180), label = "dot")
+    // 방금 끝냈으면 톡: 작게 눌렸다 돌아오고, 테 하나가 번지며 사라진다 (PC 의 dot-pop · dot-ring)
     val pop = remember { Animatable(1f) }
     val ring = remember { Animatable(1f) }
     var was by remember { mutableStateOf(done) }
@@ -129,13 +123,10 @@ internal fun NumDot(n: Int?, done: Boolean, late: Boolean, size: Dp = 20.dp) {
                 if (t < 1f) drawCircle(c.copy(alpha = .55f * (1 - t)), this.size.minDimension / 2 * (1 + .9f * t), style = Stroke(1.5.dp.toPx()))
             }
             .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
-            .then(if (!done) Modifier.raised(CircleShape, pal, 1.5.dp) else Modifier)
-            .glow(c, 8.dp, size / 2, if (done || late) pal.glowL * (if (done) .9f else .7f) else 0f)
-            .clip(CircleShape).background(bg).border(1.5.dp, c, CircleShape),
+            .clip(CircleShape).background(bg).border(1.5.dp, if (done) c else pal.text2, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        if (done) Check(if (pal.isNight) pal.surface else pal.onTeal, size * .5f)
-        else if (n != null) Text("$n", style = T.micro, color = c)
+        if (done) Check(pal.onTeal, size * .55f)
     }
 }
 
@@ -156,10 +147,10 @@ internal fun Check(color: Color, size: Dp) {
 internal fun Chip(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val pal = LocalPal.current
     Box(
-        modifier.height(32.dp).then(if (on) Modifier.raised(RoundedCornerShape(10.dp), pal) else Modifier)
-            .clip(RoundedCornerShape(10.dp))
+        modifier.height(32.dp)
+            .clip(RoundedCornerShape(6.dp))
             .background(if (on) pal.teal else pal.field)
-            .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(10.dp))
+            .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(6.dp))
             .press(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = T.lead, color = if (on) pal.onTeal else pal.text, maxLines = 1) }
@@ -171,15 +162,15 @@ internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modi
                       height: Dp = 34.dp, pad: Dp = 13.dp, onPick: (V) -> Unit) {
     val pal = LocalPal.current
     Row(
-        modifier.height(height).clip(RoundedCornerShape(height / 2)).border(1.dp, pal.hair2, RoundedCornerShape(height / 2)).padding(3.dp),
+        modifier.height(height).clip(RoundedCornerShape(6.dp)).border(1.dp, pal.hair2, RoundedCornerShape(6.dp)).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for ((v, label) in options) {
             val on = v == selected
             Box(
                 (if (fill) Modifier.weight(1f) else Modifier).fillMaxHeight()
-                    .then(if (on) Modifier.raised(RoundedCornerShape(16.dp), pal, 1.5.dp) else Modifier)
-                    .clip(RoundedCornerShape(16.dp)).background(if (on) pal.teal else Color.Transparent)
+                    
+                    .clip(RoundedCornerShape(6.dp)).background(if (on) pal.teal else Color.Transparent)
                     .tap { onPick(v) }.padding(horizontal = pad),
                 contentAlignment = Alignment.Center,
             ) { Text(label, style = T.body, color = if (on) pal.onTeal else pal.text2, maxLines = 1) }
@@ -192,9 +183,9 @@ internal fun <V> Seg(options: List<Pair<V, String>>, selected: V, modifier: Modi
 internal fun Primary(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     val pal = LocalPal.current
     Box(
-        modifier.height(44.dp).then(if (enabled) Modifier.raised(RoundedCornerShape(22.dp), pal, 3.dp) else Modifier)
-            .glow(pal.teal, 12.dp, 22.dp, if (enabled) pal.glowL * .8f else 0f)
-            .clip(RoundedCornerShape(22.dp)).background(if (enabled) pal.teal else pal.hair2)
+        modifier.height(44.dp)
+            
+            .clip(RoundedCornerShape(6.dp)).background(if (enabled) pal.teal else pal.hair2)
             .then(if (enabled) Modifier.press(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) { Text(text, style = T.leadM, color = if (enabled) pal.onTeal else pal.text2) }
@@ -206,19 +197,19 @@ internal fun Ghost(text: String, modifier: Modifier = Modifier, color: Color? = 
     val pal = LocalPal.current
     val c = color ?: pal.text2
     Box(
-        modifier.height(44.dp).clip(RoundedCornerShape(22.dp))
-            .border(1.dp, if (color != null) color.copy(alpha = .55f) else pal.hair2, RoundedCornerShape(22.dp))
+        modifier.height(44.dp).clip(RoundedCornerShape(6.dp))
+            .border(1.dp, if (color != null) color.copy(alpha = .55f) else pal.hair2, RoundedCornerShape(6.dp))
             .press(onClick = onClick).padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center,
     ) { Text(text, style = T.lead, color = c) }
 }
 
-/** 동그란 닫기 단추. */
+/** 닫기 단추. 테 없는 × (PC 의 .x) - 원은 점과 주 단추에만. 누르는 자리는 40dp */
 @Composable
 internal fun CloseX(onClick: () -> Unit) {
     val pal = LocalPal.current
-    Box(Modifier.size(30.dp).clip(CircleShape).border(1.dp, pal.hair2, CircleShape).press(onClick = onClick), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(9.dp)) {
+    Box(Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).press(onClick = onClick), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(11.dp)) {
             val w = 1.4.dp.toPx()
             drawLine(pal.text2, Offset.Zero, Offset(size.width, size.height), w, StrokeCap.Round)
             drawLine(pal.text2, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
@@ -234,8 +225,8 @@ internal fun Field(
 ) {
     val pal = LocalPal.current
     Box(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(pal.field)
-            .border(if (focused) 1.3.dp else 1.dp, if (focused) pal.teal else pal.hair2, RoundedCornerShape(12.dp))
+        modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(pal.field)
+            .border(if (focused) 1.3.dp else 1.dp, if (focused) pal.teal else pal.hair2, RoundedCornerShape(6.dp))
             .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         if (value.isEmpty()) Text(placeholder, style = T.lead, color = pal.text2.copy(alpha = .7f))
@@ -252,8 +243,8 @@ internal fun Field(
 internal fun Slot(text: String, hint: String?, modifier: Modifier = Modifier, dim: Boolean = false, onClick: () -> Unit) {
     val pal = LocalPal.current
     Row(
-        modifier.height(42.dp).clip(RoundedCornerShape(12.dp)).background(pal.field)
-            .border(1.dp, pal.hair2, RoundedCornerShape(12.dp)).press(onClick = onClick).padding(horizontal = 14.dp),
+        modifier.height(42.dp).clip(RoundedCornerShape(6.dp)).background(pal.field)
+            .border(1.dp, pal.hair2, RoundedCornerShape(6.dp)).press(onClick = onClick).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(apText(text), Modifier.weight(1f), style = T.lead, color = if (dim) pal.text2 else pal.text)
@@ -285,8 +276,8 @@ internal fun CheckRow(on: Boolean, label: String, note: String? = null, onChange
     val pal = LocalPal.current
     Row(Modifier.fillMaxWidth().tap { onChange(!on) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(if (on) pal.teal else pal.field)
-                .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(5.dp)),
+            Modifier.size(20.dp).clip(RoundedCornerShape(6.dp)).background(if (on) pal.teal else pal.field)
+                .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center,
         ) { if (on) Check(pal.onTeal, 11.dp) }
         Spacer(Modifier.width(12.dp))
@@ -313,7 +304,7 @@ internal fun Hair(modifier: Modifier = Modifier, strong: Boolean = false) {
 internal fun Band(text: String, color: Color? = null) {
     val pal = LocalPal.current
     Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, style = T.label.lit(color ?: pal.text2), color = color ?: pal.text2)
+        Text(text, style = T.label, color = color ?: pal.text2)
         Spacer(Modifier.width(10.dp))
         Hair(Modifier.weight(1f))
     }

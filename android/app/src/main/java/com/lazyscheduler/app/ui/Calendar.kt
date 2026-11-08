@@ -70,7 +70,7 @@ import java.time.YearMonth
 /**
  * 달력 (PC 의 달력 + 하루 목록을 한 화면에). 위는 월 격자 또는 7일 줄, 아래는 고른 날의 목록과
  * 그 날 걸쳐 있는 기간 업무.
- *   월   점: 지난 마감(먹) · 오늘(청록) · 예정(빈 테) · 루틴(옅은 청록). 기간 업무는 칸 아랫단의 색 띠.
+ *   월   점: 홈과 같은 뜻 - 빈 테 = 아직, 빨간 테 = 늦음(끝내지 않은 지난 마감), 옅은 청록 = 루틴. 기간 업무는 칸 아랫단의 색 띠.
  *   7일  고른 날부터 7일. 한 줄에 앞의 둘만 (휴대폰은 짧게) - 전부는 아래 목록에. 줄을 누르면
  *        그 날이 맨 위로 온다. 기간 업무는 왼쪽 세로선.
  * 달력에 다시 들어오면 오늘부터다 (고른 날은 이 화면에만 산다).
@@ -95,21 +95,21 @@ fun CalendarScreen(
     val spans = remember(tasks) { Spans(tasks) }
     fun pick(d: LocalDate) { sel = d.toString(); month = YearMonth.from(d).toString() }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 24.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = DOC).padding(top = 16.dp, bottom = 24.dp)) {
         // 머리줄: 월 ↔ 7일 에서 단추가 제자리 (제목 칸의 폭이 정해져 있다)
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 제목은 칸 제목 크기 - 화면 제목(title) 크기는 화살표 사이에서 빽빽했다
             RoundBtn("‹", 30.dp) { if (week) pick(picked.minusDays(1)) else month = ym.minusMonths(1).toString() }
             Text(if (week) "${md(picked)} – ${md(picked.plusDays(6))}" else "${ym.year}년 ${ym.monthValue}월",
                 Modifier.weight(1f).padding(horizontal = 8.dp), textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
-                style = T.head.lit(pal.text, big = true), color = pal.text)
+                style = T.head, color = pal.text)
             RoundBtn("›", 30.dp) { if (week) pick(picked.plusDays(1)) else month = ym.plusMonths(1).toString() }
             Spacer(Modifier.width(14.dp))
             Seg(listOf(false to "월", true to "한 주"), week, height = 30.dp, pad = 11.dp) { w ->
                 if (w != week) { if (!w) month = YearMonth.from(picked).toString(); onWeek(w) }
             }
             Spacer(Modifier.width(8.dp))
-            Box(Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).border(1.dp, pal.hair2, RoundedCornerShape(15.dp))
+            Box(Modifier.height(30.dp).clip(RoundedCornerShape(6.dp)).border(1.dp, pal.hair2, RoundedCornerShape(6.dp))
                 .press { pick(today) }.padding(horizontal = 11.dp),
                 contentAlignment = Alignment.Center) { Text("오늘", style = T.body, color = pal.text) }
         }
@@ -169,7 +169,7 @@ private fun MonthGrid(first: LocalDate, start: LocalDate, picked: LocalDate, tod
                 val other = d.month != first.month
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     // 오늘은 칸 전체를 옅은 청록으로 (PC 와 같다)
-                    if (d == today) Box(Modifier.fillMaxSize().padding(1.dp).clip(RoundedCornerShape(10.dp)).background(pal.teal.copy(alpha = .13f)))
+                    if (d == today) Box(Modifier.fillMaxSize().padding(1.dp).clip(RoundedCornerShape(6.dp)).background(pal.teal.copy(alpha = .13f)))
                     Box(Modifier.align(Alignment.TopCenter).padding(top = 4.dp)) {
                         DayCell(d, other, d == picked, d == today, marks(byDay[d].orEmpty(), d, today)) { onPick(d) }
                     }
@@ -194,7 +194,7 @@ private fun MonthGrid(first: LocalDate, start: LocalDate, picked: LocalDate, tod
 private fun marks(list: List<Instance>, d: LocalDate, today: LocalDate): List<String> {
     val out = ArrayList<String>()
     val dl = list.filter { it.kind == "deadline" }
-    if (dl.isNotEmpty()) out += when { d.isBefore(today) -> "past"; d == today -> "today"; else -> "ring" }
+    if (dl.isNotEmpty()) out += if (d.isBefore(today) && dl.any { !it.done }) "late" else "ring"
     if (list.any { it.kind == "routine" }) out += "routine"
     return out.take(2) + (if (list.any { it.task.pinned && !it.done }) listOf("imp") else emptyList())
 }
@@ -212,8 +212,8 @@ private fun DayCell(d: LocalDate, other: Boolean, picked: Boolean, isToday: Bool
         else -> pal.text
     }
     Box(
-        Modifier.size(34.dp).then(if (picked) Modifier.raised(CircleShape, pal) else Modifier)
-            .glow(pal.teal, 10.dp, 17.dp, if (picked) pal.glowL else 0f).clip(CircleShape)
+        Modifier.size(34.dp)
+            .clip(RoundedCornerShape(6.dp))
             .background(if (picked) pal.teal else if ("imp" in marks && !other) pal.imp.copy(alpha = .2f) else Color.Transparent)
             .tap(onClick),
         contentAlignment = Alignment.Center,
@@ -221,8 +221,8 @@ private fun DayCell(d: LocalDate, other: Boolean, picked: Boolean, isToday: Bool
         Text("${d.dayOfMonth}", style = if (isToday) T.leadM else T.lead, color = color)
         if (!other && marks.any { it != "imp" }) Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             for (m in marks.filter { it != "imp" }) {
-                val c = if (picked) pal.onTeal else when (m) { "past" -> pal.text; "routine" -> pal.teal.copy(alpha = .45f); else -> pal.teal }
-                Box(Modifier.size(5.dp).clip(CircleShape).then(if (m == "ring") Modifier.border(1.2.dp, c, CircleShape) else Modifier.background(c)))
+                val c = if (picked) pal.onTeal else when (m) { "late" -> pal.late; "routine" -> pal.teal.copy(alpha = .45f); else -> pal.teal }
+                Box(Modifier.size(5.dp).clip(CircleShape).then(if (m == "routine") Modifier.background(c) else Modifier.border(1.2.dp, c, CircleShape)))
             }
         }
     }
@@ -323,8 +323,6 @@ private fun Rails(first: LocalDate, rows: Int, vis: List<Task>, lanes: Map<Strin
             val bot = days(first, b) * (h + gap) + h - if (en) inset else 0f
             val x = (lanes[s.id] ?: 0) * RAIL_STEP.toPx()
             val c = spans.color(s).copy(alpha = if (s.done) .3f else 1f)
-            if (!s.done && pal.glowL > 0f) drawRoundRect(c.copy(alpha = pal.glowL * 1.2f), Offset(x - 1.dp.toPx(), top - 1.dp.toPx()),
-                Size(w + 2.dp.toPx(), bot - top + 2.dp.toPx()), CornerRadius(3.dp.toPx()))
             drawRoundRect(c, Offset(x, top), Size(w, maxOf(w, bot - top)), CornerRadius(2.dp.toPx()))
         }
     }
@@ -338,10 +336,10 @@ private fun WeekRow(d: LocalDate, sel: Boolean, isToday: Boolean, today: LocalDa
     val dls = list.filter { it.kind != "routine" }.sortedBy { it.time.ifEmpty { "99:99" } }
     val rts = list.filter { it.kind == "routine" }
     val numC = when { isToday -> pal.teal; dow == 0 || hol -> pal.hol; dow == 6 -> pal.text2; else -> pal.text }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(6.dp)
     Row(
         Modifier.fillMaxWidth().height(WK_H)
-            .then(if (sel) Modifier.glow(pal.teal, 8.dp, 10.dp, pal.glowL * .5f) else Modifier)
+            
             .clip(shape)
             .background(if (isToday) pal.teal.copy(alpha = .13f) else if (sel) pal.field else Color.Transparent)
             .then(if (sel) Modifier.border(1.4.dp, pal.teal, shape) else Modifier)
@@ -350,7 +348,7 @@ private fun WeekRow(d: LocalDate, sel: Boolean, isToday: Boolean, today: LocalDa
     ) {
         // 날짜 · 요일은 한 줄로 ("30 수") - 위아래로 쌓으면 세로로 적힌 것처럼 읽혔다
         Row(Modifier.width(44.dp), verticalAlignment = Alignment.Bottom) {
-            Text("${d.dayOfMonth}", Modifier.alignByBaseline(), style = T.leadM.lit(numC), color = numC, maxLines = 1, softWrap = false)
+            Text("${d.dayOfMonth}", Modifier.alignByBaseline(), style = T.leadM, color = numC, maxLines = 1, softWrap = false)
             Spacer(Modifier.width(4.dp))
             Text(WDS_SUN[dow], Modifier.alignByBaseline(), style = T.label, maxLines = 1, softWrap = false,
                 color = if (isToday || sel) pal.teal else if (dow == 0 || hol) pal.hol else pal.text2)
@@ -384,14 +382,14 @@ private fun WeekLine(i: Instance, today: LocalDate) {
         Box(Modifier.width(TIME_W), contentAlignment = Alignment.CenterEnd) {
             when {
                 i.done -> Text("✓", style = T.label, color = pal.teal)
-                i.time.isNotEmpty() -> Text(apText(t12(i.time)), style = T.time.copy(fontSize = T.label.fontSize).lit(if (past) pal.late else pal.text2),
+                i.time.isNotEmpty() -> Text(apText(t12(i.time)), style = T.time.copy(fontSize = T.label.fontSize),
                     color = if (past) pal.late else pal.text2, maxLines = 1)
-                else -> Box(Modifier.padding(end = 3.dp).size(5.dp).clip(CircleShape).background(if (past) pal.text.copy(alpha = .75f) else pal.teal))
+                else -> Box(Modifier.padding(end = 3.dp).size(5.dp).clip(CircleShape).border(1.2.dp, if (past) pal.late else pal.teal, CircleShape))
             }
         }
         Spacer(Modifier.width(8.dp))
         val imp = i.task.pinned && !i.done
-        Text(i.task.title, (if (imp) Modifier.clip(RoundedCornerShape(4.dp)).background(pal.imp.copy(alpha = .14f)).padding(horizontal = 4.dp) else Modifier),
+        Text(i.task.title, (if (imp) Modifier.clip(RoundedCornerShape(6.dp)).background(pal.imp.copy(alpha = .14f)).padding(horizontal = 4.dp) else Modifier),
             style = T.label, color = if (i.done) pal.text2 else pal.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
             textDecoration = if (i.done) T.strike else null)
     }
@@ -408,7 +406,7 @@ private fun DayList(
     val items = list.filter { it.kind != "routine" }.sortedWith(compareBy({ it.time.ifEmpty { "99:99" } }))
     val routines = list.filter { it.kind == "routine" }.sortedBy { it.time.ifEmpty { "99:99" } }
     Row(verticalAlignment = Alignment.Bottom) {
-        Text("${picked.monthValue}월 ${picked.dayOfMonth}일 ${WDS[picked.dayOfWeek.value - 1]}요일", style = T.head.lit(pal.text, big = true), color = pal.text)
+        Text("${picked.monthValue}월 ${picked.dayOfMonth}일 ${WDS[picked.dayOfWeek.value - 1]}요일", style = T.head, color = pal.text)
         Spacer(Modifier.width(8.dp))
         val gap = days(today, picked)
         Text(if (gap == 0) "오늘" else if (gap > 0) "${gap}일 뒤" else "${-gap}일 전", style = T.label, color = if (gap == 0) pal.teal else pal.text2)
@@ -426,7 +424,7 @@ private fun DayList(
     var open by remember(picked) { mutableStateOf(false) }
     if (routines.isNotEmpty()) {
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).tap { open = !open }.padding(vertical = 10.dp, horizontal = 4.dp),
+            Row(Modifier.weight(1f).clip(RoundedCornerShape(6.dp)).tap { open = !open }.padding(vertical = 10.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(5.dp).clip(CircleShape).background(pal.teal.copy(alpha = .45f)))
                 Spacer(Modifier.width(10.dp))
@@ -446,7 +444,7 @@ private fun DayList(
     val on = spans.on(picked)
     if (on.isNotEmpty()) {
         Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("진행 중인 기간 업무", style = T.label.lit(pal.text2), color = pal.text2)
+            Text("진행 중인 기간 업무", style = T.label, color = pal.text2)
             Spacer(Modifier.width(8.dp))
             Text("${on.size}", style = T.label, color = pal.text2)
             Spacer(Modifier.width(10.dp))
@@ -462,14 +460,14 @@ private fun SpanRow(s: Task, at: LocalDate, c: Color, onOpen: () -> Unit, onMenu
     val len = maxOf(1, days(s.start(), s.end()))
     val pr = (days(s.start(), at).toFloat() / len).coerceIn(0f, 1f)
     val left = days(at, s.end())
-    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(10.dp)).press(onLong = onMenu, onClick = onOpen)
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp)).press(onLong = onMenu, onClick = onOpen)
         .padding(horizontal = 6.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).glow(c, 5.dp, 3.dp, if (s.done) 0f else pal.glowL * 1.2f).clip(RoundedCornerShape(3.dp)).background(c.copy(alpha = if (s.done) .4f else 1f)))
+            Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(c.copy(alpha = if (s.done) .4f else 1f)))
             Spacer(Modifier.width(10.dp))
             Text(s.title, Modifier.weight(1f), style = T.lead, color = if (s.done) pal.text2 else pal.text, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, textDecoration = if (s.done) T.strike else null)
-            Text(spanRange(s), Modifier.padding(start = 8.dp), style = T.time.lit(pal.text2), color = pal.text2)
+            Text(spanRange(s), Modifier.padding(start = 8.dp), style = T.time, color = pal.text2)
             val soon = !s.done && left <= 1
             Text(if (s.done) "완료" else if (left == 0) "오늘 마감" else "D-$left", Modifier.padding(start = 8.dp),
                 style = T.micro, color = if (soon) pal.hol else pal.teal)
@@ -484,7 +482,7 @@ private fun SpanRow(s: Task, at: LocalDate, c: Color, onOpen: () -> Unit, onMenu
 @Composable
 private fun AddHere(onClick: () -> Unit) {
     val pal = LocalPal.current
-    Box(Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).border(1.dp, pal.hair2, RoundedCornerShape(15.dp))
+    Box(Modifier.height(30.dp).clip(RoundedCornerShape(6.dp)).border(1.dp, pal.hair2, RoundedCornerShape(6.dp))
         .press(onClick = onClick).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
         Text("+ 이 날에", style = T.body, color = pal.text)
     }
@@ -493,7 +491,8 @@ private fun AddHere(onClick: () -> Unit) {
 @Composable
 internal fun RoundBtn(label: String, size: Dp = 34.dp, onClick: () -> Unit) {
     val pal = LocalPal.current
-    Box(Modifier.size(size).clip(CircleShape).border(1.dp, pal.hair2, CircleShape).press(onClick = onClick), contentAlignment = Alignment.Center) {
+    // 테 없는 기호 단추 (PC 의 .cbtn) - 원은 점과 주 단추에만. 누르는 자리는 그대로
+    Box(Modifier.size(size).clip(RoundedCornerShape(6.dp)).press(onClick = onClick), contentAlignment = Alignment.Center) {
         Text(label, style = T.lead, color = pal.text2)
     }
 }

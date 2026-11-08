@@ -51,9 +51,9 @@ platforms/       what differs per OS; `from platforms import cards` loads the cu
   mac/           NSPanel card windows, menu bar icon, LaunchAgent, keychain, window moving/zoom
                  (each has system · cards · tray · window · autostart with the same functions)
 
-assets/          things the app ships with: app.ico, fonts/Paperlogy-*.ttf
-web/             the window itself: index.html, app.js (lists · calendar · forms), sky.js (sun · light · orbit),
-                 pebble.js (the pebble's behaviour), style.css, fonts/*.woff2
+assets/          things the app ships with: app.ico, fonts/Paperlogy-*.ttf, fonts/Inter (Latin letters in the window)
+web/             the window itself: index.html, app.js (sentence field · today drum · calendar · forms), sky.js
+                 (day / night light), when.js (sentence parser), style.css, fonts/*.woff2
 tools/           things you run while developing (see below)
 tests/           pytest; tests/vectors holds the recurrence cases (shared with the phone app)
 docs/            screenshots for this file; sync.md is the PC ↔ phone sync design
@@ -70,7 +70,10 @@ The window talks to the service only through the HTTP API, and any other client
 
 - `GET /api/ping` → `{api, schema}`. `api` goes up only on a breaking change
   (a field removed or its meaning changed); adding fields is not breaking.
-- `GET /api/overview` → today's view. Items in `tasks` carry only
+- `GET /api/overview` → today's view. It also carries `hotkey: {spec, ok}` (whether the global
+  "sentence field anywhere" key could be registered on this PC; `ok: null` = not used / not supported), `durations`
+  (`{name key: minutes}` this PC learned, only names with 3+ samples) and `holiday_state: {until, got}` (last year the
+  business-day calendar knows, last download of the holiday table). Items in `tasks` carry only
   `store.PUBLIC_TASK_FIELDS`; storage-only fields such as `done_dates` stay on disk.
 - `GET /api/occurrences?from=YYYY-MM-DD&to=YYYY-MM-DD[&kind=routine,...]` →
   `{rev, items: [{id, date, time, done}]}`. Join with overview items by `id`.

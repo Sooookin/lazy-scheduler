@@ -420,3 +420,174 @@ def _nudge(h):
 def ready():
     """창이 실제로 만들어졌는지 (처음 앞으로 부를 때를 잰다)."""
     return bool(hwnd())
+
+
+# ---------------- 작업 표시줄 단추의 수 (놓친 일) ----------------
+# ITaskbarList3::SetOverlayIcon. 창이 다른 창 뒤에 있어도 작업 표시줄에서 빨간 수가 보인다 -
+# 창을 열지 않아도 확인할 일이 있는지 안다. COM 은 ctypes 로 직접 부른다 (vtable 18 번).
+_overlay = [None, -1]          # [쓰지 않음, 지금 수]
+
+
+def _taskbar():
+    """ITaskbarList3 를 그때그때 만든다 (부르는 스레드가 매번 다를 수 있다 - COM 은 만든 스레드에서 써야 한다)."""
+    ole = ctypes.windll.ole32
+    ole.CoInitialize(None)
+    clsid = (ctypes.c_byte * 16).from_buffer_copy(bytes.fromhex("44f3fd566dfdd011958a006097c9a090"))   # CLSID_TaskbarList
+    iid = (ctypes.c_byte * 16).from_buffer_copy(bytes.fromhex("91fb1aea289e864b90e99e9f8a5eefaf"))     # IID_ITaskbarList3
+    p = ctypes.c_void_p()
+    if ole.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid), ctypes.byref(p)) != 0 or not p:
+        return None
+    vt = ctypes.cast(ctypes.cast(p, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p))
+    ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p)(vt[3])(p)                      # HrInit
+    return p, vt
+
+
+def _hicon(img):
+    """PIL RGBA 그림 → HICON (32비트 알파)."""
+    g = ctypes.windll.gdi32
+    w, h = img.size
+
+    class BIH(ctypes.Structure):
+        _fields_ = [("biSize", ctypes.c_uint32), ("biWidth", ctypes.c_int32), ("biHeight", ctypes.c_int32),
+                    ("biPlanes", ctypes.c_uint16), ("biBitCount", ctypes.c_uint16), ("biCompression", ctypes.c_uint32),
+                    ("biSizeImage", ctypes.c_uint32), ("biXPelsPerMeter", ctypes.c_int32), ("biYPelsPerMeter", ctypes.c_int32),
+                    ("biClrUsed", ctypes.c_uint32), ("biClrImportant", ctypes.c_uint32)]
+
+    class ICONINFO(ctypes.Structure):
+        _fields_ = [("fIcon", ctypes.c_int), ("xHotspot", ctypes.c_uint32), ("yHotspot", ctypes.c_uint32),
+                    ("hbmMask", ctypes.c_void_p), ("hbmColor", ctypes.c_void_p)]
+
+    bih = BIH(ctypes.sizeof(BIH), w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
+    bits = ctypes.c_void_p()
+    g.CreateDIBSection.restype = ctypes.c_void_p
+    color = g.CreateDIBSection(None, ctypes.byref(bih), 0, ctypes.byref(bits), None, 0)
+    r, gg, b, a = img.split()
+    from PIL import Image
+    raw = Image.merge("RGBA", (b, gg, r, a)).tobytes()
+    ctypes.memmove(bits, raw, len(raw))
+    g.CreateBitmap.restype = ctypes.c_void_p
+    mask = g.CreateBitmap(w, h, 1, 1, None)
+    ii = ICONINFO(1, 0, 0, mask, color)
+    _U.CreateIconIndirect.restype = ctypes.c_void_p
+    hi = _U.CreateIconIndirect(ctypes.byref(ii))
+    g.DeleteObject(ctypes.c_void_p(color)); g.DeleteObject(ctypes.c_void_p(mask))
+    return hi
+
+
+def badge_image(n, size):
+    """빨간 네모 위에 흰 수 (XX: 빨강 하나, 모서리 0). 크게 그려 줄인다."""
+    from PIL import Image, ImageDraw, ImageFont
+    from core import tokens
+    big = size * 4
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    red = tokens.DAY["late"]
+    d.rectangle((0, 0, big - 1, big - 1), fill=tuple(int(red[i:i + 2], 16) for i in (1, 3, 5)) + (255,))
+    label = "9+" if n > 9 else str(n)
+    font = None
+    for path in paths.font_paths("Paperlogy-5Medium.ttf"):
+        try:
+            font = ImageFont.truetype(path, int(big * (0.78 if len(label) == 1 else 0.6)))
+            break
+        except Exception:
+            continue
+    d.text((big / 2, big / 2), label, font=font, anchor="mm", fill=(255, 255, 255, 255))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def set_overlay(n):
+    """작업 표시줄 단추에 놓친 일의 수. 0 이면 지운다."""
+    n = max(0, int(n or 0))
+    if n == _overlay[1]:
+        return
+    h = hwnd()
+    if not h:
+        return
+    try:
+        tb = _taskbar()
+        if tb is None:
+            return
+        p, vt = tb
+        icon = _hicon(badge_image(n, 32)) if n else None
+        f = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_wchar_p)(vt[18])
+        f(p, ctypes.c_void_p(h), ctypes.c_void_p(icon) if icon else None, "놓친 일 %d" % n if n else None)
+        if icon:
+            _U.DestroyIcon(ctypes.c_void_p(icon))
+        ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vt[2])(p)                 # Release
+        _overlay[1] = n
+    except Exception:
+        paths.log("작업 표시줄 수 표시 실패" + chr(10) + traceback.format_exc())
+
+
+# ---------------- 어디서든 문장 칸 (전역 단축키) ----------------
+# 작은 창 하나 (제목 CAPTURE_TITLE). 지금 보고 있는 화면의 가운데 위 (높이의 1/5)에 뜨고, 넣거나 닫으면
+# 숨기고 원래 앞에 있던 창으로 돌려보낸다.
+CAPTURE_TITLE = paths.APP_NAME + " · 문장 칸"
+CAPTURE_W = 640
+
+
+def _titled(title):
+    from ctypes import wintypes
+    me, found = os.getpid(), []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def cb(h, _):
+        pid = wintypes.DWORD()
+        _U.GetWindowThreadProcessId(h, ctypes.byref(pid))
+        if pid.value == me:
+            n = _U.GetWindowTextLengthW(h)
+            b = ctypes.create_unicode_buffer(n + 1)
+            _U.GetWindowTextW(h, b, n + 1)
+            if b.value == title:
+                found.append(h)
+        return True
+    _U.EnumWindows(cb, 0)
+    return found[0] if found else None
+
+
+def show_capture(back=None, height=None):
+    """문장 칸 창을 앞에 있던 창의 화면 위쪽 가운데에 띄운다."""
+    h = _titled(CAPTURE_TITLE)
+    if not h:
+        return False
+    from platforms.win import win32
+    mon = _U.MonitorFromWindow(ctypes.c_void_p(back), MONITOR_DEFAULTTONEAREST) if back else None
+    mi = win32.monitor_info(mon) if mon else None
+    if mi is None:
+        mi = win32.monitor_info(_U.MonitorFromPoint(ctypes.wintypes.POINT(0, 0), 1))
+    s = _scale(h)
+    r = ctypes.wintypes.RECT()
+    _U.GetWindowRect(h, ctypes.byref(r))
+    w = int(CAPTURE_W * s)
+    ht = int(height * s) if height else (r.bottom - r.top)
+    if mi is not None:
+        wk = mi.rcWork
+        x = wk.left + ((wk.right - wk.left) - w) // 2
+        y = wk.top + (wk.bottom - wk.top) // 5
+        HWND_TOPMOST = ctypes.c_void_p(-1)
+        _U.SetWindowPos(h, HWND_TOPMOST, x, y, w, ht, 0)
+    _U.ShowWindow(h, SW_SHOW)
+    _U.SetForegroundWindow(h)
+    _U.BringWindowToTop(h)
+    return True
+
+
+def fit_capture(height):
+    """내용의 높이(논리 px)에 맞춰 문장 칸 창의 높이만 바꾼다."""
+    h = _titled(CAPTURE_TITLE)
+    if not h:
+        return
+    r = ctypes.wintypes.RECT()
+    _U.GetWindowRect(h, ctypes.byref(r))
+    _U.SetWindowPos(h, None, r.left, r.top, r.right - r.left, int(height * _scale(h)), SWP_NOZORDER | SWP_NOACTIVATE)
+
+
+def hide_capture(back=None):
+    h = _titled(CAPTURE_TITLE)
+    if h:
+        _U.ShowWindow(h, SW_HIDE)
+    if back:
+        try:
+            _U.SetForegroundWindow(ctypes.c_void_p(back))
+        except Exception:
+            pass

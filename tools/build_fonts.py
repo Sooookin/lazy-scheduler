@@ -16,6 +16,11 @@
 
 예전에는 이 변환을 그때그때 손으로 했다. 무엇으로 만들었는지 남지 않아
 Bold 를 더할 때 앞의 두 벌과 같은 방법인지 확인할 길이 없었다.
+
+영문 글자(A-Z · a-z · 라틴 확장)만은 Inter 로 쓴다 (2026-11). Paperlogy 의 영문은 넓고 둥글어
+작은 크기에서 한글보다 먼저 눈에 걸렸다. 숫자는 Paperlogy 그대로 - 처음부터 같은 폭이라 시각 열이 선다.
+Inter 는 창 화면에만 쓰므로 영문 글자만 추려 담고(30KB 남짓), 광학 크기는 본문(14)에 못 박는다.
+굵기는 축 그대로 300-500 을 남긴다.
 """
 import os
 import sys
@@ -32,9 +37,32 @@ FACES = [
 ]
 
 
+# 영문 한 벌: (원본, 내놓을 이름). 글자는 LATIN_RANGE 만 - style.css 의 unicode-range 와 같아야 한다
+LATIN = ("Inter[opsz,wght].ttf", "inter-latin.woff2")
+LATIN_RANGE = [(0x41, 0x5A), (0x61, 0x7A), (0xC0, 0xD6), (0xD8, 0xF6), (0xF8, 0xFF)]
+
+
 def convert(src, dst):
     from fontTools.ttLib import TTFont
     f = TTFont(src)
+    f.flavor = "woff2"
+    f.save(dst)
+    f.close()
+
+
+def convert_latin(src, dst):
+    from fontTools.ttLib import TTFont
+    from fontTools.varLib import instancer
+    from fontTools import subset
+    f = TTFont(src)
+    f = instancer.instantiateVariableFont(f, {"opsz": 14, "wght": (300, 500)})
+    opt = subset.Options()
+    opt.layout_features = ["kern", "liga", "calt", "ccmp", "locl", "mark", "mkmk"]
+    opt.name_IDs = ["*"]
+    opt.flavor = "woff2"
+    sub = subset.Subsetter(opt)
+    sub.populate(unicodes=[c for a, b in LATIN_RANGE for c in range(a, b + 1)])
+    sub.subset(f)
     f.flavor = "woff2"
     f.save(dst)
     f.close()
@@ -44,7 +72,8 @@ def main():
     check = "--check" in sys.argv
     os.makedirs(OUT, exist_ok=True)
     stale = []
-    for name, out_name, weight in FACES:
+    jobs = [(n, o, w, convert) for n, o, w in FACES] + [(LATIN[0], LATIN[1], 0, convert_latin)]
+    for name, out_name, weight, conv in jobs:
         src = os.path.join(ROOT, "assets", "fonts", name)
         dst = os.path.join(OUT, out_name)
         if not os.path.exists(src):
@@ -57,8 +86,8 @@ def main():
         if fresh:
             print("%-22s 그대로 (원본이 더 새것이 아니다)" % out_name)
             continue
-        convert(src, dst)
-        print("%-22s %6.0f KB  (weight %d)" % (out_name, os.path.getsize(dst) / 1024, weight))
+        conv(src, dst)
+        print("%-22s %6.0f KB  (weight %s)" % (out_name, os.path.getsize(dst) / 1024, weight or "300-500"))
 
     if check:
         if stale:

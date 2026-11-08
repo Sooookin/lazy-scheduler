@@ -66,13 +66,13 @@ class ScreenShots {
     }
 
     // 글자 크기는 쓰는 휴대폰(갤럭시 S23+)의 설정과 같게 1.1배 - 1.0 으로만 보면 잘림을 놓친다
-    @Before fun still() { pebbleStill = true; org.robolectric.RuntimeEnvironment.setFontScale(1.1f) }
+    @Before fun still() { org.robolectric.RuntimeEnvironment.setFontScale(1.1f) }
 
-    /** 하늘 + 종이 + 탭 (App 과 같은 짜임). */
+    /** 머리 + 판 + 탭 (App 과 같은 짜임). tall = 홈처럼 머리를 편다 · 아니면 작은 시계 한 줄로 접힌다 */
     @Composable
     private fun Frame(
         nowMin: Int, done: Set<String>, tall: Boolean = true, tabs: Boolean = true, night: Boolean = false,
-        ghost: Int? = null, sky: Boolean = true, content: @Composable (List<Task>, List<HomeRow>) -> Unit,
+        ghost: Int? = null, content: @Composable (List<Task>, List<HomeRow>) -> Unit,
     ) {
         val ts = tasks(done)
         val o = Plan.overview(ts, today)
@@ -81,19 +81,12 @@ class ScreenShots {
         val lit = litMinute(nowMin.toDouble(), "auto", if (allDone) 1.0 else 0.0)
         CompositionLocalProvider(LocalPal provides palette(lit)) {
             val pal = LocalPal.current
-            val tallH = top + SKY_TALL
-            val skyH = if (!sky) (if (tall) top + MINI_TALL else top + MINI_LOW) else if (tall) tallH else top + 86.dp
-            Column(Modifier.fillMaxSize().background(if (sky) pal.surface else pal.outside)) {
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val d = LocalDensity.current
-                    val wPx = with(d) { maxWidth.toPx() }
-                    val beads = rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next) } }
-                    if (!sky) MiniSky({ skyH }, top, tall, java.time.LocalTime.of(nowMin / 60, nowMin % 60), today)
-                    else Sky({ skyH }, tallH, top, { if (tall) 1f else 0f }, beads, nowMin, ghost, null) {
-                        Pebble(wPx, { with(d) { skyH.toPx() - 2 * tallH.toPx() / 206f } }, night || allDone, true, false, 0, null)
-                    }
-                }
-                Board(sky, Modifier.weight(1f)) { content(ts, rows) }
+            val beads = rows.filter { it.i.time.isNotEmpty() && it.i.date == today }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(it, r.i.done, r.late, r.next) } }
+            Column(Modifier.fillMaxSize().background(pal.board)) {
+                Head(top, folded = !tall, now = java.time.LocalTime.of(nowMin / 60, nowMin % 60), today = today,
+                    next = nextLine(rows, o.upcoming, today, nowMin), beads = beads, nowMin = nowMin,
+                    allDone = allDone || night, walk = false, calm = true, doneTick = 0)
+                Box(Modifier.weight(1f)) { CompositionLocalProvider(LocalPal provides pal.copy(surface = pal.board)) { content(ts, rows) } }
                 if (tabs) TabBar(Tab.HOME, {}, {})
             }
         }
@@ -103,14 +96,6 @@ class ScreenShots {
 
     @Test fun home10() = shot("1a-home-1000") {
         Frame(600, setOf("b", "c")) { ts, rows -> Home(Plan.overview(ts, today), rows, today, 600, {}, {}) }
-    }
-
-    @Test fun homeNoSky() = shot("1m-home-nosky") {
-        Frame(600, setOf("b", "c"), sky = false) { ts, rows -> Home(Plan.overview(ts, today), rows, today, 600, {}, {}) }
-    }
-
-    @Test fun calNoSky() = shot("1m-cal-nosky") {
-        Frame(600, setOf("b", "c"), tall = false, sky = false) { ts, _ -> CalendarScreen(ts, today, 600, false, {}, {}, {}, {}, {}) }
     }
 
     @Test fun home1830() = shot("1b-home-1830") {
@@ -130,21 +115,28 @@ class ScreenShots {
 
     @Test fun addDeadline() = shot("1d-add") {
         val dr = draft("deadline").apply { early = 1 }
-        Frame(600, setOf("b", "c"), tabs = false, ghost = 900) { ts, _ ->
+        Frame(600, setOf("b", "c"), tall = false, tabs = false, ghost = 900) { ts, _ ->
             Editor(Editing(null, null, "deadline"), dr, today, true, ts, {}, {}, {}, {}, {})
         }
     }
 
     @Test fun pickTime() = shot("1e-time") {
         val dr = draft("deadline", picking = true)
-        Frame(600, setOf("b", "c"), tabs = false, ghost = 810) { ts, _ ->
+        Frame(600, setOf("b", "c"), tall = false, tabs = false, ghost = 810) { ts, _ ->
+            Editor(Editing(null, null, "deadline"), dr, today, true, ts, {}, {}, {}, {}, {})
+        }
+    }
+
+    @Test fun addSentence() = shot("1e-sentence") {
+        val dr = Draft().apply { load(Editing(null, null), today, true, emptyMap()); typeTitle("교보 자료 수요일 3시 매주") }
+        Frame(600, setOf("b", "c"), tall = false, tabs = false) { ts, _ ->
             Editor(Editing(null, null, "deadline"), dr, today, true, ts, {}, {}, {}, {}, {})
         }
     }
 
     @Test fun addRoutine() = shot("1f-routine") {
         val dr = draft("routine", time = "").apply { pickDay(today.plusDays(2)); chooseFreq("month" to 1) }
-        Frame(600, setOf("b", "c"), tabs = false) { ts, _ ->
+        Frame(600, setOf("b", "c"), tall = false, tabs = false) { ts, _ ->
             Editor(Editing(null, null, "routine"), dr, today, true, ts, {}, {}, {}, {}, {})
         }
     }

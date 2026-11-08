@@ -78,12 +78,12 @@ def test_every_gap_sits_on_the_grid(css):
 
 
 def test_the_document_margin_is_one_number(css):
-    """땅 위의 것은 모두 같은 왼쪽 선에서 시작한다.
+    """판 위의 것은 모두 같은 왼쪽 선에서 시작한다 (머리의 시계 · 판 머리말 · 줄 · 달력).
 
     예전에는 왼쪽 끝이 48 · 44 · 56 셋이었다. 12px 안에 세 줄이 있으면
     맞춘 것도 아니고 벌린 것도 아니라, 어긋난 것처럼만 보인다.
     """
-    for sel in (r"\.home\{", r"\.foot\{"):
+    for sel in (r"\.clk\{", r"\.ph\{", r"\.r\{", r"\.v-cal\{"):
         rule = re.search(sel + r"[^}]*\}", css, re.S)
         assert rule, sel
         assert "var(--doc" in rule.group(0), "%s 가 문서 여백을 쓰지 않는다" % sel

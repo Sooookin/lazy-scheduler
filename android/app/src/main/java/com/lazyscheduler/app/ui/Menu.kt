@@ -61,14 +61,14 @@ fun RowMenu(
             exit = slideOutVertically(tween(200, easing = EaseExit)) { it } + fadeOut(tween(160, easing = EaseExit))) {
             val it0 = shown ?: return@AnimatedVisibility
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)).background(pal.surface)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)).background(pal.surface)
                     .pointerInput(Unit) { detectTapGestures { } }.navigationBarsPadding().padding(horizontal = 12.dp).padding(bottom = 10.dp),
             ) {
                 Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                     Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(pal.hair2))
                 }
                 Row(Modifier.padding(horizontal = 12.dp).height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-                    NumDot(null, it0.done, false)
+                    Dot(it0.done)
                     Spacer(Modifier.width(12.dp))
                     Text(it0.task.title, Modifier.weight(1f), style = T.leadM, color = pal.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val w = listOfNotNull(it0.date?.takeIf { it != today }?.let { dateLabel(it, today) }, it0.time.ifEmpty { null }?.let(::t12)).joinToString(" ")
@@ -96,7 +96,7 @@ private fun MenuLine(text: String, strong: Boolean = false, color: Color? = null
     val pal = LocalPal.current
     val c = color ?: pal.text
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(12.dp))
+        Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp))
             .background(if (strong) pal.teal.copy(alpha = .10f) else Color.Transparent)
             .press(onClick = onClick).height(44.dp).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

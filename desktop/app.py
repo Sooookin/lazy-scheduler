@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from desktop import cloudauth
 from desktop import cloudsync
+from desktop import holidays
 from desktop import ipc
 from desktop import paths
 from core import recur
@@ -67,6 +68,28 @@ def _spawn_ui(*flags):
     else:
         system.spawn([paths.python_runner(), os.path.join(BASE, "main.py"), "--ui", *flags],
                      cwd=BASE, quiet=False)
+
+
+def open_capture():
+    """전역 단축키 (기본 Ctrl+Alt+Space): 지금 창 위에 문장 칸만. 창 프로세스가 없으면 띄운다."""
+    from platforms import cards
+    back = cards.foreground()
+    cards.allow_foreground()
+    if ipc.post(ipc.UI_PORT, "/capture?back=%d" % (back or 0), timeout=0.5) == 200:
+        log("문장 칸: 창 프로세스에 부탁했다")
+        return
+    log("문장 칸: 창 프로세스가 없어 새로 띄운다")
+    try:
+        __import__("webview")
+        _spawn_ui("--capture")
+    except Exception:
+        log("문장 칸 창을 띄우지 못했다: " + traceback.format_exc())
+
+
+def apply_hotkey(st=None):
+    from platforms import cards
+    st = st or store.settings()
+    cards.set_hotkey(st.get("hotkey", ""), open_capture)
 
 
 def open_window():
@@ -213,7 +236,11 @@ class Handler(BaseHTTPRequestHandler):
         o = store.overview()
         o["settings"] = dict(o["settings"], autostart=autostart.is_enabled())
         o["version"] = version.VERSION
+        o["durations"] = store.durations()        # 이 PC 가 배운 걸린 시간 {이름: 분} (빈 때 셈 · 읽기 띠)
+        o["holiday_state"] = holidays.status()     # 공휴일 표가 몇 년까지 · 언제 받았나 (설정의 한 줄)
         o["update"] = updater.notice()            # 바꾼 뒤 처음 여는 창에 한 번 보여 줄 것
+        from platforms import cards
+        o["hotkey"] = cards.hotkey_state()        # 전역 단축키가 걸렸는지 (설정 화면이 말한다)
         return o
 
     def _query(self, name):
@@ -422,6 +449,8 @@ class Handler(BaseHTTPRequestHandler):
             st = store.update_settings(body)     # 확인이 끝난 뒤에만 레지스트리를 건드린다
             if auto is not None:
                 autostart.set_enabled(auto)
+            if "hotkey" in body:
+                apply_hotkey(st)
             return dict(st, autostart=autostart.is_enabled())
         raise ApiError(404, "없는 경로입니다")
 
@@ -569,6 +598,31 @@ def _complete(tid, day):
     nudge_ui()
 
 
+def _later(i):
+    """알림 카드의 [다음 영업일]. 할 일은 마감을 다음 영업일로 (오늘 · 지난 일은 오늘 다음, 앞으로의 일은 그 날 다음),
+    루틴은 이 회차를 건너뛰고 그 날에 같은 이름 · 시각의 할 일을 하나 만든다 (창 화면의 moveTo 와 같다)."""
+    tid, day = i["id"], i.get("date")
+    base = max(date.today(), date.fromisoformat(day)) if day else date.today()
+    to = base + timedelta(days=1)
+    if store.settings().get("business_only", True):
+        to = recur.next_business_day(to)
+    try:
+        if i.get("kind") == "routine":
+            store.skip(tid, day)
+            store.add({"title": i["title"], "kind": "deadline", "due_date": to.isoformat(),
+                       "due_time": i.get("time") or "", "note": i.get("note") or ""})
+        else:
+            cur = next((t for t in store.snapshot()[0]["tasks"] if t.get("id") == tid), None)
+            if cur is None or cur.get("deleted"):
+                return
+            st = cur.get("start_date")
+            store.update(tid, {"due_date": to.isoformat(), "start_date": st if st and st < to.isoformat() else None})
+    except store.NotFoundError:
+        return
+    log("카드에서 다음 영업일로: %s → %s" % (tid, to))
+    nudge_ui()
+
+
 SNOOZE_MIN = 10
 _SNOOZED = set()                # 미뤄 둔 알림 (프로그램을 내리면 사라지므로 이때는 업데이트하지 않는다)
 # 창이 알려 오는 사정 (POST /api/ui). 창은 떠 있는 동안 45초마다 스스로 목록을 다시 읽으므로 요청이
@@ -583,12 +637,53 @@ def ui_idle_s(now=None):
     return now - last
 
 
-def _snooze(i):
-    """알림 카드의 [10분 뒤]. 10분 뒤에 같은 알림을 한 번 더 띄운다.
+def _hm(s):
+    return int(s[:2]) * 60 + int(s[3:5])
+
+
+def next_gap(todays, now_min, skip=None, base=None, end="18:00", dur=None, title=None):
+    """빈 때: 오늘 시각 있는 일마다 그 일의 길이(배운 값 dur[이름], 없으면 30분)를 잡고,
+    기준(지금 · base 중 늦은 것) 30분 뒤부터 처음으로 옮길 일(title)의 길이만큼 비는 때.
+    하루 끝(end)을 넘으면 None. 창의 렌즈 미루기(web/app.js gapAfter)와 같은 셈이다. skip = (id, date) 는 그 일 자신."""
+    dur = dur or {}
+    size = lambda name: dur.get(store.dur_key(name), 30)
+    busy = [(_hm(i["time"]), size(i.get("title"))) for i in todays
+            if i.get("time") and not i.get("done") and (i.get("id"), i.get("date")) != skip]
+    own = size(title)
+    c0 = -(-(max(now_min, base or 0) + 30) // 5) * 5
+    for t in sorted({c0} | {b + n for b, n in busy if b + n > c0}):
+        if t + own > _hm(end):
+            return None
+        if all(t + own <= b or t >= b + n for b, n in busy):
+            return "%02d:%02d" % divmod(t, 60)
+    return None
+
+
+def _snooze_at(i, now=None):
+    """이 카드의 가운데 단추가 미룰 때 ('16:30'). 오늘 빈 때가 없으면 None (그때는 10분 뒤)."""
+    now = now or datetime.now()
+    try:
+        o = store.overview(now=now)
+        end = store.settings().get("day_end") or "18:00"
+        return next_gap(o["todays"], now.hour * 60 + now.minute, skip=(i.get("id"), i.get("date")), end=end,
+                        dur=store.durations(), title=i.get("title"))
+    except Exception:
+        log("빈 때 계산 실패: " + traceback.format_exc())
+        return None
+
+
+def _snooze(i, at=None):
+    """알림 카드의 가운데 단추. 빈 때(at, '16:30')가 있으면 그때, 없으면 10분 뒤에 같은 알림을 한 번 더 띄운다.
 
     그 사이 완료했거나 지웠으면 띄우지 않는다. 프로그램을 끄면 미룬 알림도 사라진다.
     """
-    tid, day, title, at = i["id"], i["date"], i["title"], i.get("time") or ""
+    tid, day, title, at_t = i["id"], i["date"], i["title"], i.get("time") or ""
+    delay = SNOOZE_MIN * 60
+    if at:
+        now = datetime.now()
+        d = (now.replace(hour=_hm(at) // 60, minute=_hm(at) % 60, second=0, microsecond=0) - now).total_seconds()
+        if d > 60:
+            delay = d
 
     def again():
         try:
@@ -602,18 +697,36 @@ def _snooze(i):
         except Exception:
             log("미룬 알림 확인 실패: " + traceback.format_exc())
             return
-        toast.notify(title, "10분 전에 미룬 알림" + (" · %s" % at if at else ""), late=True,
-                     on_done=lambda: _complete(tid, day), on_snooze=lambda: _snooze(i),
-                     key="snooze:%s:%s:%d" % (tid, day, int(time.time())))
+        nxt = _snooze_at(i)
+        toast.notify(title, "미룬 알림" + (" · %s" % at_t if at_t else ""), late=True,
+                     on_done=lambda: _complete(tid, day), on_snooze=lambda: _snooze(i, nxt), on_later=lambda: _later(i),
+                     extra={"snooze_label": nxt}, key="snooze:%s:%s:%d" % (tid, day, int(time.time())))
 
     def fire():
         _SNOOZED.discard(t)
         again()
 
-    t = threading.Timer(SNOOZE_MIN * 60, fire)
+    t = threading.Timer(delay, fire)
     t.daemon = True
     _SNOOZED.add(t)
     t.start()
+
+
+def glance(o, hm):
+    """창 밖에서 보는 한 줄: (놓친 일 수, "놓친 일 4 · 다음 15:00 국내 일임 매매 · 4시간 뒤").
+    창의 렌즈와 같은 말을 한다."""
+    late = len(o["overdue"]) + sum(1 for i in o["todays"] if not i["done"] and i["time"] and i["time"] < hm)
+    nxt = next((i for i in sorted(o["todays"], key=lambda i: i["time"] or "99:99")
+                if not i["done"] and i["time"] and i["time"] >= hm), None)
+    parts = ["놓친 일 %d" % late] if late else []
+    if nxt:
+        m = (int(nxt["time"][:2]) * 60 + int(nxt["time"][3:])) - (int(hm[:2]) * 60 + int(hm[3:]))
+        h, r = divmod(m, 60)
+        left = "%d분 뒤" % m if m < 60 else ("%d시간 %d분 뒤" % (h, r) if h < 3 and r >= 5 else "%d시간 뒤" % h)
+        parts.append("다음 %s %s · %s" % (nxt["time"], nxt["title"], left if m > 0 else "지금"))
+    elif not late:
+        parts.append("오늘 남은 일 없음")
+    return late, paths.APP_NAME + " · " + " · ".join(parts)
 
 
 def tick(now=None):
@@ -630,9 +743,9 @@ def tick(now=None):
 
     o = store.overview(data=d, now=now, rev=rev)      # 파일이 그대로면 지난번 계산을 다시 쓴다
     left = o["stats"]["left"]
-    tray.set_title(f"{paths.APP_NAME} · {left}건 남음" if left
-                   else f"{paths.APP_NAME} · 급한 일 없음")
-    tray.set_badge(toast.held_count())      # 발표 중 보류한 알림 수
+    late, tip = glance(o, hm)
+    tray.set_title(tip)
+    tray.set_badge(late)                    # 놓친 일 수 (창을 열지 않아도 빨강이 보이면 확인할 일이 있다)
 
     # 브리핑은 시각이 지난 뒤 2시간 안에만. 그러지 않으면 저녁에 프로그램을 켰을 때
     # 아침 브리핑이 그제서야 떠오른다.
@@ -664,10 +777,11 @@ def tick(now=None):
         head = missed[0]
         if len(missed) == 1:
             tid, day = head["id"], head["date"]
+            nxt = _snooze_at(head, now)
             toast.notify(head["title"], "마감 시간 지남 · %s" % head["time"], late=True,
                          on_done=lambda tid=tid, day=day: _complete(tid, day),
-                         on_snooze=lambda head=head: _snooze(head),
-                         key="missed:%s:%s" % (tid, day))
+                         on_snooze=lambda head=head, nxt=nxt: _snooze(head, nxt), on_later=lambda head=head: _later(head),
+                         extra={"snooze_label": nxt}, key="missed:%s:%s" % (tid, day))
         else:
             rows = [(i["time"] or "", i["title"], True) for i in missed]
             toast.notify_list("놓친 알림", "지나간 알림 %d건" % len(missed),
@@ -685,7 +799,7 @@ def _brief(now, o):
     """
     rows = []
     for i in o["overdue"]:
-        when = i["date"][5:].replace("-", "/") if i["date"] else ""
+        when = "%d/%d" % (int(i["date"][5:7]), int(i["date"][8:10])) if i["date"] else ""
         rows.append((when, i["title"], True))
     for i in o["todays"]:
         if not i["done"]:
@@ -745,10 +859,11 @@ def _maybe_notify(i, now, default_lead, first_tick):
     detail = i.get("rule_text") or ""
     meta = (kind + " · " + detail) if (kind and detail) else (kind or detail)
     tid, day = i["id"], i["date"]
+    nxt = _snooze_at(i)
     toast.notify(i["title"], sub, late=mins <= 0,
                  on_done=lambda tid=tid, day=day: _complete(tid, day),
-                 on_snooze=lambda i=i: _snooze(i),
-                 extra={"when": i["time"], "rel": rel, "meta": meta},
+                 on_snooze=lambda i=i, nxt=nxt: _snooze(i, nxt), on_later=lambda i=i: _later(i),
+                 extra={"when": i["time"], "rel": rel, "meta": meta, "snooze_label": nxt},
                  key="%s:%s" % (tid, day))
     log("알림 띄움: %s (%s)" % (key, sub))
     return "shown"
@@ -798,7 +913,7 @@ def _maybe_early(i, now, brief):
                                   "%d월 %d일 %s요일" % (due.month, due.day, WEEK[due.weekday()]), kind) if x)
     tid, day = i["id"], i["date"]
     toast.notify(i["title"], rel + (" · %s" % i["time"] if i["time"] else ""),
-                 on_done=lambda tid=tid, day=day: _complete(tid, day),
+                 on_done=lambda tid=tid, day=day: _complete(tid, day), on_later=lambda i=i: _later(i),
                  extra={"when": i["time"], "rel": rel, "meta": meta},
                  key="early:%s:%s" % (tid, day))
     log("미리 알림 띄움: %s %s (%s)" % (tid, day, rel))
@@ -890,6 +1005,7 @@ def main():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     threading.Thread(target=scheduler, daemon=True).start()
     cloudsync.start()                # 로그인하지 않았으면 조용히 기다린다
+    holidays.start()                 # 공휴일 표를 하루 한 번쯤 받는다 (못 받으면 지금 표 그대로)
     # 새 버전은 알아서 받아 두었다가 조용할 때 바꿔 끼운다 (빌드본에서만)
     updater.start(enabled=lambda: store.settings(store.load()).get("auto_update", True),
                   is_quiet=update_quiet, shutdown=shutdown, window_open=lambda: _UI["visible"])
@@ -898,6 +1014,7 @@ def main():
                on_test=_preview_toast,
                on_quit=shutdown)
     toast.set_open_handler(open_window)
+    apply_hotkey()
     paths.log("main: tray 완료, toast.run_forever 진입")
     toast.run_forever(on_ready=(prewarm_window if silent else open_window))
 

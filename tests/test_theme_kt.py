@@ -65,11 +65,11 @@ def test_the_phone_does_not_invent_colours(phone):
 
 
 def test_the_type_scale_is_the_shared_one():
-    """글자 크기도 tokens.py 의 일곱 단에서만 나온다."""
+    """글자 크기도 tokens.py 의 눈금에서만 나온다 (휴대폰은 아직 TYPE_PHONE - XX 로 옮기기 전의 다섯 단)."""
     if not os.path.exists(THEME):
         pytest.skip("휴대폰 소스가 없다")
     src = io.open(THEME, encoding="utf-8").read()
-    steps = {v[0].rstrip("px") for v in tokens.TYPE.values()}
+    steps = {v[0].rstrip("px") for v in tokens.TYPE_PHONE.values()}
     sizes = set(re.findall(r"val \w+ = ([\d.]+)\.sp", src))
     assert sizes <= steps, "스케일에 없는 크기: %s (눈금 %s)" % (sorted(sizes - steps), sorted(steps))
     # Typography 안에서 숫자를 바로 쓰면 스케일을 비켜 간 것이다
@@ -80,7 +80,7 @@ def test_the_type_scale_is_the_shared_one():
 
 
 def test_the_light_palette_is_tokens_light():
-    """하루의 빛을 섞는 재료(LitTokens)도 tokens.LIGHT 와 한 글자도 다르지 않다 (PC 의 sky.js 와 같은 빛)."""
+    """하루의 빛을 섞는 재료(LitTokens)도 tokens.LIGHT_PHONE 과 한 글자도 다르지 않다 (휴대폰을 XX 로 옮기면 LIGHT 로)."""
     if not os.path.exists(THEME):
         pytest.skip("휴대폰 소스가 없다")
     src = io.open(THEME, encoding="utf-8").read()
@@ -92,7 +92,7 @@ def test_the_light_palette_is_tokens_light():
     def camel(k):
         p = k.split("-")
         return p[0] + "".join(x[:1].upper() + x[1:] for x in p[1:])
-    want = {camel(k): v.lower() for k, v in tokens.LIGHT.items()}
+    want = {camel(k): v.lower() for k, v in tokens.LIGHT_PHONE.items()}
     assert kt == want, "어긋난 것: %s" % sorted(set(kt.items()) ^ set(want.items()))
 
 

@@ -1,0 +1,32 @@
+name: holidays
+
+# 공휴일 표 (docs/holidays.json) 를 매주 새로 받는다. 앱(desktop/holidays.py)은 이 파일만 받는다.
+# 저장소 비밀값 HOLIDAY_API_KEY = 공공데이터포털 '한국천문연구원 특일 정보' 일반 인증키 (Encoding).
+on:
+  schedule:
+    - cron: "0 0 * * 1"          # 월요일 09:00 (KST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 받기
+        env:
+          HOLIDAY_API_KEY: ${{ secrets.HOLIDAY_API_KEY }}
+        run: python tools/fetch_holidays.py
+      - name: 바뀌었으면 올리기
+        run: |
+          if [ -z "$(git status --porcelain -- docs/holidays.json docs/holidays.json.sha256)" ]; then echo "그대로"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/holidays.json docs/holidays.json.sha256
+          git commit -m "공휴일 표 갱신"
+          git push

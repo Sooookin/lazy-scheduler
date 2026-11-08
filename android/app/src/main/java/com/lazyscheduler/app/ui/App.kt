@@ -101,13 +101,10 @@ class ViewPrefs(ctx: Context) {
     var walk by mutableStateOf(p.getBoolean("walk", true)); private set
     var calm by mutableStateOf(p.getBoolean("calm", false)); private set
     var calWeek by mutableStateOf(p.getBoolean("cal_week", false)); private set
-    /** 위의 하늘(궤도 · 능선 · 빛 · 돌멩이)을 그릴지. 끄면 시계와 날짜만 (PC 의 show_sky) */
-    var sky by mutableStateOf(p.getBoolean("sky", true)); private set
     fun theme(v: String) { theme = v; p.edit().putString("theme", v).apply() }
     fun walk(v: Boolean) { walk = v; p.edit().putBoolean("walk", v).apply() }
     fun calm(v: Boolean) { calm = v; p.edit().putBoolean("calm", v).apply() }
     fun calWeek(v: Boolean) { calWeek = v; p.edit().putBoolean("cal_week", v).apply() }
-    fun sky(v: Boolean) { sky = v; p.edit().putBoolean("sky", v).apply() }
 }
 
 /** 3초 동안의 "되돌리기" (PC 와 같다). */
@@ -121,10 +118,12 @@ data class Editing(val task: Task?, val date: LocalDate?, val kind: String = "de
 enum class Tab(val label: String) { HOME("오늘"), CAL("달력"), ALL("전체"), SET("설정") }
 
 /**
- * 한 장의 종이, 두 가지 하늘 높이 (참고 도안 '모바일 화면들').
- *   하늘 230  시각이 의미 있는 화면 (홈 · 새 할 일 · 시각 고르기 · 새 루틴)
- *   하늘 120  나머지 (고치기 · 달력 · 전체 · 설정) - 접히며 궤도가 사라지고 언덕과 돌만 남는다
+ * 두 층: 위는 머리(시계 · 다음 할 일, 그 아랫변이 오늘의 시간 자 - Head.kt), 아래는 판(할 일).
+ *   홈        머리를 편다 (시간 자 · 돌멩이)
+ *   나머지    머리가 작은 시계 한 줄로 접힌다 (달력 · 전체 · 설정 · 편집)
+ * 판은 화면 끝까지 찬다 - 떠 있는 카드가 아니라 바닥이다. 머리와 판은 밝기 한 단 차이와 자의 선 하나로 갈린다.
  * 아래 탭은 홈 · 달력 · 전체 · 설정에서만 보이고, 편집 종이는 탭 자리까지 내려온다.
+ * (2026-10 덜어냄: 하늘 디오라마 · 하늘 끄기 · 뉴모피즘 판을 걷었다)
  */
 @Composable
 fun App() {
@@ -176,7 +175,7 @@ fun App() {
     SideEffect {
         (view.context as? Activity)?.window?.let { w ->
             WindowCompat.getInsetsController(w, view).apply {
-                isAppearanceLightStatusBars = pal.light.night < .5 && pal.light.dusk < .6
+                isAppearanceLightStatusBars = !pal.isNight
                 isAppearanceLightNavigationBars = !pal.isNight
             }
         }
@@ -234,41 +233,18 @@ fun App() {
     }
 
     val ed = editing
-    // 돌멩이가 자다가도 깨는 때: 적거나 고치는 중 · 메뉴 · 방금 한 일(되돌리기 띠)이 떠 있는 동안, 그리고 끝나고 6초 더
-    val busy = ed != null || draft.picking || menu != null || undo != null
-    var lingering by remember { mutableStateOf(false) }
-    LaunchedEffect(busy) { if (busy) lingering = true else { delay(6_000); lingering = false } }
-    val tall = draft.picking || (ed != null && ed.task == null) || (ed == null && tab == Tab.HOME)
-    val density = LocalDensity.current
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val tallH = top + SKY_TALL
-    // 접히고 펴지는 값은 State 째로 넘긴다 - 여기서 읽으면 움직이는 동안 매 프레임 화면 전체를 다시 짠다
-    // 하늘이 접히고 펴지는 것 · 화면이 바뀌는 것은 "움직임 줄이기" 와 상관없이 움직인다 (PC 와 같다 -
-    // 그 설정은 돌멩이의 폴짝 · 굴림만 멈춘다). 휴대폰의 "애니메이션 제거" 를 켜면 Compose 가 알아서 멈춘다.
-    val skyH = animateDpAsState(
-        if (!prefs.sky) (if (tall) top + MINI_TALL else top + MINI_LOW) else if (tall) tallH else top + 86.dp,
-        tween(560, easing = EaseMove), label = "sky")
-    val ribbon = animateFloatAsState(if (tall) 1f else 0f, tween(360), label = "ribbon")
+    val folded = ed != null || tab != Tab.HOME
+    val beads = remember(rows) { rows.filter { it.i.time.isNotEmpty() && it.i.date == today }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(it, r.i.done, r.late, r.next) } } }
+    val next = remember(rows, o, nowMin) { o?.let { nextLine(rows, it.upcoming, today, nowMin) } }
 
-    CompositionLocalProvider(LocalPal provides pal, LocalPaper provides rememberPaper()) {
-        Box(Modifier.fillMaxSize().background(if (prefs.sky) pal.surface else pal.outside)) {
+    CompositionLocalProvider(LocalPal provides pal) {
+        Box(Modifier.fillMaxSize().background(pal.board)) {
             Column(Modifier.fillMaxSize()) {
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val wPx = with(density) { maxWidth.toPx() }
-                    val beads = remember(rows) { rows.filter { it.i.time.isNotEmpty() }.mapNotNull { r -> minsOf(r.i.time)?.let { Bead(r.n, it, r.i.done, r.late, r.next, r.i.task.pinned) } } }
-                    val ghost = if (ed != null || draft.picking) draft.ghostMinute() else null
-                    if (!prefs.sky) MiniSky(height = { skyH.value }, top = top, tall = tall, now = now, today = today)
-                    else Sky(
-                        height = { skyH.value }, tallHeight = tallH, top = top, ribbon = { ribbon.value },
-                        beads = beads, nowMin = nowMin, ghost = ghost,
-                        onGhost = if (draft.picking || (ed != null && ed.task == null && ed.kind != "floating")) ({ m -> draft.pickFromSky(m) }) else null,
-                    ) {
-                        Pebble(width = wPx, groundY = { with(density) { skyH.value.toPx() - 2 * tallH.toPx() / 206f } }, night = sunNight || allDone || prefs.theme == "dark",
-                            walk = prefs.walk, calm = prefs.calm, doneTick = doneTick, awake = busy || lingering,
-                            lookX = ghost?.let { g -> SkyGeo(wPx, with(density) { tallH.toPx() }, with(density) { tallH.toPx() }, with(density) { top.toPx() }, density.density).onArc(g.toDouble(), density.density).first.x })
-                    }
-                }
-                Board(prefs.sky, Modifier.weight(1f).fillMaxWidth()) {
+                Head(top = top, folded = folded, now = now, today = today, next = next, beads = beads, nowMin = nowMin,
+                    allDone = allDone || sunNight || prefs.theme == "dark", walk = prefs.walk, calm = prefs.calm, doneTick = doneTick)
+                // 판 안의 것은 판 색을 면(surface)으로 받는다 (PC 의 .ground{--surface:var(--board)})
+                Box(Modifier.weight(1f).fillMaxWidth()) { CompositionLocalProvider(LocalPal provides pal.copy(surface = pal.board)) {
                     val screen: Any = ed ?: tab
                     AnimatedContent(
                         targetState = screen,
@@ -298,7 +274,7 @@ fun App() {
                                 setRemind = { remindOn = it; Reminders.setEnabled(context, it, tasks, settings) })
                         }
                     }
-                }
+                } }
                 AnimatedVisibility(visible = ed == null, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
                     TabBar(tab, onTab = { tab = it }, onAdd = { openEditor(Editing(null, null, "deadline")) })
                 }
@@ -328,48 +304,6 @@ fun App() {
     }
 }
 
-/**
- * 하늘을 끄면 화면 전체가 일정 판의 색 한 가지가 되고, 일정 판은 네 둘레를 띄운 둥근 판으로 빛과 그늘로만 떠오른다
- * (PC 의 body.no-sky .ground - 옅은 뉴모피즘: 왼쪽 위에 흰 빛, 오른쪽 아래에 그늘, 실선 없음). 밤으로 갈수록 흰 빛은
- * 거의 사라지고 그늘이 짙어진다. 볼록한 것은 이 판 하나뿐이다.
- * 판과 바깥은 빛으로 가른다 (PC 의 --board · --outside): 낮에는 판이 흰빛을 받아 한 단 밝고 바깥은 푸른 기를 걷은
- * 오프화이트, 밤에는 판을 밝히면 청자 글자의 대비가 4.5:1 아래로 떨어져 판은 그대로 두고 바깥을 창 바탕 색으로 둔다. 판 안은 판 색을 surface 로 받는다.
- */
-@Composable
-internal fun Board(sky: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
-    val pal = LocalPal.current
-    if (sky) Box(modifier) { content() }
-    else Box(modifier.board(pal)) { CompositionLocalProvider(LocalPal provides pal.copy(surface = pal.board)) { content() } }
-}
-
-internal val Pal.board: Color get() = if (isNight) surface else lerp(surface, Color.White, .45f)
-internal val Pal.outside: Color get() = if (isNight) bg else lerp(lerp(surface, bg, .55f), late, .04f)
-
-private fun Modifier.board(pal: Pal): Modifier = run {
-    val shape = RoundedCornerShape(16.dp)
-    val hi = Color.White.copy(alpha = .045f + (.75f - .045f) * pal.day)
-    val lo = lerp(Color.Black.copy(alpha = .32f), Color(0xFF1F292A).copy(alpha = .12f), pal.day)
-    this.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-        .drawBehind {
-            val r = 16.dp.toPx()
-            fun soft(c: Color, dx: Float, dy: Float, blur: Float) = drawIntoCanvas {
-                val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = c.toArgb(); maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
-                }
-                it.nativeCanvas.drawRoundRect(dx, dy, size.width + dx, size.height + dy, r, r, p)
-            }
-            soft(hi, -6.dp.toPx(), -6.dp.toPx(), 16.dp.toPx() / 2)
-            soft(lo, 6.dp.toPx(), 8.dp.toPx(), 20.dp.toPx() / 2)
-        }
-        // 윗날에 맺힌 빛 한 줄 (PC 의 inset 0 1px 0)
-        .drawWithContent {
-            drawContent()
-            drawLine(Color.White.copy(alpha = if (pal.isNight) .07f else .7f), androidx.compose.ui.geometry.Offset(16.dp.toPx(), .5f),
-                androidx.compose.ui.geometry.Offset(size.width - 16.dp.toPx(), .5f), 1.dp.toPx())
-        }
-        .clip(shape).background(pal.board)
-}
-
 /** 움직임 곡선 (tokens.MOTION): ease-move 큰 면이 옮겨 가는 것 · ease-exit 사라지는 것 (머뭇거리지 않고 빠진다). */
 val EaseMove = androidx.compose.animation.core.CubicBezierEasing(.32f, .72f, 0f, 1f)
 val EaseExit = androidx.compose.animation.core.CubicBezierEasing(.4f, 0f, 1f, 1f)
@@ -386,8 +320,7 @@ internal fun TabBar(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     if (t == null) {
                         Box(
-                            Modifier.offset(y = (-8).dp).size(50.dp).glow(pal.teal, 14.dp, 25.dp, pal.glowL * .9f)
-                                .shadow(8.dp, CircleShape, spotColor = pal.teal, ambientColor = pal.teal)
+                            Modifier.offset(y = (-8).dp).size(50.dp)
                                 .clip(CircleShape).background(pal.teal).press(onClick = onAdd),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -400,7 +333,7 @@ internal fun TabBar(tab: Tab, onTab: (Tab) -> Unit, onAdd: () -> Unit) {
                     } else {
                         val on = t == tab
                         val c = if (on) pal.teal else pal.text2
-                        Column(Modifier.clip(RoundedCornerShape(12.dp)).tap { onTab(t) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                        Column(Modifier.clip(RoundedCornerShape(6.dp)).tap { onTab(t) }.padding(horizontal = 12.dp, vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally) {
                             TabIcon(t, c)
                             Spacer(Modifier.height(4.dp))
@@ -464,12 +397,12 @@ internal fun UndoBar(u: Undo, key: Any?, onUndo: () -> Unit) {
         while (left > 1) { delay(1_000); left-- }
     }
     Box(Modifier.padding(horizontal = 16.dp).widthIn(max = 420.dp).fillMaxWidth()
-        .shadow(12.dp, RoundedCornerShape(14.dp), spotColor = ink).clip(RoundedCornerShape(14.dp)).background(ink)) {
+        .shadow(12.dp, RoundedCornerShape(6.dp), spotColor = ink).clip(RoundedCornerShape(6.dp)).background(ink)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp).height(48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(u.verb, style = T.body, color = LitTokens.pale2.copy(alpha = .7f))
             Spacer(Modifier.width(10.dp))
             Text(u.title, Modifier.weight(1f), style = T.leadM, color = LitTokens.pale, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Column(Modifier.clip(RoundedCornerShape(10.dp)).tap(onUndo).padding(horizontal = 12.dp, vertical = 4.dp),
+            Column(Modifier.clip(RoundedCornerShape(6.dp)).tap(onUndo).padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("되돌리기", style = T.leadM, color = LitTokens.tealLit)
                 Text("$left", style = T.micro, color = LitTokens.pale2.copy(alpha = .6f))

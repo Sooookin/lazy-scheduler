@@ -40,10 +40,10 @@ fun AllScreen(tasks: List<Task>, today: LocalDate, onOpen: (Task) -> Unit) {
         "done" -> sorted.filter { it.kind != "routine" && it.done }
         else -> sorted.filter { !(it.kind != "routine" && it.done) }
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = DOC, end = DOC, top = 16.dp, bottom = 24.dp)) {
         item {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("전체 항목", style = T.title.lit(pal.text, big = true), color = pal.text)
+                Text("전체 항목", style = T.title, color = pal.text)
                 Spacer(Modifier.weight(1f))
                 Text("${shown.size}건", style = T.body, color = pal.text2)
             }
@@ -61,7 +61,7 @@ fun AllScreen(tasks: List<Task>, today: LocalDate, onOpen: (Task) -> Unit) {
                     Text(t.title, Modifier.weight(1f), style = T.lead, color = if (t.done) pal.text2 else pal.text,
                         textDecoration = if (t.done) T.strike else null, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val (w, late) = whenText(t, today)
-                    Text(apText(w), Modifier.padding(start = 10.dp), style = T.time.lit(if (late) pal.late else pal.text2), color = if (late) pal.late else pal.text2, maxLines = 1)
+                    Text(apText(w), Modifier.padding(start = 10.dp), style = T.time, color = if (late) pal.late else pal.text2, maxLines = 1)
                     Chevron()
                 }
                 Hair()

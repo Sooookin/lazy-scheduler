@@ -131,7 +131,7 @@ def test_data_file_is_written_without_indentation():
 def test_the_sun_glow_is_not_an_animated_svg_filter():
     """SVG 안에서 흐림 필터를 숨 쉬게 하면 창이 가만히 있어도 1초에 60번 다시 칠한다."""
     js = ""
-    for name in ("app.js", "sky.js", "pebble.js"):
+    for name in ("app.js", "sky.js"):
         with open(os.path.join(ROOT, "web", name), encoding="utf-8") as f:
             js += f.read()
     assert "feGaussianBlur" not in js

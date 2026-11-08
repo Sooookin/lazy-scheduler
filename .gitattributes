@@ -10,3 +10,7 @@
 *.vbs  binary
 *.ico  binary
 *.png  binary
+
+# 공휴일 표는 해시로 검증한다 - 바이트를 그대로 둔다 (줄바꿈 변환 금지)
+docs/holidays.json        -text
+docs/holidays.json.sha256 -text

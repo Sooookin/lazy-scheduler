@@ -102,6 +102,16 @@ def set_holidays(extra):
            | frozenset(x for x in (extra or []) if isinstance(x, str)))
 
 
+_BASE_NAMES = dict(HOLIDAY_NAMES)
+
+
+def set_holiday_names(extra):
+    """받은 공휴일 표(desktop/holidays.py)의 이름을 더한다. 통째로 갈아끼운다 (읽는 스레드가 반쯤 바뀐 것을 보지 않게)."""
+    global HOLIDAY_NAMES
+    HOLIDAY_NAMES = dict(_BASE_NAMES, **{k: v for k, v in (extra or {}).items()
+                                         if isinstance(k, str) and isinstance(v, str)})
+
+
 def is_business_day(d):
     return d.weekday() < 5 and d not in _HOLIDAY_DATES
 

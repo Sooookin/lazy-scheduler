@@ -217,3 +217,30 @@ def focus():
         n.makeKeyAndOrderFront_(None)
         app.activateIgnoringOtherApps_(True)
     _main(run, "focus")
+
+
+# ---------------- 어디서든 문장 칸 (Windows 와 같은 이름) ----------------
+# macOS 는 아직 전역 단축키를 걸지 않아 이 창을 부를 일이 없다. 부르면 아무 일도 하지 않는다.
+CAPTURE_TITLE = paths.APP_NAME + " · 문장 칸"
+CAPTURE_W = 640
+
+
+def show_capture(back=None, height=None):
+    return False
+
+
+def fit_capture(height):
+    pass
+
+
+def hide_capture(back=None):
+    pass
+
+
+def set_overlay(n):
+    """Dock 아이콘의 배지 = 놓친 일의 수."""
+    try:
+        import AppKit
+        AppKit.NSApp.dockTile().setBadgeLabel_(str(n) if n else None)
+    except Exception:
+        pass

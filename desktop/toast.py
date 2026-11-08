@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""화면 오른쪽 아래에 뜨는 알림 카드 — A′ (점토 · 모조지 결 · Paperlogy).
+"""화면 오른쪽 아래에 뜨는 알림 카드 — 창 화면과 같은 XX 문법 (2026-11).
+
+모서리 0, 위 2px 선 하나가 종류를 말한다 (청록 = 곧 · 빨강 = 지남) - 창의 렌즈 윗변(지금 선)과 같은 말이다.
+시각은 24시간 그대로, 단추는 셋: 끝냄 · 빈 때 (오늘 다음으로 비는 시각, 없으면 10분 뒤) · 다음 영업일 (카드에서 바로 미룬다. 미룰 수 없는 카드는 열기).
 
 카드 전체를 Pillow 로 그린 뒤, 운영체제의 투명 창에 그림 그대로 올린다 (cards: Windows 는
 레이어드 윈도우, macOS 는 투명 NSPanel). 픽셀 단위 알파라 모서리와 그림자가 계단 없이
@@ -33,6 +36,7 @@ TEXT2     = _N["text2"]       # 보조 단추 · 접힌 줄
 FAINT     = _N["faint"]       # 라벨 · 상대 시각 · 아래 줄
 TEAL      = _N["teal"]        # 강조 · 종류 띠 · 완료 단추
 TEAL_SOFT = _N["teal-soft"]   # 안내 카드의 띠
+ACCENT    = _N["accent"]      # 카드 위 2px 띠 (창의 지금 선과 같은 면 · 선 청록)
 LATE      = _N["late"]        # 지난 것 (띠 · 알약 · 완료 단추)
 ON_PILL   = _N["bg"]          # 밝은 알약 위의 글자
 
@@ -54,7 +58,7 @@ LEGACY_INFO = {tokens.COLOR["mint"], "#85bdb3", "#8fc2b9", "#8eb7bf"}
 # ---------------- 치수 (배율 100% 기준, set_scale 이 실제 픽셀로 바꾼다) ----------------
 _BASE = dict(
     PAD=26,                 # 카드 밖 여백: 그림자가 잘리지 않고 끝까지 번질 자리
-    CW=384, R=18, GAP=8,          # 340 이었다. 제목 칸이 좁아 넓혔다
+    CW=384, R=0, GAP=8,           # 모서리 0 (XX). 둥근 것은 창 화면의 할 일 점 하나뿐이다
     TX=40, TY=19, TR=46,    # 글자 시작 · 위 여백 · 오른쪽(✕ 자리)
     BAR_X=22, BAR_W=3,
     CLOSE=28, CLOSE_R=12, CLOSE_T=10,
@@ -65,11 +69,12 @@ _BASE = dict(
     # 가로 340 을 이렇게 나눈다. 숫자를 여기 모아 두면 배율이 바뀌어도
     # 비율이 그대로 따라온다.
     #
-    #   18 │3│11│  64  │ 16 │ ────── 제목 ────── │ 18
-    #      ▍    10:00        퇴연 RA 비즈니스 미팅      ✕
-    #           10분 뒤       루틴 · 매월 마지막 목요일
-    #   ├──────────────── 40 ────────────────────────┤
-    #   │     완료    │    10분 뒤   │      열기        │
+    #   ━━━━━━━━━━━━━━━━━━ 위 2px 선 (청록 · 빨강) ━━━━━━━━━━━━━━━━━━━━
+    #   20 │  64  │ 16 │ ────── 제목 ────── │ 18
+    #        10:00        퇴연 RA 비즈니스 미팅      ✕
+    #        10분 뒤       루틴 · 매월 마지막 목요일
+    #   ├──────────────── 44 ────────────────────────┤
+    #   │     끝냄    │    10분 뒤   │   다음 영업일    │
     #
     # 시각 칸 폭은 글꼴에서 직접 잰다 ("00:00"). 숫자가 tabular 라 어떤 시각이든
     # 같은 폭이고, 값을 손으로 적어 두면 어긋난다 (64 로 적어 뒀는데 실제는 74 라
@@ -172,7 +177,7 @@ def set_open_handler(fn):
 
 
 def notify(title, sub="", accent=None, on_done=None, key=None, extra=None,
-           late=False, on_snooze=None, can_open=True):
+           late=False, on_snooze=None, can_open=True, on_later=None):
     """같은 알림이 겹쳐 쌓이지 않게 key 로 한 번 걸러낸다.
 
     key 를 주지 않으면 제목+내용을 키로 쓴다. 60초 안에 같은 키가 다시 오면 버린다.
@@ -189,7 +194,7 @@ def notify(title, sub="", accent=None, on_done=None, key=None, extra=None,
     if accent and accent.lower() in LEGACY_LATE:
         late = True
     item = {"title": title, "sub": sub, "late": late, "on_done": on_done,
-            "on_snooze": on_snooze, "can_open": can_open, "key": k,
+            "on_snooze": on_snooze, "on_later": on_later, "can_open": can_open, "key": k,
             "info": accent is not None and accent.lower() in LEGACY_INFO}
     item.update(extra or {})
     _queue.put(item)
@@ -408,7 +413,7 @@ def _close(card, hover):
     size = CLOSE
     x, y = card.width - CLOSE_R - size, CLOSE_T
     if hover == "x":
-        _blob(card, (x, y, size, size), s(9), *_wash())
+        _blob(card, (x, y, size, size), 0, *_wash())
     mark = _x_mark(s(12), TEXT if hover == "x" else FAINT, 1.5 * SCALE)
     card.alpha_composite(mark, (x + (size - mark.width) // 2, y + (size - mark.height) // 2))
     return (x, y, size, size)
@@ -437,9 +442,7 @@ def _seg_row(card, acts, hover):
         if k:
             _vline(card, x0, top + N_SEG_PAD, N_ACT_H - N_SEG_PAD * 2, RULE1)
         if hover == name:
-            _blob(card, (x0 + N_ACT_INSET, top + N_ACT_INSET,
-                         x1 - x0 - N_ACT_INSET * 2, N_ACT_H - N_ACT_INSET * 2),
-                  N_ACT_R, *_wash())
+            _blob(card, (x0 + 1, top + 1, x1 - x0 - 1, N_ACT_H - 1), 0, *_wash())
         fill = TEAL if kind == "primary" else (LATE if kind == "late" else FAINT)   # 보조 단추는 한 단 흐리게 - 완료가 먼저 읽힌다
         _ctext(d, (x0 + x1) / 2, top + N_ACT_H / 2 + s(1), label, f, "m", _rgb(fill) + (255,))
         hits[name] = (x0, top, x1 - x0, N_ACT_H)
@@ -457,25 +460,18 @@ def _draw_normal(item, hover):
     비우고 제목이 그 자리까지 넓게 쓴다.
     """
     from PIL import ImageDraw
-    f_time = _font(300, N_TIME_PX)      # 큰 숫자는 가는 획이 또렷하다
+    f_time = _font(400, N_TIME_PX)
     f_rel = _font(400, N_REL_PX)
     f_ttl = _font(500, N_TTL_PX)
     f_sub = _font(400, N_SUB_PX)
 
     when = (item.get("when") or "").strip()
     rel = (item.get("rel") or "").strip()
-    # 시각은 12시간으로: "13:00" → 큰 01:00 과 그 오른쪽 작은 PM (창 화면의 tmHTML 과 같다)
-    ap = ""
-    m = re.match(r"^(\d{1,2}):(\d{2})$", when)
-    if m:
-        hh = int(m.group(1))
-        when, ap = "%02d:%s" % (hh % 12 or 12, m.group(2)), ("AM" if hh < 12 else "PM")
-    f_ap = _font(500, N_REL_PX)
-    ap_w = int(round(f_ap.getlength(ap))) + s(3) if ap else 0
-    # 시각이 없으면 시각 칸을 두지 않는다 (빈 칸을 남기면 카드가 기울어 보인다)
-    wx = N_MARGIN + N_BAR_W + N_BARGAP
+    # 시각은 24시간 그대로 (창 화면과 같다). 시각이 없으면 시각 칸을 두지 않는다
+    ap, ap_w = "", 0
+    wx = N_MARGIN + s(2)
     # 시각 잉크가 차지하는 실제 폭 (왼쪽 빈 자리를 뺀다)
-    lsb_t = _lsb(300, N_TIME_PX, when[:1]) if when else 0
+    lsb_t = _lsb(400, N_TIME_PX, when[:1]) if when else 0
     num_w = int(round(f_time.getlength(when))) - lsb_t if when else 0
     time_w = num_w + ap_w
     tx = wx + ((time_w + N_COLGAP) if when else 0)
@@ -498,28 +494,25 @@ def _draw_normal(item, hover):
 
     acts = []
     if item.get("on_done"):
-        acts.append(("done", "완료", "late" if item.get("late") else "primary"))
+        acts.append(("done", "끝냄", "late" if item.get("late") else "primary"))
     if item.get("on_snooze"):
-        acts.append(("snooze", "10분 뒤", "ghost"))
-    if item.get("can_open") and _open_handler is not None and item.get("on_done"):
+        acts.append(("snooze", item.get("snooze_label") or "10분 뒤", "ghost"))
+    if item.get("on_later"):
+        acts.append(("later", "다음 영업일", "ghost"))
+    elif item.get("can_open") and _open_handler is not None and item.get("on_done"):
         acts.append(("open", "열기", "ghost"))
 
     h = N_TOP + block + N_BOT + (N_ACT_H if acts else 0)
     card = _card_face(CW, h).copy()
     d = ImageDraw.Draw(card)
 
-    # 종류 띠: 글자 덩어리와 같은 높이로 (예전에는 제목 줄에만 걸려 짧았다)
-    bar = LATE if item.get("late") else (TEAL_SOFT if item.get("info") else TEAL)
-    _blob(card, (N_MARGIN, N_TOP + s(2), N_BAR_W, max(1, block - s(4))),
-          max(1, N_BAR_W // 2), bar)
+    # 종류 선: 카드 위 2px (창의 렌즈 윗변 - '지금' 과 같은 말)
+    bar = LATE if item.get("late") else (TEAL_SOFT if item.get("info") else ACCENT)
+    _blob(card, (0, 0, CW, max(2, s(2))), 0, bar)
 
     if when:
         # 시각의 잉크가 wx 에서 시작하게 한다 (띠와의 간격이 시각마다 흔들리지 않게)
         d.text((wx - lsb_t, N_TOP - s(2)), when, font=f_time, fill=_rgb(TEXT) + (255,))
-        if ap:
-            # 큰 숫자의 아랫줄(획의 바닥)에 작은 글자의 바닥을 맞춘다
-            base = N_TOP - s(2) + f_time.getbbox("0")[3]
-            d.text((wx + num_w + s(3), base - f_ap.getbbox("M")[3]), ap, font=f_ap, fill=_rgb(TEXT2) + (255,))
         # 아래 글자는 시각 아래 가운데로. 왼쪽을 맞추려 하면 어느 한쪽은 반드시
         # 어긋난다 - 큰 숫자의 세로 획은 글자 안쪽 깊숙이 있고(26px "1" 은 9px),
         # 작은 글자는 가장자리에 있다(11px "1" 은 3px). 눈은 획을 보므로 왼쪽 끝을
@@ -528,14 +521,8 @@ def _draw_normal(item, hover):
         cx = wx + num_w / 2.0          # 아래 글자는 큰 숫자 가운데로 (작은 AM · PM 은 빼고)
         if rel:
             ry = N_TOP + N_TIME_LH + N_TIME_GAP
-            if item.get("late"):
-                # 지난 것은 호박빛 알약으로. 창 화면의 지난 일과 같은 색이라
-                # 굳이 읽지 않아도 무슨 뜻인지 안다.
-                pw = int(_tlen(rel, f_rel)) + s(15)
-                _blob(card, (int(cx - pw / 2), ry - s(2), pw, N_REL_LH + s(5)), s(7), LATE)
-                _ctext(d, cx, ry + N_REL_LH / 2, rel, f_rel, "m", _rgb(ON_PILL) + (255,))
-            else:
-                _ctext(d, cx, ry, rel, f_rel, "a", _rgb(FAINT) + (255,))
+            # 지난 것은 빨간 글자로 (알약은 두지 않는다 - 둥근 것은 할 일 점 하나)
+            _ctext(d, cx, ry, rel, f_rel, "a", _rgb(LATE if item.get("late") else FAINT) + (255,))
 
     # 시각(26px)과 제목(14px)은 글자 위 빈 자리가 서로 달라서, 같은 y 에서
     # 시작하면 제목이 떠 보인다. 숫자와 한글의 "윗머리" 를 재서 맞춘다.
@@ -571,7 +558,7 @@ def _draw_list(item, hover):
     from PIL import ImageDraw
     f_lab, f_ttl = _font(500, s(10)), _font(500, s(14.5))
     f_key, f_row, f_n = _font(400, s(10.5)), _font(500, s(11.5)), _font(500, s(11))
-    f_pill, f_more = _font(500, s(9.5)), _font(500, s(10.5))
+    f_pill, f_more = _font(500, s(10.5)), _font(500, s(10.5))
     rows = item["rows"][:BRIEF_MAX]          # 몇 줄까지 보일지는 부르는 쪽이 자른다 (브리핑 10 · 나머지 4)
     more = item.get("more", 0)
     L = LIST_PAD
@@ -579,6 +566,7 @@ def _draw_list(item, hover):
     h = head + len(rows) * LIST_ROW + (s(22) if more else s(4)) + s(13)
 
     card = _card_face(CW, h).copy()
+    _blob(card, (0, 0, CW, max(2, s(2))), 0, ACCENT)
     d = ImageDraw.Draw(card)
     d.text((L, s(15)), item.get("label", ""), font=f_lab, fill=_rgb(FAINT) + (255,))
     d.text((L, s(31)), item["title"], font=f_ttl, fill=_rgb(TEXT) + (255,))
@@ -590,15 +578,13 @@ def _draw_list(item, hover):
         if i:
             _hline(card, L, y, CW - L * 2, RULE1)
         cy = y + LIST_ROW // 2
-        d.text((L, cy), _ap12(key) or "—", font=f_key, anchor="lm", fill=_rgb(TEAL) + (255,))
-        pill_w = int(f_pill.getlength("지남")) + s(14) if over else 0
-        wide = CW - L - (L + s(62)) - (pill_w + s(8) if over else 0)
+        d.text((L, cy), key or "—", font=f_key, anchor="lm", fill=_rgb(LATE if over else TEXT2) + (255,))
+        tag_w = int(f_pill.getlength("지남")) if over else 0
+        wide = CW - L - (L + s(62)) - (tag_w + s(8) if over else 0)
         d.text((L + s(62), cy), _wrap(name, f_row, wide, 1)[0], font=f_row, anchor="lm",
                fill=_rgb(TEXT) + (255,))
         if over:
-            px = CW - L - pill_w
-            _blob(card, (px, cy - s(8), pill_w, s(16)), s(6), LATE)
-            d.text((px + pill_w / 2, cy), "지남", font=f_pill, anchor="mm", fill=_rgb(ON_PILL) + (255,))
+            d.text((CW - L, cy), "지남", font=f_pill, anchor="rm", fill=_rgb(LATE) + (255,))
         y += LIST_ROW
     if more:
         d.text((L + s(62), y + s(6)), "그 외 %d건" % more, font=f_more, fill=_rgb(FAINT) + (255,))
@@ -618,9 +604,7 @@ def _draw_fold(item, hover):
     d.text((cx + s(20), h // 2), "밀린 알림 펼치기", font=f, anchor="lm",
            fill=_rgb(TEXT if hover else TEXT2) + (255,))
     label = "+%d" % item.get("count", 0)
-    pw = int(f_c.getlength(label)) + s(16)
-    _blob(card, (CW - s(14) - pw, h // 2 - s(9), pw, s(18)), s(7), TEAL)
-    d.text((CW - s(14) - pw / 2, h // 2), label, font=f_c, anchor="mm", fill=_rgb(ON_PILL) + (255,))
+    d.text((CW - s(18), h // 2), label, font=f_c, anchor="rm", fill=_rgb(TEAL) + (255,))
     return card, {"fold": (0, 0, CW, h)}
 
 
@@ -702,7 +686,7 @@ def _click_plan(item, target):
 
     target 은 hits 의 이름이거나, 아무것도 맞지 않았으면 None 이다.
     """
-    cb = {"done": item.get("on_done"), "snooze": item.get("on_snooze")}.get(target)
+    cb = {"done": item.get("on_done"), "snooze": item.get("on_snooze"), "later": item.get("on_later")}.get(target)
     if target == "fold":
         return cb, True
     body = target is None or target == "open"

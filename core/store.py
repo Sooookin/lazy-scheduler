@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import threading
+import traceback
 import time
 import uuid
 from contextlib import contextmanager
@@ -57,6 +58,10 @@ _SETTINGS = {
     "guy_walk": True,              # 하늘의 돌멩이가 스스로 움직일지 (끄면 가운데에 앉아 눈만 굴린다)
     "show_sky": True,              # 위의 하늘(궤도 · 능선 · 빛 · 돌멩이)을 그릴지. 끄면 시계와 날짜만. 이 기기에만
     "auto_update": True,           # 새 버전을 알아서 받아 조용할 때 바꿔 끼울지 (updater.py). 이 PC 에만
+    # 어느 창에서든 문장 칸을 부르는 단축키 (예: "ctrl+alt+space"). "" 이면 쓰지 않는다. 이 PC 에만
+    "hotkey": "ctrl+alt+space",
+    # 하루 끝. 이 뒤에는 '빈 때' 를 찾지 않고, 오늘 남은 일을 다음 영업일로 넘길지 렌즈가 한 번 묻는다. 이 PC 에만
+    "day_end": "18:00",
 }
 # 요청으로 바꿀 수 있는 필드. id · created · done_dates 같은 관리 필드는 여기 없다.
 _TASK_FIELDS = ("title", "note", "kind", "due_date", "due_time",
@@ -677,6 +682,9 @@ def _clean_day(v):
     return v
 
 
+_HOTKEY = re.compile(r"^((ctrl|alt|shift|win)\+){1,3}([a-z0-9]|space|f([1-9]|1[0-2]))$")
+
+
 def _check_setting(k, v):
     """설정 한 개가 올바른지. 모르는 항목이면 False, 잘못된 값이면 ValidationError."""
     if k == "notify_min":
@@ -685,10 +693,16 @@ def _check_setting(k, v):
     elif k == "brief_time":
         if not (isinstance(v, str) and (v == "" or _TIME.match(v))):
             raise ValidationError("브리핑 시각은 00:00~23:59 형식이어야 합니다")
+    elif k == "day_end":
+        if not (isinstance(v, str) and _TIME.match(v)):
+            raise ValidationError("하루 끝은 00:00~23:59 형식이어야 합니다")
     elif k in ("business_only", "show_weekend", "show_routines", "cal_week", "hold_when_busy", "guy_walk", "show_sky",
                "auto_update"):
         if not isinstance(v, bool):
             raise ValidationError("요청 형식이 올바르지 않습니다")
+    elif k == "hotkey":
+        if not (isinstance(v, str) and (v == "" or _HOTKEY.match(v))):
+            raise ValidationError("단축키는 ctrl+alt+space 같은 모양이어야 합니다")
     elif k == "theme":
         if v not in ("auto", "light", "dark"):
             raise ValidationError("화면 밝기는 auto · light · dark 중 하나여야 합니다")
@@ -821,26 +835,102 @@ def remove(tid):
                       if not (x.get("deleted") and (x.get("updated") or "") < cutoff)]
 
 
-def set_done(tid, day=None, done=True):
+def set_done(tid, day=None, done=True, now=None):
     """완료 상태를 그 값으로 정한다 (뒤집지 않는다).
 
     예전 toggle 은 창에서 완료한 뒤 알림 카드의 [완료] 를 누르면 도로 미완료가 됐다.
     반복 일정은 그 날짜 회차만, 나머지는 항목 자체를 완료 처리한다.
+    끝낸 때는 이 PC 의 걸린 시간 기록(learn_done)에도 적는다.
     """
     if not isinstance(done, bool):
         raise ValidationError("요청 형식이 올바르지 않습니다")
     day = _clean_day(day)
-    with transaction() as d:
-        t = _find(d, tid)
-        if t.get("kind") == "routine":
-            dd = set(t.get("done_dates") or [])
-            (dd.add if done else dd.discard)(day or date.today().isoformat())
-            t["done_dates"] = sorted(dd)
-        elif bool(t.get("done")) != done:
-            t["done"] = done
-            t["done_at"] = datetime.now().isoformat(timespec="seconds") if done else None
-        t["updated"] = _now_utc()
-        return dict(t)
+    with LOCK:
+        with transaction() as d:
+            t = _find(d, tid)
+            if t.get("kind") == "routine":
+                dd = set(t.get("done_dates") or [])
+                (dd.add if done else dd.discard)(day or date.today().isoformat())
+                t["done_dates"] = sorted(dd)
+            elif bool(t.get("done")) != done:
+                t["done"] = done
+                t["done_at"] = datetime.now().isoformat(timespec="seconds") if done else None
+            t["updated"] = _now_utc()
+            out = dict(t)
+        try:
+            learn_done(out, day, done, now)
+        except Exception:
+            paths.log("걸린 시간 기록 실패: " + traceback.format_exc())
+        return out
+
+
+# ---------- 걸린 시간 (이 PC 에만 · state.json) ----------
+# 빈 때 셈(창의 gapAfter · 카드의 next_gap)은 시각 있는 일마다 30분을 잡았다. 같은 이름의 일이 실제로
+# 걸린 시간을 이 PC 에서 배워 그 값을 쓴다. 시작은 "렌즈에 올라온 때" = 그 일의 시각과 앞서 무엇이든
+# 끝낸 때 중 늦은 쪽, 끝은 끝냄을 누른 때. 같은 이름의 최근 DUR_KEEP 번의 가운데값.
+DUR_KEEP = 5        # 이름마다 최근 몇 번을 두나
+DUR_MIN_N = 3       # 이만큼 모이기 전에는 배운 값이 없다 (그때는 30분)
+DUR_LOW, DUR_HIGH = 3, 180      # 이 밖은 버린다: 미리 해 두고 누른 것 · 끝냄을 잊었다가 누른 것
+DUR_CAP = 120       # 가운데값의 위 한도 (빈 때 셈이 반나절을 막지 않게)
+
+
+def dur_key(title):
+    """이름 견주기: 앞뒤 · 겹친 공백을 접고 소문자로 (창의 durKey 와 같다)."""
+    return " ".join((title or "").split()).lower()
+
+
+def _mins(hm):
+    try:
+        h, m = hm.split(":")
+        return int(h) * 60 + int(m)
+    except (AttributeError, ValueError):
+        return None
+
+
+def learn_done(t, day, done, now=None):
+    now = now or datetime.now()
+    today = now.date().isoformat()
+    day = day or (t.get("due_date") if t.get("kind") != "routine" else None) or today
+    tag = "%s|%s" % (t.get("id"), day)
+    with LOCK:
+        s = _read_state()
+        durs = s.get("dur") if isinstance(s.get("dur"), dict) else {}
+        last = s.get("last") if isinstance(s.get("last"), dict) and s["last"].get("day") == today else None
+        key = dur_key(t.get("title"))
+        if not done:
+            # 되돌리기: 그 끝냄이 남긴 기록과 '앞서 끝낸 때' 를 거둔다
+            if key in durs:
+                durs[key] = [x for x in durs[key] if not (isinstance(x, dict) and x.get("k") == tag)]
+            if last and last.get("k") == tag:
+                s["last"] = {"day": today, "m": last.get("p")} if last.get("p") is not None else None
+            s["dur"] = durs
+            _write_json(STATE, s)
+            return
+        now_m = now.hour * 60 + now.minute
+        prev = last.get("m") if last else None
+        sched = _mins(t.get("due_time")) if day == today else None
+        if sched is not None:
+            start = max(sched, prev) if (prev is not None and now_m >= sched) else (sched if now_m >= sched else prev)
+            if start is not None and DUR_LOW <= now_m - start <= DUR_HIGH:
+                lst = [x for x in durs.get(key) or [] if isinstance(x, dict) and x.get("k") != tag]
+                lst.append({"m": now_m - start, "k": tag})
+                durs[key] = lst[-DUR_KEEP:]
+        s["dur"] = durs
+        s["last"] = {"day": today, "m": now_m, "k": tag, "p": prev}
+        _write_json(STATE, s)
+
+
+def durations():
+    """배운 걸린 시간 {이름 키: 분} - DUR_MIN_N 번 넘게 모인 이름만. 5분 단위, DUR_CAP 까지."""
+    with LOCK:
+        s = _read_state()
+    out = {}
+    for k, lst in (s.get("dur") or {}).items():
+        ms = sorted(x["m"] for x in lst if isinstance(x, dict) and isinstance(x.get("m"), int))
+        if len(ms) >= DUR_MIN_N:
+            mid = ms[len(ms) // 2] if len(ms) % 2 else (ms[len(ms) // 2 - 1] + ms[len(ms) // 2]) / 2
+            out[k] = int(min(DUR_CAP, max(5, round(mid / 5) * 5)))
+    return out
 
 
 def _set_skip(tid, day, skipped):

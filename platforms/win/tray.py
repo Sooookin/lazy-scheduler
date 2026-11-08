@@ -98,30 +98,31 @@ _badge = 0
 
 
 def _badge_image(base, n):
-    """보류 중인 알림 수를 아이콘 오른쪽 위에 얹는다. 크게 그린 뒤 줄여 16px 에서도 또렷하게."""
+    """놓친 일의 수를 아이콘 오른쪽 위에 얹는다 - 빨간 네모에 흰 수 (XX: 빨강 하나, 모서리 0).
+    크게 그린 뒤 줄여 16px 에서도 또렷하게."""
     from PIL import Image, ImageDraw, ImageFont
+    from core import tokens
     size = base.width
     big = size * 4
     img = base.resize((big, big), Image.LANCZOS)
     d = ImageDraw.Draw(img)
-    r = int(big * 0.30)
-    cx, cy = big - r, r
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(8, 32, 43, 255), outline=(133, 189, 179, 255),
-              width=max(2, big // 24))
+    r = int(big * 0.62)
+    red = tokens.DAY["late"]
+    d.rectangle((big - r, 0, big - 1, r - 1), fill=tuple(int(red[i:i + 2], 16) for i in (1, 3, 5)) + (255,))
     label = "9+" if n > 9 else str(n)
     font = None
     for path in paths.font_paths("Paperlogy-5Medium.ttf"):
         try:
-            font = ImageFont.truetype(path, int(r * (1.15 if len(label) == 1 else 0.9)))
+            font = ImageFont.truetype(path, int(r * (0.86 if len(label) == 1 else 0.62)))
             break
         except Exception:
             continue
-    d.text((cx, cy), label, font=font, anchor="mm", fill=(238, 243, 241, 255))
+    d.text((big - r / 2, r / 2), label, font=font, anchor="mm", fill=(255, 255, 255, 255))
     return img.resize((size, size), Image.LANCZOS)
 
 
 def set_badge(n):
-    """알림영역 아이콘에 보류 건수를 표시한다. 0 이면 원래 아이콘으로."""
+    """알림영역 아이콘에 놓친 일의 수를 표시한다. 0 이면 원래 아이콘으로."""
     global _base_image, _badge
     if _icon is None or n == _badge:
         return
@@ -137,6 +138,7 @@ def set_badge(n):
 def set_title(text):
     global _title
     _title = text
+    text = text if len(text) <= 120 else text[:119] + "…"      # Windows 툴팁은 127자까지
     if _icon is not None:
         try:
             _icon.title = text

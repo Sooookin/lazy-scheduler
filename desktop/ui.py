@@ -35,6 +35,18 @@ class Api:
     def begin_resize(self, edge):
         window.begin_resize(edge)
 
+    def capture_done(self):
+        """문장 칸 창에서 넣었거나 닫았다 - 숨기고 하던 창으로 돌려보낸다."""
+        window.hide_capture(_CAP["back"])
+
+    def capture_fit(self, h):
+        window.fit_capture(max(56, min(560, int(h))))
+
+    def set_badge(self, n):
+        """작업 표시줄 단추에 놓친 일의 수 (화면이 그릴 때마다 알려 온다)."""
+        if hasattr(window, "set_overlay"):
+            window.set_overlay(n)
+
     def close(self):
         """창을 없애지 않고 숨긴다.
 
@@ -99,6 +111,36 @@ def _tell_page_shown():
             w.evaluate_js("window.__lsShown && window.__lsShown()")
         except Exception:
             pass                     # 페이지를 다시 읽는 중이면 그쪽이 어차피 새로 읽는다
+    threading.Thread(target=run, daemon=True).start()
+
+
+_CAP = {"win": None, "back": None}
+
+
+def open_capture(back=None):
+    """전역 단축키: 작은 문장 칸 창. 처음 한 번만 만들고 (WebView2 를 띄우는 데 1초쯤), 그 뒤로는 숨겼다 보인다."""
+    _CAP["back"] = back
+    if _CAP["win"] is None:
+        _CAP["win"] = webview.create_window(
+            window.CAPTURE_TITLE, SERVICE_URL + "#capture", js_api=Api(),
+            width=window.CAPTURE_W, height=56, resizable=False, on_top=True, frameless=True, easy_drag=False,
+            background_color="#FDFDFC", hidden=True)
+        _CAP["win"].events.loaded += lambda: (window.show_capture(_CAP["back"], 56), _cap_focus())
+        return
+    window.show_capture(back)
+    _cap_focus()
+
+
+def _cap_focus():
+    w = _CAP["win"]
+    if w is None:
+        return
+
+    def run():
+        try:
+            w.evaluate_js("window.__lsCapture && window.__lsCapture()")
+        except Exception:
+            pass
     threading.Thread(target=run, daemon=True).start()
 
 
@@ -202,6 +244,10 @@ class FocusHandler(BaseHTTPRequestHandler):
             refresh_if_stale()
             focus()
             return self._reply(200, "ok")
+        if path == "/capture":
+            q = self.path.split("back=")[-1] if "back=" in self.path else ""
+            open_capture(int(q) if q.isdigit() else None)
+            return self._reply(200, "ok")
         if path == "/reload":
             # 알림 카드에서 완료했다 - 떠 있는 화면이 45초짜리 다음 차례를
             # 기다리는 동안 다 한 일을 안 한 것처럼 보이고 있을 수 있다.
@@ -280,7 +326,7 @@ def main():
         # 같은 비율로 커진다 (apply_zoom).
         width=DEFAULT_W, height=DEFAULT_H, min_size=(MIN_W, MIN_H),
         background_color="#E9E4DD",
-        hidden="--hidden" in sys.argv,      # 자동 실행 때 미리 만들어만 둔다
+        hidden="--hidden" in sys.argv or "--capture" in sys.argv,      # 자동 실행 때 미리 만들어만 둔다
         **window.CREATE_OPTS,
     )
     window.attach(_WINDOW[0], (DEFAULT_W, DEFAULT_H), (MIN_W, MIN_H))
@@ -288,7 +334,16 @@ def main():
     # 페이지를 새로 읽어도 배율은 창에 남지만, 처음 한 번은 읽은 뒤에 맞춘다.
     _WINDOW[0].events.resized += lambda width, height: apply_zoom(width, height)
     _WINDOW[0].events.loaded += lambda: apply_zoom()
-    if "--hidden" not in sys.argv:
+    if "--capture" in sys.argv:
+        # 창 프로세스가 없을 때 전역 단축키를 눌렀다 - 큰 창은 숨긴 채로 두고 문장 칸만
+        def _first_capture():
+            for _ in range(40):
+                if window.ready():
+                    open_capture(None)
+                    return
+                time.sleep(0.25)
+        threading.Thread(target=_first_capture, daemon=True).start()
+    if "--hidden" not in sys.argv and "--capture" not in sys.argv:
         # 부모 프로세스의 표시 상태가 딸려와 최소화된 채로 뜨는 때가 있다.
         # 창이 만들어진 뒤 한 번 앞으로 불러온다. 창이 생기는 시점이 일정하지
         # 않으므로 잠깐 기다려 준다 (예전엔 너무 일찍 불러 로그만 남았다).

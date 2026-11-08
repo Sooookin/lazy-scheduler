@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.lazyscheduler.app.R
@@ -36,8 +37,8 @@ object Ink {
     val midInk = Color(0xFF335A62)
     val deep = Color(0xFF161F21)
     val onMid = Color(0xFFF2F6F6)
-    val danger = Color(0xFF9E2E35)
-    val hol = Color(0xFFA74E44)             // 공휴일 · 일요일 (tokens.py 의 hol)
+    val danger = Color(0xFFA24955)
+    val hol = Color(0xFFA24955)             // 공휴일 · 일요일 (tokens.py 의 hol)
     val warm = Color(0xFFA24955)            // 임박 (알림 카드에서만) - 지난 일과 같은 장미 물
 }
 
@@ -51,69 +52,35 @@ object LitTokens {
     val ink = Color(0xFF1F292A)
     val ink2 = Color(0xFF4B5758)
     val teal = Color(0xFF3C656E)
-    val warm = Color(0xFFF4DCD4)
     val night = Color(0xFF1A2128)
     val pale = Color(0xFFFFFFFF)
     val pale2 = Color(0xFFE2E7E4)
-    val hol = Color(0xFFA74E44)
-    val holLit = Color(0xFFECB5AC)
+    val hol = Color(0xFFA24955)
+    val holLit = Color(0xFFEEB5BC)
     val late = Color(0xFFA24955)
     val lateLit = Color(0xFFEEB5BC)
-    val danger = Color(0xFF9E2E35)
-    val dangerLit = Color(0xFFF1A9A7)
+    val danger = Color(0xFFA24955)
+    val dangerLit = Color(0xFFEEB5BC)
     val imp = Color(0xFF6A78AF)
     val impLit = Color(0xFFB0BBE8)
-    val ribPast = Color(0xFF8EA6AB)
-    val ribPastN = Color(0xFF375B64)
     val tealLit = Color(0xFF9EC1C8)
-    val skyHi = Color(0xFFB7D3E6)
-    val skyLo = Color(0xFFE2ECF0)
-    val hill1 = Color(0xFFDDE9F0)
-    val hill2 = Color(0xFFA8C4D2)
-    val hill3 = Color(0xFF7094A8)
-    val ribbon = Color(0xFFE6ECE8)
-    val ribHi = Color(0xFFF7F9F6)
-    val skyHiN = Color(0xFF141B24)
-    val skyLoN = Color(0xFF26313C)
-    val hill1N = Color(0xFF303E4C)
-    val hill2N = Color(0xFF1E2934)
-    val hill3N = Color(0xFF111820)
-    val ribbonN = Color(0xFF3A4753)
-    val ribHiN = Color(0xFF4A5866)
-    val skyHiD = Color(0xFFF2B98F)
-    val skyLoD = Color(0xFFF9D9D2)
-    val hill1D = Color(0xFFEFB8B1)
-    val hill2D = Color(0xFFD3868F)
-    val hill3D = Color(0xFF94526A)
-    val ribbonD = Color(0xFFF6D6CC)
-    val ribHiD = Color(0xFFFDEAE4)
-    val beadD = Color(0xFFFDEFE9)
-    val rayHot = Color(0xFFFFFCF0)
-    val rayHotD = Color(0xFFFFE2D2)
-    val rayPale = Color(0xFFFFF6DE)
-    val rayPaleD = Color(0xFFFCCDBE)
-    val rayWarm = Color(0xFFF6C676)
-    val rayWarmD = Color(0xFFF08C82)
-    val rayShade = Color(0xFF783C50)
-    val moon = Color(0xFFE2ECF8)
-    val moonCool = Color(0xFFC4D6EC)
     val guy = Color(0xFF1F292A)
     val guyN = Color(0xFFC9CECC)
     val eye = Color(0xFFE2E8E8)
     val eyeN = Color(0xFF8E9695)
-    val pupil = Color(0xFF1F292A)
-    val pupilN = Color(0xFF2B3134)
 }
 
 /**
  * 기간 업무의 띠 색 (tokens.py 의 SPAN, 순서까지 같다 - tests/test_theme_kt.py 가 지킨다).
  * 같은 때 겹치는 기간끼리 서로 다른 색이 되게 차례로 돌려 쓴다. 밤에도 그대로.
  */
+/** 화면 여백 (PC 의 --doc). 판 위의 것은 모두 이 선에서 선다 - 머리 · 목록 · 달력 · 설정 · 편집 */
+internal val DOC = 24.dp
+
 val SpanColors = listOf(
-    Color(0xFFCA7568),
     Color(0xFF68A1CA),
     Color(0xFF68CA81),
-    Color(0xFFCA68AD),
+    Color(0xFFC9A24E),
     Color(0xFF68CABD),
 )
 
@@ -132,9 +99,9 @@ private object Size {
     val title = 20.sp       // 화면 제목
     val head = 15.sp        // 머리줄 (오늘 8)
     val lead = 13.sp        // 줄 제목 · 단추
-    val body = 12.5.sp      // 본문
+    val body = 13.sp        // 본문 (= lead · 2026-10 다섯 단)
     val label = 11.sp       // 라벨 · 부제
-    val micro = 10.5.sp     // 구슬 번호 · 탭 이름
+    val micro = 11.sp       // 탭 이름 (= label)
 }
 
 private object Track {
@@ -142,9 +109,9 @@ private object Track {
     val title = (-0.01).em
     val head = 0.em
     val lead = 0.01.em
-    val body = 0.015.em
+    val body = 0.01.em
     val label = 0.03.em
-    val micro = 0.04.em
+    val micro = 0.03.em
 }
 
 /** 화면에서 쓰는 글자꼴. 굵기는 셋뿐이다: 가늘게(숫자 · 제목) · 보통 · 중간(누를 것). */

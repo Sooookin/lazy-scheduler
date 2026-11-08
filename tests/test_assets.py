@@ -68,7 +68,7 @@ def test_web_icons_are_all_referenced():
     """쓰지 않는 그림을 들고 있으면 창을 열 때마다 같이 묶여 나간다."""
     web = os.path.join(ROOT, "web")
     text = ""
-    for name in ("index.html", "app.js", "sky.js", "pebble.js", "style.css"):
+    for name in ("index.html", "app.js", "sky.js", "style.css"):
         text += io.open(os.path.join(web, name), encoding="utf-8").read()
     for name in ("platforms/win/tray.py", "main.py"):
         text += io.open(os.path.join(ROOT, name), encoding="utf-8").read()
@@ -117,8 +117,12 @@ def test_the_window_is_named_and_looked_up_by_the_same_value():
     """창을 제목으로 찾는다 (Windows). 짓는 쪽(ui.py)과 찾는 쪽(window.py)이 어긋나면 창을 못 찾는다."""
     make = io.open(os.path.join(ROOT, "desktop", "ui.py"), encoding="utf-8").read()
     find = io.open(os.path.join(ROOT, "platforms", "win", "window.py"), encoding="utf-8").read()
-    assert "paths.APP_NAME" in make.split("webview.create_window(")[1][:80]
+    made = [part[:80] for part in make.split("webview.create_window(")[1:]]
+    assert any("paths.APP_NAME" in m for m in made), "앱 창의 제목이 paths.APP_NAME 이 아니다"
     assert "paths.APP_NAME" in find.split("def hwnd():")[1]
+    # 어디서든 문장 칸 창도 같은 자리(window.CAPTURE_TITLE)에서 이름을 가져와 짓고 찾는다
+    assert any("window.CAPTURE_TITLE" in m for m in made)
+    assert "CAPTURE_TITLE" in find.split("def show_capture(")[1]
     src = make + find
     assert '"To-Do Manager"' not in src
 

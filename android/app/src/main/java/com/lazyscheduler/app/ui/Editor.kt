@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -72,6 +73,7 @@ import com.lazyscheduler.app.core.ReminderPlan
 import com.lazyscheduler.app.core.RuleCheck
 import com.lazyscheduler.app.core.RulePick
 import com.lazyscheduler.app.core.Task
+import com.lazyscheduler.app.core.When
 import com.lazyscheduler.app.core.previewDates
 import java.time.LocalDate
 import java.time.YearMonth
@@ -82,14 +84,17 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
- * 새 항목 · 고치기 (PC 와 같은 틀).
+ * 새 항목 · 고치기 (PC 와 같은 틀 - app.js 의 Form).
  *
- * 정할 것은 셋이다: 무엇 (이름) · 언제 (날짜 · 시각 · 반복) · 알림. 줄은 고른 값만 보여 주고, 누른 줄 바로 아래에
- * 그 줄의 도구 하나가 펼쳐진다 (PC 는 오른쪽 판 - 폭이 좁은 휴대폰은 줄 아래로):
- *   날짜 → 달력 (하루 / 여러 날 · 길게 눌러 끌면 기간)   시각 → 시계판   반복 → 빈도와 규칙   알림 → 알림 고르기
+ * 정할 것은 셋이다: 무엇 (이름) · 언제 (날짜 · 시각 · 반복) · 알림. 위에서 아래로 한 줄기:
+ *   이름   문장으로 친다 ("교보 자료 수요일 3시 매주" - 날짜 · 시각 · 반복은 바로 읽어 값에 채운다)
+ *   값     날짜 · 시각 / 반복 · 알림 (+ 중요 · 설명). 이 칸들이 곧 "무엇이 만들어질지" 다
+ *   도구   지금 고르는 칸의 것 하나. 날짜를 고르면 다음은 시각 쪽으로 좁혀 간다
+ *          날짜 → 빠른 날 + 달력 · 시각 → 그날의 시간표 + 자주 쓰는 시각 · 반복 → 빈도와 규칙 · 알림 → 알림 고르기
  * 종류(할 일 · 루틴 · 메모)는 고르지 않는다 - 언제를 정한 모양에서 따라 나온다:
  *   날짜 없음 → 메모   하루 → 할 일   이어진 날 → 기간 업무   반복 → 루틴
- * 그래서 미리 넣어 두는 날짜도, 오늘 · 내일 같은 추천도 없다. 맨 아래 한 줄이 무엇이 만들어질지 풀어 쓴다.
+ * (2026-10 덜어냄: 줄마다 아래로 펼쳐지던 도구 · 시계판 · 맨 아래 요약 문장을 걷었다 - 요약은 값 칸과 같은 정보를
+ * 두 번 쓰고 있었고, 시계판은 두 번 정확히 눌러야 했다)
  */
 
 /** 마감 알림: 몇 분 전. "끔" 은 muted 로 저장한다 */
@@ -163,8 +168,9 @@ class Draft {
         title = t?.title ?: ""; note = t?.note ?: ""; noteOpen = false
         mode = "none"; date = null; end = null; span = false; pending = false
         rule = null; ruleText = ""; keep = null; freq = null; apLock = false; error = null
+        tSpans = emptyList(); tBase = null; tKeep = null; editing = t != null
         time = t?.dueTime ?: ""; lead = t?.notifyMin; early = t?.earlyDays ?: 0; alarm = !(t?.muted ?: false); imp = t?.pinned ?: false
-        defaultLead = ReminderPlan.defaultLead(settings)
+        defaultLead = ReminderPlan.defaultLead(settings); bizOn = businessOnly
         when {
             t != null && t.kind == "routine" && t.rule != null -> {
                 mode = "rule"; rule = t.rule; ruleText = t.ruleText; freq = RulePick.unitOf(t.rule)
@@ -202,7 +208,10 @@ class Draft {
             return
         }
         setOne(k)
+        toTime()
     }
+    /** 하루를 골랐고 시각이 비어 있으면 도구를 시각 쪽으로 좁힌다 */
+    fun toTime() { if (mode == "one" && time.isEmpty()) pane = "time" }
     fun spanOn(on: Boolean) {
         span = on
         if (!on && mode == "range") date?.let { setOne(it) }
@@ -250,12 +259,93 @@ class Draft {
     }
     fun occ(): List<LocalDate> = ruleOut()?.let { Recur.occurrences(it, today, today.plusDays(430)) } ?: emptyList()
 
-    fun ghostMinute(): Int? = if (!has) null else minsOf(time)
-    fun pickFromSky(m: Int) { if (has) time = hhmm(((m + 2) / 5 * 5).coerceIn(0, 1435)) }
+    // ---------- 이름 = 문장 (PC 의 readName) ----------
+    // 이름 안에 적은 날짜 · 시각 · 반복("수요일 3시 매주")을 치는 대로 읽어 값에 채운다. 읽은 말은 이름 칸에서 옅게 칠하고,
+    // 저장할 때 이름에서 뺀다. 칠 때마다 읽기 전의 값으로 돌아간 뒤 새로 읽는다 - 치는 도중의 반쪽 낱말이 남지 않게.
+    // 값 · 도구를 손으로 만지면 그때의 값이 굳는다(fixName). "그대로 두기" 는 읽기 전으로 되돌리고, 그 말이 이름에 남아 있는 동안은
+    // 다시 읽지 않는다. 고치기에서는 읽지 않는다 (이미 정리된 이름이고, 날짜는 값 칸에 있다).
+    private data class Snap(val mode: String, val date: LocalDate?, val end: LocalDate?, val span: Boolean, val pending: Boolean, val time: String,
+                            val rule: Map<String, Any?>?, val ruleText: String, val keep: Pair<String, Map<String, Any?>>?, val freq: Pair<String, Int>?, val pane: String)
+    private fun snap() = Snap(mode, date, end, span, pending, time, rule, ruleText, keep, freq, pane)
+    private fun restore(b: Snap) { mode = b.mode; date = b.date; end = b.end; span = b.span; pending = b.pending; time = b.time
+        rule = b.rule; ruleText = b.ruleText; keep = b.keep; freq = b.freq; pane = b.pane }
+    var tSpans by mutableStateOf<List<Pair<Int, Int>>>(emptyList()); private set
+    private var tBase: Snap? = null
+    private var tKeep: List<String>? = null
+    private var editing = false
+    private var bizOn = true
+
+    fun typeTitle(v: String) { title = v; readName() }
+    fun fixName() { tBase = null }
+    fun keepName() { tKeep = tSpans.map { title.substring(it.first, it.second.coerceAtMost(title.length)) }; tBase?.let { restore(it) }; tBase = null; tSpans = emptyList() }
+    private fun readName() {
+        if (tKeep?.all { title.contains(it) } == false) tKeep = null
+        tBase?.let { restore(it) }; tBase = null
+        tSpans = emptyList()
+        if (tKeep != null || editing || title.trim().length < 2) return
+        val p = readWhen(title) ?: return
+        if (p.spans.isEmpty() || (p.date == null && p.rule == null && !(p.time != null && has))) return
+        tBase = snap()
+        applyWhen(p)
+        tSpans = p.spans
+        toTime()
+    }
+    /** 이름에서 읽은 것 (PC 의 readWhen 결과) */
+    class WhenRead(val date: LocalDate?, val end: LocalDate?, val time: String?, val rule: Map<String, Any?>?, val spans: List<Pair<Int, Int>>)
+    private fun readWhen(t: String): WhenRead? {
+        val biz: ((String) -> Boolean)? = if (bizOn) { k -> runCatching { Recur.isBusinessDay(LocalDate.parse(k)) }.getOrDefault(true) } else null
+        val day = { k: String? -> k?.let { runCatching { LocalDate.parse(it) }.getOrNull() } }
+        // 비슷한 말로 짐작한 것(오타 고침)은 이름에서는 읽지 않는다 - 이름 안의 낱말을 날짜로 오해하기 쉽다
+        if (When.parse(t, today.toString(), biz)?.notes?.contains("비슷한 말로 읽음") == true) return null
+        val rr = When.rule(t)
+        var rest = t
+        val spans = mutableListOf<Pair<Int, Int>>()
+        if (rr != null && rr.span.size == 2 && rr.span[0] in 0..rr.span[1] && rr.span[1] <= t.length) {
+            val (a, b) = rr.span[0] to rr.span[1]
+            rest = t.substring(0, a) + " ".repeat(b - a) + t.substring(b); spans += a to b
+        }
+        val p = When.parse(rest, today.toString(), biz)
+        p?.spans?.forEach { spans += it.start to it.end }
+        val time = p?.time
+        if (rr != null && spans.isNotEmpty()) {
+            val base = day(p?.date) ?: date ?: today
+            var r: Map<String, Any?> = rr.rule ?: if (rr.need == "day") mapOf("period" to "month", "basis" to "day", "n" to base.dayOfMonth) else return null
+            if (r["period"] == "week" && rr.need == "wd") r = r + ("weekdays" to listOf(base.dayOfWeek.value - 1))
+            if (r["period"] == "month") {
+                val m0 = base.monthValue - 1
+                if (rr.every == 2) r = r + ("months" to listOf(0, 2, 4, 6, 8, 10).map { (m0 + it) % 12 + 1 }.sorted())
+                if (rr.year == true) r = r + ("months" to listOf(base.monthValue))
+            }
+            if (r["period"] != "day") r = linkedMapOf<String, Any?>("holiday_shift" to "prev") + r
+            return WhenRead(base, null, time, r, spans)
+        }
+        if (p?.date != null) return WhenRead(day(p.start ?: p.date), if (p.start != null) day(p.date) else null, time, null, spans)
+        return if (time != null) WhenRead(null, null, time, null, spans) else null
+    }
+    private fun applyWhen(p: WhenRead) {
+        when {
+            p.rule != null -> {
+                mode = "rule"; rule = p.rule; ruleText = Recur.describe(p.rule); freq = RulePick.unitOf(p.rule); keep = null
+                end = null; pending = false; span = false
+                if (date == null) date = p.date
+                if (p.rule["period"] == "day") date = Recur.occurrences(p.rule, today, today.plusDays(30)).firstOrNull() ?: date
+            }
+            p.end != null && p.date != null -> setRange(p.date, p.end)
+            p.date != null -> { setOne(p.date); span = false }
+            !has -> return              // 시각만 쳤는데 날짜가 없으면 시각도 둘 데가 없다
+        }
+        p.time?.let { time = it }
+    }
+    /** 저장할 이름: 읽은 말을 뺀 것 (다 빼서 비면 그대로) */
+    fun cleanTitle(): String {
+        var t = title
+        for ((a, b) in tSpans.sortedByDescending { it.first }) if (b <= t.length) t = t.substring(0, a) + " " + t.substring(b)
+        return t.replace(Regex("\\s+"), " ").trim().ifEmpty { title.trim() }
+    }
 
     /** 저장할 필드 (저장된 모양 그대로). 모자라면 error 를 적고 null */
     fun fields(): Map<String, Any?>? {
-        val t = title.trim()
+        val t = cleanTitle()
         if (t.isEmpty()) { error = "이름을 입력하세요"; return null }
         val f = linkedMapOf<String, Any?>("title" to t.take(200), "note" to note.trim().take(2000), "kind" to kind, "pinned" to imp)
         when (kind) {
@@ -350,7 +440,8 @@ fun Editor(
     val editing = e.task != null
     Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
         // 머리: 무엇이 만들어지는지 · (고치기) 딸린 동작 · 닫기
-        Row(Modifier.padding(start = 20.dp, end = 16.dp, top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 닫기는 상자(40)가 아니라 보이는 × (11) 의 끝이 오른쪽 여백 선에 선다
+        Row(Modifier.padding(start = DOC, end = DOC - (40.dp - 11.dp) / 2, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(if (editing) "${d.kindWord} 고치기" else "새 ${d.kindWord}", style = T.label.copy(fontWeight = FontWeight.Medium), color = pal.teal)
             Spacer(Modifier.weight(1f))
             if (editing) {
@@ -361,141 +452,154 @@ fun Editor(
             }
             CloseX(onClose)
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-            NameField(d.title) { if (it.length <= 200) d.title = it }
-            Spacer(Modifier.height(16.dp))
-            Hair()
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = DOC)) {
+            NameField(d) { if (it.length <= 200) d.typeTitle(it) }
+            ReadLine(d)
+            Spacer(Modifier.height(12.dp))
+            // 값: 날짜 · 시각 / 반복 · 알림. 고르는 중인 칸은 아래에 청록 밑줄 하나
             val open = { p: String -> d.pane = if (d.pane == p) "" else p }
-            Prop("날짜", d.dateText().ifEmpty { "없음" }, empty = !d.has, on = d.pane == "date", tail = d.dateTail(),
-                onClear = if (d.has) ({ d.clearWhen() }) else null) { open("date") }
+            Hair()
+            Row(Modifier.fillMaxWidth()) {
+                Cell("날짜", d.dateText().ifEmpty { "없음" }, Modifier.weight(1.25f), empty = !d.has, on = d.pane == "date", tail = d.dateTail(),
+                    onClear = if (d.has) ({ d.clearWhen() }) else null) { d.fixName(); open("date") }
+                VLine()
+                Cell("시각", if (d.time.isEmpty()) (if (d.has) "없음" else "날짜를 정하면") else t12(d.time), Modifier.weight(1f), empty = d.time.isEmpty(),
+                    on = d.pane == "time", locked = !d.has, onClear = if (d.time.isNotEmpty()) ({ d.time = "" }) else null) { d.fixName(); open("time") }
+            }
+            Hair()
+            Row(Modifier.fillMaxWidth()) {
+                val fq = d.freq?.let { f -> FREQ.firstOrNull { it.first == f.first && it.second == f.second }?.third }
+                Cell("반복", if (d.rule != null) d.ruleText else if (fq != null) "$fq · 날을 고르세요" else "안 함", Modifier.weight(1.25f), empty = d.freq == null,
+                    on = d.pane == "rule", onClear = if (d.freq != null) ({ d.chooseFreq(null) }) else null) { d.fixName(); open("rule") }
+                VLine()
+                Cell("알림", if (d.has) d.alertText() else "날짜를 정하면", Modifier.weight(1f), empty = !d.has, on = d.pane == "alert", locked = !d.has) { open("alert") }
+            }
+            Hair()
+            Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+                ImpToggle(d.imp) { d.imp = !d.imp }
+                Spacer(Modifier.weight(1f))
+                if (!(d.noteOpen || d.note.isNotEmpty())) TextBtn("＋ 설명", pal.text2) { d.noteOpen = true }
+            }
+            if (d.noteOpen || d.note.isNotEmpty()) { Hair(); NoteField(d.note) { if (it.length <= 2000) d.note = it } }
+            Hair()
             Holiday(d, businessOnly)
-            Pane(d.pane == "date") { DatePane(d, today, others.filter { it.id != e.task?.id }) }
-            Prop("시각", if (d.time.isEmpty()) (if (d.has) "없음" else "날짜를 정하면") else t12(d.time), empty = d.time.isEmpty(),
-                on = d.pane == "time", locked = !d.has, onClear = if (d.time.isNotEmpty()) ({ d.time = "" }) else null) { open("time") }
-            Pane(d.pane == "time") { TimePane(d) }
-            val fq = d.freq?.let { f -> FREQ.firstOrNull { it.first == f.first && it.second == f.second }?.third }
-            Prop("반복", if (d.rule != null) d.ruleText else if (fq != null) "$fq · 날을 고르세요" else "안 함", empty = d.freq == null,
-                on = d.pane == "rule", onClear = if (d.freq != null) ({ d.chooseFreq(null) }) else null) { open("rule") }
-            Pane(d.pane == "rule") { RulePane(d, today) }
-            Prop("알림", if (d.has) d.alertText() else "날짜를 정하면", empty = !d.has, on = d.pane == "alert", locked = !d.has) { open("alert") }
-            Pane(d.pane == "alert") { AlertPane(d, brief) }
-            ImpRow(d.imp) { d.imp = !d.imp }
-            if (d.noteOpen || d.note.isNotEmpty()) NoteField(d.note) { if (it.length <= 2000) d.note = it }
-            else Prop("설명", "덧붙이기", empty = true, on = false) { d.noteOpen = true }
+            // 도구: 지금 고르는 칸의 것 하나 (상자 없이)
+            Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                when (d.pane) {
+                    "date" -> DatePane(d, today, others.filter { it.id != e.task?.id })
+                    "time" -> TimePane(d, others.filter { it.id != e.task?.id })
+                    "rule" -> RulePane(d, today)
+                    "alert" -> AlertPane(d, brief)
+                }
+            }
             d.error?.let { Text(it, Modifier.padding(top = 12.dp), style = T.body, color = pal.danger) }
             Spacer(Modifier.height(16.dp))
         }
-        // 아래 띠: 무엇이 만들어질지 한 문장 · 취소 · 저장
         Hair()
-        Column(Modifier.padding(horizontal = 20.dp).padding(top = 10.dp, bottom = 14.dp)) {
-            Text(d.receipt(), style = T.body, color = pal.text2, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Ghost("취소", Modifier.weight(.35f), onClick = onClose)
-                Primary(if (editing) "저장" else "${d.kindWord} 추가", Modifier.weight(.65f)) { d.fields()?.let(onSave) }
-            }
+        Row(Modifier.padding(horizontal = DOC).padding(top = 12.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Ghost("취소", Modifier.weight(.35f), onClick = onClose)
+            Primary(if (editing) "저장" else "${d.kindWord} 추가", Modifier.weight(.65f)) { d.fields()?.let(onSave) }
         }
     }
 }
 
 @Composable
 private fun TextBtn(text: String, color: Color, onClick: () -> Unit) {
-    Text(text, Modifier.clip(RoundedCornerShape(8.dp)).press(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp),
+    Text(text, Modifier.clip(RoundedCornerShape(6.dp)).press(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp),
         style = T.body, color = color)
 }
 
-/** 이름: 상자 없이 제목처럼. 밑줄 하나가 "여기에 쓴다" 를 말한다 */
+/** 이름: 상자 없이 제목처럼. 밑줄 하나가 "여기에 쓴다" 를 말한다. 날짜로 읽은 말은 그 자리에 옅게 칠한다 */
 @Composable
-private fun NameField(value: String, onChange: (String) -> Unit) {
+private fun NameField(d: Draft, onChange: (String) -> Unit) {
     val pal = LocalPal.current
     var focus by remember { mutableStateOf(false) }
     val style = T.title.copy(fontWeight = FontWeight.Medium, color = pal.text)
+    val hi = pal.teal.copy(alpha = .16f)
+    val spans = d.tSpans
     Box(Modifier.fillMaxWidth().padding(top = 14.dp).drawBehind {
         val w = (if (focus) 1.5.dp else 1.dp).toPx()
         drawLine(if (focus) pal.teal else pal.hair2, Offset(0f, size.height - w / 2), Offset(size.width, size.height - w / 2), w)
     }.padding(bottom = 12.dp)) {
-        if (value.isEmpty()) Text("무엇을 할까요?", style = style.copy(fontWeight = FontWeight.Light), color = pal.faint)
-        BasicTextField(value, onChange, Modifier.fillMaxWidth().onFocusChanged { focus = it.isFocused }, singleLine = true,
-            textStyle = style, cursorBrush = SolidColor(pal.teal))
+        if (d.title.isEmpty()) Text("무엇을 할까요?  예: 교보 자료 금요일 3시", style = style.copy(fontWeight = FontWeight.Light), color = pal.faint, maxLines = 1)
+        BasicTextField(d.title, onChange, Modifier.fillMaxWidth().onFocusChanged { focus = it.isFocused }, singleLine = true,
+            textStyle = style, cursorBrush = SolidColor(pal.teal),
+            visualTransformation = if (spans.isEmpty()) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.VisualTransformation { t ->
+                val b = androidx.compose.ui.text.AnnotatedString.Builder(t)
+                for ((a0, b0) in spans) if (a0 < b0 && b0 <= t.length) b.addStyle(androidx.compose.ui.text.SpanStyle(background = hi), a0, b0)
+                androidx.compose.ui.text.input.TransformedText(b.toAnnotatedString(), androidx.compose.ui.text.input.OffsetMapping.Identity)
+            })
+    }
+}
+
+/** 이름에서 읽은 말 한 줄 · 그대로 두기 */
+@Composable
+private fun ReadLine(d: Draft) {
+    val pal = LocalPal.current
+    if (d.tSpans.isEmpty()) return
+    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("칠한 말은 값으로 옮기고 이름에서 뺍니다", Modifier.weight(1f), style = T.label, color = pal.text2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        TextBtn("그대로 두기", pal.teal) { d.keepName() }
     }
 }
 
 @Composable
 private fun NoteField(value: String, onChange: (String) -> Unit) {
     val pal = LocalPal.current
-    Column {
-        Box(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(vertical = 12.dp)) {
-            if (value.isEmpty()) Text("설명 · 링크 · 참고할 것", style = T.lead, color = pal.faint)
-            BasicTextField(value, onChange, Modifier.fillMaxWidth(), textStyle = T.lead.copy(color = pal.text, lineHeight = 20.sp),
-                cursorBrush = SolidColor(pal.teal))
-        }
-        Hair()
+    Box(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(vertical = 12.dp)) {
+        if (value.isEmpty()) Text("설명 · 링크 · 참고할 것", style = T.lead, color = pal.faint)
+        BasicTextField(value, onChange, Modifier.fillMaxWidth(), textStyle = T.lead.copy(color = pal.text, lineHeight = 20.sp),
+            cursorBrush = SolidColor(pal.teal))
     }
 }
 
-/** 값의 줄: 이름(56) · 값 · 끝(상대 날짜 · 지우기). 펼친 줄만 옅게 칠하고 왼쪽에 가는 청록 막대 */
 @Composable
-private fun Prop(label: String, value: String, empty: Boolean, on: Boolean, tail: String = "", locked: Boolean = false,
+private fun VLine() { Box(Modifier.width(1.dp).height(56.dp).background(LocalPal.current.hair)) }
+
+/** 값 칸: 위에 이름, 아래에 값 (+ 상대 날짜 · 지우기). 고르는 중인 칸은 아래에 청록 밑줄 하나 */
+@Composable
+private fun Cell(label: String, value: String, modifier: Modifier, empty: Boolean, on: Boolean, tail: String = "", locked: Boolean = false,
                  onClear: (() -> Unit)? = null, onClick: () -> Unit) {
     val pal = LocalPal.current
-    val fill = pal.text.copy(alpha = .045f)
-    Column {
-        Row(
-            Modifier.fillMaxWidth().height(48.dp).background(if (on) fill else Color.Transparent)
-                .then(if (locked) Modifier else Modifier.press(onClick = onClick))
-                .drawBehind { if (on) drawRoundRect(pal.teal, Offset(0f, 12.dp.toPx()), Size(2.dp.toPx(), size.height - 24.dp.toPx()), CornerRadius(1.dp.toPx())) }
-                .padding(start = 12.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, Modifier.width(56.dp), style = T.label, color = if (on) pal.teal else pal.text2)
-            Text(value, Modifier.weight(1f), style = T.head.copy(fontWeight = FontWeight.Normal),
-                color = if (empty || locked) pal.faint else pal.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (tail.isNotEmpty()) Text(tail, Modifier.padding(start = 8.dp), style = T.body, color = pal.text2)
-            if (onClear != null) Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).press(onClick = onClear), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.size(8.dp)) {
-                    val w = 1.3.dp.toPx()
-                    drawLine(pal.faint, Offset.Zero, Offset(size.width, size.height), w, StrokeCap.Round)
-                    drawLine(pal.faint, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
-                }
-            } else Spacer(Modifier.width(8.dp))
-        }
-        Hair()
-    }
-}
-
-/** 중요 줄: 누르면 바로 켜고 끈다 (펼치는 도구가 없다). 켜지면 줄이 목록에서처럼 음영을 입는다 */
-@Composable
-private fun ImpRow(on: Boolean, onClick: () -> Unit) {
-    val pal = LocalPal.current
-    val knob by animateFloatAsState(if (on) 1f else 0f, tween(160), label = "imp")
-    Column {
-        Row(
-            Modifier.fillMaxWidth().height(48.dp).background(if (on) pal.imp.copy(alpha = .12f) else Color.Transparent)
-                .press(onClick = onClick).padding(start = 12.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("중요", Modifier.width(56.dp), style = T.label, color = pal.text2)
-            Text(if (on) "중요 · 목록에 음영" else "보통", Modifier.weight(1f), style = T.head.copy(fontWeight = FontWeight.Normal),
-                color = if (on) pal.text else pal.faint, maxLines = 1)
-            Canvas(Modifier.size(32.dp, 18.dp)) {
-                val h = size.height
-                drawRoundRect(if (on) pal.imp else pal.text.copy(alpha = .14f), cornerRadius = CornerRadius(h / 2))
-                val r = h / 2 - 2.dp.toPx()
-                drawCircle(pal.field, r, Offset(h / 2 + (size.width - h) * knob, h / 2))
+    Row(
+        modifier.height(56.dp)
+            .then(if (locked) Modifier else Modifier.press(onClick = onClick))
+            .drawBehind { if (on) drawRect(pal.teal, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx())) }
+            .padding(start = 10.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = T.label, color = if (on) pal.teal else pal.text2)
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(apText(value), Modifier.weight(1f, fill = false), style = T.lead, color = if (empty || locked) pal.faint else pal.text,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (tail.isNotEmpty()) Text(" · $tail", style = T.label, color = pal.text2, maxLines = 1)
             }
         }
-        Hair()
+        if (onClear != null) Box(Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).press(onClick = onClear), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(8.dp)) {
+                val w = 1.3.dp.toPx()
+                drawLine(pal.faint, Offset.Zero, Offset(size.width, size.height), w, StrokeCap.Round)
+                drawLine(pal.faint, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
+            }
+        }
     }
 }
 
-/** 줄 아래에 펼쳐지는 도구 (PC 의 오른쪽 판) */
+/** 중요: 누르면 바로 켜고 끈다 (펼치는 도구가 없다). 켜지면 목록에서 음영을 입는다 */
 @Composable
-private fun Pane(visible: Boolean, body: @Composable ColumnScope.() -> Unit) {
+private fun ImpToggle(on: Boolean, onClick: () -> Unit) {
     val pal = LocalPal.current
-    AnimatedVisibility(visible, enter = expandVertically(tween(280, easing = EaseMove)) + fadeIn(tween(200, 60)),
-        exit = shrinkVertically(tween(200, easing = EaseExit)) + fadeOut(tween(120))) {
-        Column(Modifier.padding(vertical = 12.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(pal.text.copy(alpha = .03f))
-            .border(1.dp, pal.hair, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { body() }
+    val knob by animateFloatAsState(if (on) 1f else 0f, tween(160), label = "imp")
+    Row(Modifier.clip(RoundedCornerShape(6.dp)).press(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(28.dp, 16.dp)) {
+            val h = size.height
+            drawRoundRect(if (on) pal.imp else pal.text.copy(alpha = .14f), cornerRadius = CornerRadius(h / 2))
+            drawCircle(pal.field, h / 2 - 2.dp.toPx(), Offset(h / 2 + (size.width - h) * knob, h / 2))
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(if (on) "중요 · 목록에 음영" else "중요", style = T.body, color = if (on) pal.text else pal.text2)
     }
 }
 
@@ -520,11 +624,11 @@ private fun Holiday(d: Draft, businessOnly: Boolean) {
 @Composable
 private fun Opts(labels: List<String>, on: (Int) -> Boolean, enabled: Boolean = true, onPick: (Int) -> Unit) {
     val pal = LocalPal.current
-    Row(Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, pal.hair2, RoundedCornerShape(12.dp)).padding(3.dp),
+    Row(Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(6.dp)).border(1.dp, pal.hair2, RoundedCornerShape(6.dp)).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         labels.forEachIndexed { i, l ->
             val sel = on(i)
-            Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(9.dp)).background(if (sel) pal.teal else Color.Transparent)
+            Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(if (sel) pal.teal else Color.Transparent)
                 .then(if (enabled) Modifier.press { onPick(i) } else Modifier), contentAlignment = Alignment.Center) {
                 Text(l, style = if (sel) T.body.copy(fontWeight = FontWeight.Medium) else T.body,
                     color = if (sel) pal.onTeal else if (enabled) pal.text2 else pal.faint, maxLines = 1)
@@ -542,10 +646,23 @@ private fun Hint(text: String) = Text(text, style = T.label.copy(lineHeight = 17
 private fun DatePane(d: Draft, today: LocalDate, others: List<Task>) {
     val pal = LocalPal.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (d.mode == "rule") "처음 돌 날" else "날짜", style = T.body.copy(fontWeight = FontWeight.Medium), color = pal.text)
+        Text(if (d.mode == "rule") "처음 돌 날" else "언제까지?", style = T.body.copy(fontWeight = FontWeight.Medium), color = pal.text)
         Spacer(Modifier.weight(1f))
         if (d.mode == "rule") Text("밑줄 = 앞으로 돌 날", style = T.label, color = pal.text2)
         else Seg(listOf(false to "하루", true to "여러 날"), d.span, height = 30.dp, pad = 12.dp) { d.spanOn(it) }
+    }
+    // 빠른 날 다섯: 오늘 · 내일 · 모레 · 이번 주 금 · 다음 주 월 - 달력을 읽고 누르는 것보다 이름 하나가 빠르다
+    if (d.mode != "rule" && !d.span) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((k, l, sub) in quickDays(today)) {
+            val on = d.mode == "one" && d.date == k
+            Row(Modifier.height(32.dp).clip(RoundedCornerShape(6.dp)).background(if (on) pal.teal else Color.Transparent)
+                .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(6.dp))
+                .press { d.setOne(k); d.span = false; d.toTime() }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(l, style = T.lead, color = if (on) pal.onTeal else pal.text)
+                Spacer(Modifier.width(6.dp))
+                Text(sub, style = T.label, color = if (on) pal.onTeal else pal.text2)
+            }
+        }
     }
     LineCal(d, today)
     if (d.mode != "rule") Hint("길게 눌러 끌면 여러 날 (기간)")
@@ -574,7 +691,7 @@ private fun LineCal(d: Draft, today: LocalDate) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("${month.year}년 ${month.monthValue}월", Modifier.weight(1f).padding(start = 4.dp), style = T.leadM, color = pal.text)
         for ((s, n) in listOf("‹" to -1L, "›" to 1L))
-            Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).tap { month = month.plusMonths(n) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)).tap { month = month.plusMonths(n) }, contentAlignment = Alignment.Center) {
                 Text(s, style = T.head, color = pal.text2)
             }
     }
@@ -597,7 +714,9 @@ private fun LineCal(d: Draft, today: LocalDate) {
             )
         })) {
         var cur = grid0
-        repeat(6) {
+        // 이 달이 걸친 주만 (5주인 달에 다음 달 한 주를 더 그리지 않는다)
+        val weeks = (first.dayOfWeek.value % 7 + month.lengthOfMonth() + 6) / 7
+        repeat(weeks) {
             Row {
                 repeat(7) { col ->
                     val day = cur
@@ -661,90 +780,97 @@ private fun LineCal(d: Draft, today: LocalDate) {
 
 // ---------------- 시각 ----------------
 
+/** 빠른 날 다섯 (PC 의 quickDays) */
+private fun quickDays(today: LocalDate): List<Triple<LocalDate, String, String>> {
+    val w = today.dayOfWeek.value - 1
+    val fri = today.plusDays(((4 - w + 7) % 7).let { if (it == 0) 7 else it }.toLong())
+    val mon = today.plusDays((7 - w).toLong())
+    fun md2(k: LocalDate) = "${k.monthValue}/${k.dayOfMonth}"
+    fun wd(k: LocalDate) = WDS[k.dayOfWeek.value - 1]
+    return listOf(Triple(today, "오늘", wd(today)), Triple(today.plusDays(1), "내일", wd(today.plusDays(1))), Triple(today.plusDays(2), "모레", wd(today.plusDays(2))),
+        Triple(fri, (if (days(today, fri) < 7) "이번 주" else "다음 주") + " 금", md2(fri)), Triple(mon, "다음 주 월", md2(mon)))
+}
+
+/** 그날 이미 시각이 정해진 일 (마감 · 루틴 회차) */
+private fun dayList(day: LocalDate, others: List<Task>): List<Pair<String, String>> {
+    val out = mutableListOf<Pair<String, String>>()
+    for (t in others) {
+        if (t.dueTime.isEmpty()) continue
+        if (t.kind == "deadline" && !t.done && t.dueDate == day.toString()) out += t.dueTime to t.title
+        else if (t.kind == "routine" && t.rule != null && day.toString() !in t.skipDates &&
+            runCatching { Recur.occurrences(t.rule, day, day).isNotEmpty() }.getOrDefault(false)) out += t.dueTime to t.title
+    }
+    return out.sortedBy { it.first }
+}
+
+/** 자주 쓰는 시각: 지금까지 넣은 일들의 시각 가운데 많이 쓴 여덟 (시간순) */
+private fun favTimes(others: List<Task>): List<String> {
+    val c = HashMap<String, Int>()
+    for (t in others) if (t.dueTime.isNotEmpty()) c[t.dueTime] = (c[t.dueTime] ?: 0) + (if (t.kind == "routine") 2 else 1)
+    val top = c.entries.sortedWith(compareBy({ -it.value }, { it.key })).take(8).map { it.key }
+    return (top.ifEmpty { listOf("09:00", "10:00", "11:00", "14:00", "15:00", "17:00") }).sorted()
+}
+
+/**
+ * 시각 도구: 그날의 시간표(08 ~ 20 시)와 자주 쓰는 시각. 시간표는 그날 이미 있는 일을 점으로 놓고, 빈 곳을 누르면
+ * 30분 단위로 그 시각이 된다 - "비어 있는 때" 가 보이는 채로 고른다. (예전의 시계판은 두 번 정확히 눌러야 했다)
+ */
 @Composable
-private fun ColumnScope.TimePane(d: Draft) {
+private fun TimePane(d: Draft, others: List<Task>) {
     val pal = LocalPal.current
     val m = minsOf(d.time)
+    val day = d.date
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (m != null) Text(apText(t12(d.time)), style = T.title.copy(fontWeight = FontWeight.Normal, fontFeatureSettings = "tnum"), color = pal.text)
-        else Text("시각 없음", style = T.head.copy(fontWeight = FontWeight.Normal), color = pal.faint)
-        Spacer(Modifier.weight(1f))
-        Seg(listOf(0 to "오전", 1 to "오후"), if (m == null) -1 else if (m >= 720) 1 else 0, height = 30.dp, pad = 14.dp) { pm ->
+        Text("몇 시?", style = T.body.copy(fontWeight = FontWeight.Medium), color = pal.text)
+        Spacer(Modifier.width(10.dp))
+        Text(day?.let { mdw(it) + " 그날의 시간표" } ?: "", Modifier.weight(1f), style = T.label, color = pal.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Seg(listOf(0 to "오전", 1 to "오후"), if (m == null) -1 else if (m >= 720) 1 else 0, height = 30.dp, pad = 12.dp) { pm ->
             d.apLock = true
             val c = m ?: (9 * 60)
             d.time = hhmm((c % 720) + pm * 720)
         }
     }
-    Dial(m, d.apLock, Modifier.align(Alignment.CenterHorizontally).fillMaxWidth(.8f)) { d.time = hhmm(it) }
-    Hint("바깥 고리는 시 · 안쪽 고리는 분 · 누른 채 돌려도 됩니다 · 하늘의 점선 구슬을 끌어도 됩니다")
-}
-
-/**
- * 시계판 (바깥 고리 시, 안쪽 고리 분 5분 단위). 누르거나 누른 채 돌린다.
- * 시를 처음 고를 때는 업무 시간으로 읽는다 (1~7시는 오후) - 오전 · 오후를 직접 누르기 전까지.
- */
-@Composable
-private fun Dial(min: Int?, apLock: Boolean, modifier: Modifier, onChange: (Int) -> Unit) {
-    val pal = LocalPal.current
-    val haptic = LocalHapticFeedback.current
-    val measurer = rememberTextMeasurer()
-    val cur by rememberUpdatedState(min)
-    val lock by rememberUpdatedState(apLock)
-    val change by rememberUpdatedState(onChange)
-    val hourStyle = T.lead.copy(fontFeatureSettings = "tnum")
-    val minStyle = T.label.copy(fontFeatureSettings = "tnum")
-    Canvas(modifier.aspectRatio(1f).pointerInput(Unit) {
+    if (day == null) { Hint("날짜를 먼저 정하면 그날의 시간표가 보입니다."); return }
+    val list = remember(day, others) { dayList(day, others) }
+    var lo = 8 * 60; var hi = 20 * 60
+    for ((t, _) in list + (if (m != null) listOf(d.time to "") else emptyList())) minsOf(t)?.let { lo = minOf(lo, it / 60 * 60); hi = maxOf(hi, (it + 60) / 60 * 60) }
+    val tm = rememberTextMeasurer()
+    Canvas(Modifier.fillMaxWidth().height(44.dp).pointerInput(lo, hi) {
         awaitEachGesture {
             val down = awaitFirstDown()
-            val c = Offset(size.width / 2f, size.height / 2f)
-            val r = size.width / 2f
-            val outer = (down.position - c).getDistance() > r * .66f
-            fun pick(o: Offset) {
-                val v = o - c
-                var a = atan2(v.x, -v.y) / (2 * PI).toFloat()
-                if (a < 0) a += 1f
-                val k = (a * 12).roundToInt() % 12
-                val now = cur
-                val next = if (outer) {
-                    val h = if (now != null && lock) (now / 720) * 12 + k else workHour(k)
-                    h * 60 + (now ?: 0) % 60
-                } else ((now ?: (9 * 60)) / 60) * 60 + k * 5
-                if (next != now) { change(next); haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
-            }
-            pick(down.position)
-            down.consume()
-            while (true) {
-                val ev = awaitPointerEvent()
-                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                if (!ch.pressed) break
-                pick(ch.position); ch.consume()
-            }
+            val pad = 8.dp.toPx(); val w = size.width - pad * 2
+            val mm = lo + ((down.position.x - pad) / w).coerceIn(0f, 1f) * (hi - lo)
+            d.fixName(); d.time = hhmm(((mm / 30f).roundToInt() * 30) % 1440)
         }
     }) {
-        val c = Offset(size.width / 2f, size.height / 2f)
-        val r = size.width / 2f
-        val rh = r * .8f
-        val rm = r * .5f
-        drawCircle(pal.field, r)
-        drawCircle(pal.hair, r, style = Stroke(1.dp.toPx()))
-        drawCircle(pal.text.copy(alpha = .035f), r * .64f)
-        fun at(rr: Float, k: Int) = Offset(c.x + rr * sin(PI * k / 6).toFloat(), c.y - rr * cos(PI * k / 6).toFloat())
-        val h = min?.let { (it / 60) % 12 }
-        val mi = min?.let { (it % 60) / 5 }
-        if (h != null && mi != null) {
-            drawLine(pal.teal, c, at(rh, h), 1.5.dp.toPx(), StrokeCap.Round)
-            drawLine(pal.teal.copy(alpha = .6f), c, at(rm, mi), 1.5.dp.toPx(), StrokeCap.Round)
-            drawCircle(pal.teal, r * .13f, at(rh, h))
-            drawCircle(pal.teal, r * .1f, at(rm, mi))
+        val pad = 8.dp.toPx(); val w = size.width - pad * 2; val y = 16.dp.toPx()
+        fun x(mm: Int) = pad + w * (mm - lo).toFloat() / (hi - lo)
+        drawLine(pal.hair2, Offset(pad, y), Offset(size.width - pad, y), 1.dp.toPx())
+        var k = lo
+        while (k <= hi) {
+            val big = (k / 60) % 3 == 0
+            drawLine(pal.hair2, Offset(x(k), y), Offset(x(k), y + (if (big) 7 else 4).dp.toPx()), 1.dp.toPx())
+            if (big) { val l = tm.measure("%02d".format(k / 60), T.label.copy(color = pal.text2)); drawText(l, topLeft = Offset(x(k) - l.size.width / 2f, y + 9.dp.toPx())) }
+            k += 60
         }
-        drawCircle(pal.teal, 3.dp.toPx(), c)
-        for (k in 0 until 12) {
-            val hl = measurer.measure(if (k == 0) "12" else "$k", hourStyle.copy(color = if (k == h) pal.onTeal else pal.text))
-            drawText(hl, topLeft = at(rh, k) - Offset(hl.size.width / 2f, hl.size.height / 2f))
-            val ml = measurer.measure("%02d".format(k * 5), minStyle.copy(color = if (k == mi) pal.onTeal else pal.text2))
-            drawText(ml, topLeft = at(rm, k) - Offset(ml.size.width / 2f, ml.size.height / 2f))
-        }
+        for ((t, _) in list) minsOf(t)?.let { drawCircle(pal.text2.copy(alpha = .45f), 5.5.dp.toPx(), Offset(x(it), y)) }
+        if (m != null) { drawCircle(pal.teal.copy(alpha = .2f), 9.dp.toPx(), Offset(x(m), y)); drawCircle(pal.teal, 5.5.dp.toPx(), Offset(x(m), y)) }
     }
+    Text(if (list.isEmpty()) "그날은 시각이 정해진 일이 없습니다" else "그날 이미 · " + list.take(3).joinToString(" · ") { t12(it.first) + " " + it.second } +
+        (if (list.size > 3) " 외 ${list.size - 3}" else ""), style = T.body, color = pal.text2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Text("자주 쓰는 시각", style = T.label, color = pal.text2)
+    val favs = remember(others) { favTimes(others) }
+    for (row in favs.chunked(4)) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (t in row) {
+            val on = d.time == t
+            Box(Modifier.weight(1f).height(32.dp).clip(RoundedCornerShape(6.dp)).background(if (on) pal.teal else Color.Transparent)
+                .border(1.dp, if (on) pal.teal else pal.hair2, RoundedCornerShape(6.dp)).press { d.fixName(); d.time = t }, contentAlignment = Alignment.Center) {
+                Text(apText(t12(t)), style = T.body.copy(fontFeatureSettings = "tnum"), color = if (on) pal.onTeal else pal.text, maxLines = 1)
+            }
+        }
+        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+    }
+    Hint(if (m == null) "비워 두면 아침 브리핑에서 알립니다." else "")
 }
 
 // ---------------- 반복 ----------------
@@ -782,7 +908,7 @@ private fun RulePane(d: Draft, today: LocalDate) {
         else -> {
             val items = remember(day, f) { Recur.suggest(day, f.first, f.second) }
             val list = (d.keep?.takeIf { k -> items.none { it.first == k.first } }?.let { listOf(it) } ?: emptyList()) + items
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, pal.hair2, RoundedCornerShape(12.dp))) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).border(1.dp, pal.hair2, RoundedCornerShape(6.dp))) {
                 list.forEachIndexed { i, (label, r) ->
                     if (i > 0) Hair()
                     val on = label == d.ruleText
@@ -806,7 +932,7 @@ private fun RulePane(d: Draft, today: LocalDate) {
             Text("쉬는 날에 걸리면", style = T.body, color = pal.text2)
             Spacer(Modifier.width(8.dp))
             Box {
-                Box(Modifier.height(30.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, pal.hair2, RoundedCornerShape(8.dp)).tap { open = true }
+                Box(Modifier.height(30.dp).clip(RoundedCornerShape(6.dp)).border(1.dp, pal.hair2, RoundedCornerShape(6.dp)).tap { open = true }
                     .padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                     Text((RulePick.SHIFTS.firstOrNull { it.first == shift }?.second ?: shift) + " ▾", style = T.body, color = pal.text)
                 }

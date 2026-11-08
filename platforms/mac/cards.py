@@ -323,3 +323,29 @@ def run(pump, idle_ms, on_ready=None):
             _log("on_ready")
     paths.log("toast: AppKit 루프 진입 (배율 %.1f)" % _S[0])
     app.run()
+
+
+# ---------------- 전역 단축키 (Windows 와 같은 이름) ----------------
+# macOS 에서 다른 앱 위의 키를 받으려면 손쉬운 사용 권한이 필요하다. 아직 걸지 않고, 설정 화면에는
+# "이 Mac 에서는 쓰지 않습니다" 로 보인다 (ok 가 None).
+_hot = {"spec": "", "cb": None, "ok": None}
+
+
+def set_hotkey(spec, cb):
+    _hot["spec"], _hot["cb"] = spec or "", cb
+
+
+def hotkey_state():
+    return {"spec": _hot["spec"], "ok": None, "unsupported": True}
+
+
+def foreground():
+    return None
+
+
+def allow_foreground():
+    pass
+
+
+def activate(h):
+    pass

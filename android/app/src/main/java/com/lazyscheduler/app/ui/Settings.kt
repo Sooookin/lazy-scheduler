@@ -58,7 +58,7 @@ fun SettingsScreen(
     var err by remember { mutableStateOf<String?>(null) }
     var askDelete by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 28.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = DOC).padding(top = 16.dp, bottom = 32.dp)) {
         Text("설정", style = T.title, color = pal.text)
 
         Section("일정과 알림")
@@ -76,20 +76,19 @@ fun SettingsScreen(
         CheckRow(remindOn, "이 휴대폰에서 알림 받기", onChange = setRemind)
         if (remindOn && !canExact) {
             Text("정확한 시각에 알리려면 '알람 및 리마인더' 를 허용해 주세요 ›",
-                Modifier.padding(top = 4.dp).clip(RoundedCornerShape(8.dp)).tap {
+                Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).tap {
                     runCatching { context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + context.packageName))) }
                 }.padding(vertical = 6.dp), style = T.label, color = pal.teal)
         }
 
-        Section("하늘")
+        Section("화면")
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("밝기", Modifier.width(64.dp), style = T.lead, color = pal.text)
             Seg(listOf("auto" to "해를 따라", "light" to "밝게", "dark" to "어둡게"), prefs.theme, Modifier.weight(1f), fill = true) { prefs.theme(it) }
         }
         Spacer(Modifier.height(6.dp))
-        CheckRow(prefs.sky, "하늘과 궤도", "끄면 그 자리에 시계와 날짜만") { prefs.sky(it) }
-        CheckRow(prefs.walk, "돌멩이 움직임", "끄면 가운데에 앉아 눈만 굴립니다") { prefs.walk(it) }
-        CheckRow(prefs.calm, "움직임 줄이기", "폴짝 · 굴림 → 즉시 전환") { prefs.calm(it) }
+        CheckRow(prefs.walk, "돌멩이 움직임", "끄면 깜빡임 · 폴짝 없이 지금 자리에만 섭니다") { prefs.walk(it) }
+        CheckRow(prefs.calm, "움직임 줄이기", "밤으로 넘어감 · 폴짝을 즉시") { prefs.calm(it) }
 
         Section("동기화 · PC")
         if (!Cloud.configured) {
@@ -152,7 +151,7 @@ private fun DeleteAccount(onDismiss: () -> Unit, onConfirm: (keep: Boolean) -> U
     var keep by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
-        Column(Modifier.clip(RoundedCornerShape(20.dp)).background(pal.surface).padding(22.dp)) {
+        Column(Modifier.clip(RoundedCornerShape(6.dp)).background(pal.surface).padding(22.dp)) {
             Text("계정과 데이터를 지울까요?", style = T.head, color = pal.text)
             Spacer(Modifier.height(10.dp))
             Text("계정에 올라간 일정이 모두 지워지고 로그인이 끊깁니다. PC 에서도 사라집니다. 되돌릴 수 없습니다.", style = T.body, color = pal.text)

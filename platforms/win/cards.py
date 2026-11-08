@@ -7,6 +7,7 @@
 창과 이벤트 루프를 Win32 로 직접 다룬다 - tkinter 를 쓰면 배포본에 tcl/tk 6MB 가 따라 들어온다.
 """
 import ctypes
+import threading
 import traceback
 from ctypes import wintypes
 
@@ -73,6 +74,8 @@ G32.DeleteDC.argtypes = [PVOID]
 # 창과 이벤트 루프도 Win32 로 직접 다룬다.
 WM_DESTROY, WM_TIMER = 0x0002, 0x0113
 WM_WAKE = 0x8000 + 1                 # WM_APP + 1: 새 알림이 왔다
+WM_SETHOT = 0x8000 + 2               # WM_APP + 2: 전역 단축키를 (다시) 건다
+WM_HOTKEY = 0x0312
 WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_MOUSELEAVE = 0x0200, 0x0201, 0x02A3
 WM_SETCURSOR = 0x0020
 WS_POPUP = 0x80000000
@@ -259,6 +262,14 @@ _pump = None                    # toast 가 run() 에 넘겨 준 한 틀 처리
 
 
 def _wndproc(hwnd, msg, wp, lp):
+    if msg == WM_HOTKEY and hwnd == _ctrl:
+        cb = _hot["cb"]
+        if cb is not None:
+            threading.Thread(target=cb, daemon=True).start()     # 창을 띄우는 데 시간이 걸린다 - 루프를 막지 않는다
+        return 0
+    if msg == WM_SETHOT and hwnd == _ctrl:
+        _apply_hot()
+        return 0
     if msg == WM_TIMER or msg == WM_WAKE:
         if hwnd == _ctrl and _pump is not None:
             _pump()
@@ -440,6 +451,85 @@ def set_rate(ms):
     _rate = ms
 
 
+# ---------------- 전역 단축키 ----------------
+# RegisterHotKey 는 그 창을 만든 스레드(메인 · 메시지 루프)에서 불러야 한다. 다른 스레드는
+# set_hotkey 로 바라는 값만 적고 WM_SETHOT 을 보낸다. 다른 프로그램이 이미 쓰고 있으면 실패하고,
+# 그 사실은 hotkey_state() 로 설정 화면에 보인다.
+U32.RegisterHotKey.argtypes = [PVOID, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+U32.UnregisterHotKey.argtypes = [PVOID, ctypes.c_int]
+_hot = {"spec": "", "cb": None, "ok": None}
+_MODS = {"alt": 0x1, "ctrl": 0x2, "shift": 0x4, "win": 0x8}
+MOD_NOREPEAT = 0x4000
+
+
+def _parse_hot(spec):
+    """"ctrl+alt+space" → (mods, vk). 알아볼 수 없으면 None."""
+    parts = [p for p in (spec or "").lower().split("+") if p]
+    if len(parts) < 2:
+        return None
+    mods, key = 0, parts[-1]
+    for p in parts[:-1]:
+        if p not in _MODS:
+            return None
+        mods |= _MODS[p]
+    if key == "space":
+        vk = 0x20
+    elif len(key) == 1 and key.isalnum():
+        vk = ord(key.upper())
+    elif key.startswith("f") and key[1:].isdigit() and 1 <= int(key[1:]) <= 12:
+        vk = 0x70 + int(key[1:]) - 1
+    else:
+        return None
+    return mods | MOD_NOREPEAT, vk
+
+
+def _apply_hot():
+    U32.UnregisterHotKey(_ctrl, 1)
+    hk = _parse_hot(_hot["spec"])
+    if not hk:
+        _hot["ok"] = None if not _hot["spec"] else False
+        return
+    _hot["ok"] = bool(U32.RegisterHotKey(_ctrl, 1, hk[0], hk[1]))
+    paths.log("전역 단축키 %s: %s" % (_hot["spec"], "걸었다" if _hot["ok"] else "다른 프로그램이 쓰고 있다"))
+
+
+def set_hotkey(spec, cb):
+    """어느 스레드에서 불러도 된다. 루프가 돌기 전이면 run() 이 건다."""
+    _hot["spec"], _hot["cb"] = spec or "", cb
+    if _ctrl:
+        U32.PostMessageW(_ctrl, WM_SETHOT, 0, 0)
+
+
+def hotkey_state():
+    """{"spec": "ctrl+alt+space", "ok": True(걸림) · False(실패) · None(안 씀)}"""
+    return {"spec": _hot["spec"], "ok": _hot["ok"]}
+
+
+def foreground():
+    """지금 앞에 있는 창 (문장 칸을 닫은 뒤 돌려보낼 곳)."""
+    try:
+        return U32.GetForegroundWindow() or None
+    except Exception:
+        return None
+
+
+def allow_foreground():
+    """단축키를 받은 이 프로세스는 앞으로 나설 권리가 있다 - 그 권리를 창 프로세스에 넘긴다.
+    넘기지 않으면 Windows 가 다른 프로세스의 SetForegroundWindow 를 막아 문장 칸에 글자가 들어가지 않는다."""
+    try:
+        U32.AllowSetForegroundWindow(wintypes.DWORD(0xFFFFFFFF))     # ASFW_ANY
+    except Exception:
+        pass
+
+
+def activate(h):
+    try:
+        if h:
+            U32.SetForegroundWindow(h)
+    except Exception:
+        pass
+
+
 def run(pump, idle_ms, on_ready=None):
     """메인 스레드에서 호출. 창 클래스를 등록하고 Win32 메시지 루프를 돈다."""
     global _ctrl, _pump
@@ -450,6 +540,7 @@ def run(pump, idle_ms, on_ready=None):
     if not _ctrl:
         raise OSError("타이머용 창 생성 실패 (%d)" % ctypes.get_last_error())
     set_rate(idle_ms)
+    _apply_hot()
     if on_ready:
         try:
             on_ready()

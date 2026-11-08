@@ -51,12 +51,14 @@ def test_toast_colours_come_from_tokens():
 
 
 def test_the_night_set_is_what_the_window_shows_at_midnight():
-    """NIGHT 는 새 색이 아니라 applyLight 가 한밤에 섞는 값이다 (web/sky.js 와 같은 식)."""
+    """NIGHT 는 새 색이 아니라 applyLight 가 밤(dk = 1)에 내는 값이다 (web/sky.js 와 같은 식)."""
     L = tokens.LIGHT
-    assert tokens.NIGHT["surface"] == tokens._mix(L["panel"], L["night"], .80)
+    assert tokens.NIGHT["surface"] == tokens._mix(L["panel"], L["night"], 1) == L["night"]
+    assert tokens.NIGHT["bg"] == tokens._mix(L["night"], L["pale"], .09)
     assert tokens.NIGHT["text"] == L["pale"] and tokens.NIGHT["teal"] == L["teal-lit"]
     src = io.open(os.path.join(ROOT, "web", "sky.js"), encoding="utf-8").read()
-    assert "mixc(LIT.panel, LIT.warm, warm*.85), LIT.night, dk*.80" in src, "면을 섞는 식이 바뀌었다 - NIGHT 도 고친다"
+    assert "mixc(LIT.panel, LIT.night, dk)" in src, "면을 섞는 식이 바뀌었다 - NIGHT 도 고친다"
+    assert "mixc(surface, txt, .09)" in src, "홈을 섞는 식이 바뀌었다 - NIGHT['bg'] 도 고친다"
 
 
 def test_no_stray_hex_colours_in_python():
