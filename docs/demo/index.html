@@ -5,282 +5,176 @@
 <meta name="robots" content="noindex">
 <title>LazyScheduler</title>
 <link rel="icon" href="icon-32.png">
-<link rel="preload" href="fonts/paperlogy-500.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/paperlogy-300.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/paperlogy-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="demo.css">
 </head>
 <body>
 
-<div class="titlebar" id="titlebar">
-  <div class="tb-gap"></div>
-  <button class="wbtn" id="w-min" title="최소화" aria-label="최소화">
-    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" stroke-width="1.1"/></svg>
-  </button>
-  <button class="wbtn" id="w-max" title="최대화" aria-label="최대화"></button>
-  <button class="wbtn close" id="w-close" title="닫기 (알림은 계속 동작)" aria-label="닫기">
-    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-  </button>
+<!-- ══════════ 머리 (56) ══════════
+     한 줄: 시계 · 날짜 | 문장 칸 (＋ 이름과 언제를 한 줄로) | 오늘 · 달력 · 전체 | 설정 | 창 단추.
+     머리 전체가 창의 제목줄이다 (끌어서 옮기기 · 두 번 눌러 최대화). 문장 칸은 늘 여기 있다 -
+     아무 글자나 치면 이리로 들어온다. 친 말 중 날짜 · 시각 · 반복으로 읽힌 말은 청록으로 칠해지고,
+     오른쪽에 무엇이 만들어질지(FRI 30 OCT 15:00)가 선다. -->
+<header class="head" id="titlebar">
+  <div class="clk" aria-label="지금 시각"><b id="clock">--:--</b><span id="date">—</span></div>
+  <div class="field" id="field">
+    <button class="plus" id="plus" type="button" title="새 항목 · Ctrl N" aria-label="새 항목 · Ctrl N"><i></i><i></i></button>
+    <div class="fbox"><div class="fhl" id="fhl" aria-hidden="true"></div>
+      <input id="say" autocomplete="off" spellcheck="false" aria-label="새 항목 - 이름과 언제를 한 줄로 (예: 보고서 금요일 3시)"></div>
+    <span class="fsum" id="fsum" aria-live="polite"></span>
+    <button class="fx" id="f-more" type="button" title="날짜 · 반복 · 알림을 자세히" hidden>자세히</button>
+    <button class="fx bad" id="f-del" type="button" hidden>삭제</button>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="화면">
+    <button type="button" data-v="today">오늘</button>
+    <button type="button" data-v="cal">달력</button>
+    <button type="button" data-v="all">전체</button>
+  </nav>
+  <button type="button" class="tab-set" data-v="set" title="설정" aria-label="설정"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5h13M1.5 11.5h13" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="2.5" width="3" height="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9.5" width="3" height="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.2"/></svg></button>
+  <i class="tabline" id="tabline" aria-hidden="true"></i>
+  <div class="wins">
+    <button class="wbtn" id="w-min" title="최소화" aria-label="최소화"><i class="w-min"></i></button>
+    <button class="wbtn" id="w-max" title="최대화" aria-label="최대화"></button>
+    <button class="wbtn close" id="w-close" title="닫기 (알림은 계속 동작)" aria-label="닫기"><i class="w-x"></i><i class="w-x"></i></button>
+  </div>
+</header>
+
+<!-- 줄에 마우스를 올리면 머리 아래로 내려오는 읽기 띠: 그 일의 날짜 · 시각 · 반복 · 알림 · 상태 -->
+<div class="ro" id="ro" aria-hidden="true"></div>
+<div class="rop" id="rop" role="menu"></div>
+
+<!-- 연결 끊김 · 데이터 복구 같은 알림 띠. 평소에는 숨어 있다 (app.js 의 strip) -->
+<div class="strip" id="strip" hidden>
+  <span class="s-msg" id="strip-msg"></span>
+  <button class="s-btn" id="strip-btn" hidden></button>
 </div>
 
-<div class="app">
+<main class="main" id="main">
 
-  <!-- ══════════ 하늘 ══════════
-       창 위쪽은 오늘 하루다. 궤도는 실제 해가 지나는 길이고, 구슬 하나가 일 하나다.
-       시계 · 단추 · 게으름뱅이가 모두 땅(아래 판)의 윗변에 발을 붙인다.
-       땅의 윗변이 곧 지평선이라, 따로 선을 긋지 않는다. -->
-  <div class="sky" id="sky">
-   <!-- 접힌 하늘의 작은 시계 (창 · 달력을 보는 동안). sky-art 는 접히면 위로 밀려 올라가므로 밖에 둔다 -->
-   <div class="clk-m" aria-hidden="true"><b id="clock-m">--:--</b><span id="dow-m">—</span></div>
-   <div class="sky-art" id="sky-art">
-    <!-- 세 장: 뒤(하늘의 능선) · 궤도와 구슬 · 앞(땅과 눈금). 구슬만 바뀌면 가운데 장만 다시 칠한다 (drawSky) -->
-    <svg class="sky-svg" id="sky-svg" aria-hidden="true"></svg>
-    <svg class="sky-svg" id="sky-rib" aria-hidden="true"></svg>
-    <svg class="sky-svg" id="sky-front" aria-hidden="true"></svg>
-
-    <div class="clk">
-      <div class="clk-d" id="dow">—</div>
-      <div class="clk-c" id="clock">--:--</div>
+  <!-- ══════════ 오늘 ══════════
+       왼쪽 위: Today - 원통. 다음 일이 렌즈(20) 위에 서고, 지나온 일은 위로 · 남은 일은 아래로 원통을 따라 기운다.
+       왼쪽 아래: Anytime - 오늘 할, 시각 없는 일. 오른쪽 위: Upcoming - 내일부터 7일. 오른쪽 아래: Notes - 날짜 없는 것.
+       아래 두 선반의 높이는 가운데 홈을 끌어 바꾼다. -->
+  <section class="v v-today" id="v-today">
+    <div class="pane L" data-drop="0">
+      <div class="ph"><span class="pt">Today</span><span class="pn" id="t-late"></span></div>
+      <div class="drum" id="drum"></div>
+      <div class="shelf" id="any" data-drop="0"><div class="ph"><span class="pt">Anytime</span></div><div class="slist" id="any-list"></div></div>
     </div>
-
-    <div class="acts">
-      <span class="act">
-        <button class="rb" id="btn-view" type="button" title="달력" aria-label="달력">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-            <rect x="1.8" y="3" width="12.4" height="11.2" rx="2"/><path d="M1.8 6.6h12.4M5.2 1.8v2.4M10.8 1.8v2.4"/>
-          </svg>
-        </button><i id="btn-view-l">달력</i>
-      </span>
-      <span class="act">
-        <button class="rb fill" id="btn-add" type="button" title="새 항목" aria-label="새 항목">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button><i>새 항목</i>
-      </span>
-      <span class="act">
-        <button class="rb" id="btn-settings" type="button" title="설정" aria-label="설정">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-            <circle cx="8" cy="8" r="2.6"/>
-            <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>
-          </svg>
-        </button><i>설정</i>
-      </span>
+    <div class="pane R">
+      <div class="ph"><span class="pt">Upcoming</span></div>
+      <div class="up" id="up"></div>
+      <div class="shelf" id="notes" data-drop="memo"><div class="ph"><span class="pt">Notes</span></div><div class="slist" id="notes-list"></div></div>
     </div>
+    <div class="seam-h" id="seam" title="끌어서 선반 높이 조절 · 두 번 누르면 처음대로"></div>
+  </section>
 
-    <!-- 돌멩이 (게으름뱅이). 행동은 pebble.js 가 정한다. 겹마다 하는 일이 하나다:
-         guy 자리(이동) > lean 기울기 > sq 눌림 · 튐 · 숨 > roll 구르기(몸 · 눈 · 소품이 함께 돈다) -->
-    <div class="guy" id="guy" aria-hidden="true">
-      <div class="pb-lean"><div class="pb-sq"><div class="pb-roll">
-        <div class="gy-b"></div>
-        <div class="gy-e" data-s="round"><s><i></i></s><s><i></i></s></div>
-        <div class="pb-prop"></div>
-      </div></div></div>
-      <div class="pb-fx"></div>
+  <!-- ══════════ 달력 ══════════ -->
+  <section class="v v-cal" id="v-cal" hidden>
+    <div class="calh">
+      <b class="cal-ym" id="cal-ym">—</b>
+      <button class="sq" id="cal-prev" type="button" title="이전 달 · ←" aria-label="이전 달">‹</button>
+      <button class="sq" id="cal-next" type="button" title="다음 달 · →" aria-label="다음 달">›</button>
+      <button class="lnk" id="cal-now" type="button">이번 달</button>
     </div>
-    <!-- 빛. 하늘 전체(게으름뱅이까지)를 덮고, 시계 · 단추만 그 위에 뜬다 -->
-    <div class="sky-lite" id="sky-lite" aria-hidden="true"></div>
-   </div>
-  </div>
+    <div class="calw" id="cal-head"></div>
+    <div class="calg" id="cal-grid"></div>
+  </section>
 
-  <!-- ══════════ 땅 ══════════ -->
-  <div class="ground">
-    <!-- 연결 끊김 · 데이터 복구 같은 알림 띠. 평소에는 숨어 있다 (app.js 의 strip) -->
-    <div class="strip" id="strip" hidden>
-      <span class="s-ico" aria-hidden="true">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 6v8"/><path d="M12 18.5v.01"/></svg>
-      </span>
-      <span class="s-msg" id="strip-msg"></span>
-      <button class="s-btn" id="strip-btn" hidden></button>
-    </div>
-    <!-- 땅의 눈금 숫자. 하늘은 지평선에서 잘리므로 숫자는 땅 쪽 맨 윗줄에 둔다 (drawSky) -->
-    <div class="ruler" id="sky-ruler" aria-hidden="true"></div>
-    <main class="home" id="v-home">
-      <section class="col">
-        <h2>오늘 <span class="n" id="c-today">0</span><i class="note" id="today-note"></i></h2>
-        <div class="list" id="today"></div>
-      </section>
-      <div class="vr"></div>
-      <section class="col r">
-        <h2>다가오는 마감 <span class="n" id="c-up">0</span><i class="note">7일</i></h2>
-        <div class="list" id="upcoming"></div>
-        <h2 class="mt">메모 <span class="n" id="c-float">0</span></h2>
-        <div class="list" id="floating"></div>
-      </section>
-    </main>
+  <!-- ══════════ 전체 ══════════ 왼쪽은 모든 항목, 오른쪽은 고른 하나의 자세한 값 -->
+  <section class="v v-all" id="v-all" hidden>
+    <div class="pane L scroll" id="all-list"></div>
+    <div class="pane R" id="insp"></div>
+  </section>
 
-    <section class="cal" id="v-cal" hidden>
-      <div class="cal-top">
-        <button class="cbtn" id="cal-prev" title="이전 달" aria-label="이전 달">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <b class="cal-ym" id="cal-ym">—</b>
-        <button class="cbtn" id="cal-next" title="다음 달" aria-label="다음 달">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-        </button>
-        <button class="link" id="cal-now">이번 달</button>
-        <span class="seg cal-mode" id="cal-mode">
-          <button type="button" data-m="month" title="한 달을 한눈에">월</button>
-          <button type="button" data-m="week" title="고른 날부터 한 주 - 날을 누르면 그 날부터 · 주말을 끄면 영업일 다섯 날">한 주</button>
-        </span>
-        <span class="seg tg">
-          <button id="cal-rt" title="루틴 표시 / 숨김">루틴</button>
-          <button id="cal-we" title="주말 표시 / 숨김 (끄면 영업일만)">주말</button>
-        </span>
-        <div class="cal-gap"></div>
-        <span class="cal-legend">
-          <span><i class="lg p"></i>지남</span>
-          <span><i class="lg t"></i>오늘</span>
-          <span><i class="lg f"></i>예정</span>
-          <span><i class="lg rt"></i>루틴</span>
-        </span>
-        <button class="x" type="button" id="cal-close" title="오늘로 돌아가기" aria-label="오늘로 돌아가기">
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.6 1.6l7.8 7.8M9.4 1.6l-7.8 7.8"/></svg>
-        </button>
+  <!-- ══════════ 설정 ══════════ 바꾸는 즉시 저장한다. 왼쪽은 일정 · 알림, 오른쪽은 프로그램 -->
+  <section class="v v-set" id="v-set" hidden>
+    <div class="pane L">
+      <div class="gh"><span>Alerts</span></div>
+      <div class="srow"><div class="sl"><b>기본 알림</b></div><div class="seg" id="s-lead"></div></div>
+      <div class="srow"><div class="sl"><b>아침 브리핑</b></div><div class="seg" id="s-brief"></div></div>
+      <div class="srow" title="전체 화면 · 발표 모드 · 방해 금지 · 잠금 화면일 때 미룹니다.&#10;창을 띄워 둔 채 하는 화면 공유는 Windows 가 알려주지 않아 잡지 못합니다."><div class="sl"><b>발표 중</b></div><div class="seg" id="s-hold"></div></div>
+      <div class="gh"><span>Schedule</span></div>
+      <div class="srow"><div class="sl"><b>영업일 기준</b><span id="s-biz-d"></span></div><div class="seg" id="s-biz"></div></div>
+      <div class="srow"><div class="sl"><b>하루 끝</b></div><div class="seg" id="s-end"></div></div>
+      <div class="sfoot">
+        <button class="lnk" id="s-test" type="button">알림 미리보기</button>
+        <button class="lnk" id="s-shortcut" type="button">바탕화면 바로가기</button>
+        <span class="sp"></span>
+        <span class="where" id="s-where" title="일정 파일이 있는 곳">%APPDATA%\LazyScheduler</span>
       </div>
-      <div class="cal-head" id="cal-head"></div>
-      <div class="cal-grid" id="cal-grid"></div>
-      <!-- 7일 보기: 왼쪽은 고른 날부터 7일, 오른쪽은 고른 날 하나. 기간 업무는 왼쪽 세로선 -->
-      <div class="wkv" id="cal-week" hidden>
-        <div class="wk-list" id="wk-list"><div class="wk-rails" id="wk-rails"></div><div class="wk-rows" id="wk-rows"></div></div>
-        <div class="wk-div"></div>
-        <div class="wk-pane" id="wk-pane"></div>
+    </div>
+    <div class="pane R">
+      <div class="gh"><span>App</span></div>
+      <div class="srow"><div class="sl"><b>화면 모드</b></div><div class="seg" id="s-theme"></div></div>
+      <div class="srow"><div class="sl"><b>시작할 때 실행</b><span id="s-auto-d"></span></div><div class="seg" id="s-auto"></div></div>
+      <div class="srow"><div class="sl"><b>자동 업데이트</b></div><div class="seg" id="s-upd"></div></div>
+      <div class="srow"><div class="sl"><b>어디서든 새 항목</b><span id="s-hot-d"></span></div><div class="seg" id="s-hot"></div></div>
+      <div class="gh"><span>Sync</span></div>
+      <div class="srow"><div class="sl"><b>Google 계정</b><span id="sync-msg" aria-live="polite">—</span></div>
+        <div class="sbtns"><button class="btn" id="sync-now" type="button" hidden>지금 맞추기</button><button class="btn" id="sync-btn" type="button">로그인</button></div></div>
+      <div class="sfoot">
+        <span class="ver" id="s-ver">v—</span><span id="s-vst"></span>
+        <button class="lnk" id="s-upd-btn" type="button">업데이트 확인</button>
+        <button class="lnk bad" id="s-quit" type="button">앱 종료</button>
+        <span class="sp"></span>
+        <button class="lnk bad" id="sync-del" type="button" hidden>계정 삭제</button>
+        <button class="btn" id="s-close" type="button">닫기</button>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <footer class="foot">
-      <button class="link" id="btn-manage">전체 항목 관리</button>
-      <span id="status"></span>
-    </footer>
+  <!-- ── 자세히 (새 항목 · 고치기): 머리 아래를 통째로 덮는 종이. 날짜 · 반복 · 알림을 손으로 ── -->
+  <div class="modal sheet form" id="m-add" role="dialog" aria-modal="true" aria-label="새 항목">
+    <div class="f-head"><span class="f-kind">New</span><button class="x" type="button" data-close title="닫기 · Esc" aria-label="닫기"><i></i><i></i></button></div>
+    <div class="cp"></div>
+    <div class="f-foot"><p class="rcpt" aria-live="polite"></p>
+      <div class="btns"><button class="ghost" data-close>취소</button><button id="a-save" class="f-save" title="Enter · Ctrl+Enter">추가</button></div></div>
   </div>
+  <div class="modal sheet form" id="m-edit" role="dialog" aria-modal="true" aria-label="항목 고치기">
+    <div class="f-head"><span class="f-kind">Edit</span>
+      <div class="f-acts"><button type="button" id="e-later">내일로</button><button type="button" id="e-skip">이번 회차 건너뛰기</button><button type="button" class="bad" id="e-del">삭제</button></div>
+      <button class="x" type="button" data-close title="닫기 · Esc" aria-label="닫기"><i></i><i></i></button></div>
+    <div class="cp"></div>
+    <div class="f-foot"><p class="rcpt" aria-live="polite"></p>
+      <div class="btns"><button class="ghost" data-close>취소</button><button id="e-save" class="f-save" title="Enter · Ctrl+Enter">저장</button></div></div>
+  </div>
+</main>
 
-</div>
-
-<!-- 완료 · 삭제 · 건너뛰기 · 내일로 뒤 5초 동안 되돌릴 수 있다 -->
+<!-- 되돌리기 · 알림말. 아래 가운데 한 자리 -->
 <div class="undo" id="undo" role="status" aria-live="polite">
   <span class="u-v" id="undo-verb"></span>
   <b class="u-msg" id="undo-msg"></b>
-  <button type="button" class="u-btn" id="undo-btn">되돌리기<i class="u-s" id="undo-sec"></i></button>
+  <button type="button" class="u-btn" id="undo-btn">되돌리기</button>
+  <i class="u-s" id="undo-sec"></i>
 </div>
 
 <!-- 목록 줄에서 오른쪽 단추를 눌렀을 때 -->
 <div class="ctx" id="ctx" role="menu"></div>
+<div class="fpop" id="fpop" aria-live="polite"></div>
 
-<!-- 달력 줄에 마우스를 올렸을 때. 줄에서 뻐낸 시각과 전체 제목이 여기서 나온다 -->
-<div class="hov" id="hov" aria-hidden="true"></div>
-
-<!-- 시각 고르기: 24시간을 한눈에 펼쳐 놓고 시 · 분을 한 번씩 -->
+<!-- 시각 고르기 (자세히 종이의 시각 칸) -->
 <div class="tp" id="tp" role="dialog" aria-label="시각 고르기"></div>
 
 <div class="veil" id="veil"></div>
 
-<!-- ── 하루 전체 (달력에서 날짜를 눌렀을 때) ── -->
+<!-- ── 하루 전체 (달력의 +n) ── -->
 <div class="modal" id="m-day" role="dialog" aria-modal="true" aria-labelledby="day-title">
   <h3 id="day-title">—</h3>
   <div class="mg-list" id="day-list"></div>
   <div class="btns split">
-    <div><button class="ghost" id="day-add">이 날짜에 마감 추가</button></div>
+    <div><button class="ghost" id="day-add">이 날에 추가</button></div>
     <div><button class="ghost" data-close>닫기</button></div>
   </div>
 </div>
 
-<!-- ── 새 항목 ── -->
-<div class="modal sheet form" id="m-add" role="dialog" aria-modal="true" aria-label="새 항목">
-  <div class="f-head"><span class="f-kind">새 메모</span><button class="x" type="button" data-close title="닫기" aria-label="닫기"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.6 1.6l7.8 7.8M9.4 1.6l-7.8 7.8"/></svg></button></div>
-  <div class="cp"></div>
-  <div class="f-foot"><p class="rcpt" aria-live="polite"></p>
-    <div class="btns"><button class="ghost" data-close>취소</button><button id="a-save" class="f-save" title="Enter · Ctrl+Enter">추가</button></div></div>
-</div>
-
-<!-- ── 고치기 ── -->
-<div class="modal sheet form" id="m-edit" role="dialog" aria-modal="true" aria-label="항목 고치기">
-  <div class="f-head"><span class="f-kind">고치기</span>
-    <div class="f-acts"><button type="button" id="e-later">내일로</button><button type="button" id="e-skip">이번 회차 건너뛰기</button><button type="button" class="bad" id="e-del">삭제</button></div>
-    <button class="x" type="button" data-close title="닫기" aria-label="닫기"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.6 1.6l7.8 7.8M9.4 1.6l-7.8 7.8"/></svg></button></div>
-  <div class="cp"></div>
-  <div class="f-foot"><p class="rcpt" aria-live="polite"></p>
-    <div class="btns"><button class="ghost" data-close>취소</button><button id="e-save" class="f-save" title="Enter · Ctrl+Enter">저장</button></div></div>
-</div>
-
-<!-- ── 전체 관리 ── -->
-<div class="modal sheet" id="m-manage" role="dialog" aria-modal="true" aria-label="전체 항목">
-  <div class="f-head">
-    <h3>전체 항목</h3>
-    <div class="tabs" id="mg-tabs">
-      <button data-k="all" class="on">전체</button>
-      <button data-k="deadline">할 일</button>
-      <button data-k="routine">루틴</button>
-      <button data-k="floating">메모</button>
-      <button data-k="done">완료</button>
-    </div>
-    <span class="opt mg-n" id="mg-count"></span>
-    <button class="x" type="button" data-close title="닫기" aria-label="닫기"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.6 1.6l7.8 7.8M9.4 1.6l-7.8 7.8"/></svg></button>
-  </div>
-  <div class="mg-list" id="mg-list"></div>
+<!-- ── 단축키 한 장 (?) ── -->
+<div class="modal" id="m-keys" role="dialog" aria-modal="true" aria-labelledby="keys-title">
+  <h3 id="keys-title">단축키</h3>
+  <div class="keys" id="keys-list"></div>
   <div class="btns"><button class="ghost" data-close>닫기</button></div>
-</div>
-
-<!-- ── 설정 ── -->
-<div class="modal sheet" id="m-settings" role="dialog" aria-modal="true" aria-label="설정">
-  <div class="f-head"><h3>설정</h3><button class="x" type="button" data-close title="닫기" aria-label="닫기"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.6 1.6l7.8 7.8M9.4 1.6l-7.8 7.8"/></svg></button></div>
-  <!-- 두 갈래로 묶는다. 예전에는 성격이 다른 체크 세 개가 한 줄로 이어져,
-       무엇이 알림 설정이고 무엇이 프로그램 설정인지 읽히지 않았다. -->
-  <div class="s-cols">
-  <div class="s-col">
-  <span class="step">일정과 알림</span>
-  <div class="row">
-    <div><label for="s-lead">기본 알림 (분 전)</label><input id="s-lead" class="min5" type="number" min="0" step="5"></div>
-    <div><label for="s-brief">아침 브리핑 시각</label><input id="s-brief" class="tf" data-tf data-req autocomplete="off" title="예: 930 · 21 · 930p"></div>
-  </div>
-  <label class="chk"><input type="checkbox" id="s-biz"> 영업일 기준으로만 쓰기 <i class="opt">주말 · 공휴일 자동 보정</i></label>
-  <!-- Windows 가 알려주는 상태(SHQueryUserNotificationState)를 따른다. 전체 화면 ·
-       발표 모드 · 방해 금지 · 잠금 화면이 여기 걸린다. 창을 띄워 둔 채 하는
-       화면 공유는 Windows 가 알려주지 않으므로 잡지 못한다 - 이름을 그렇게 적었다. -->
-  <label class="chk" title="전체 화면 · 발표 모드 · 화면 복제 · 방해 금지 · 잠금 화면일 때 미룹니다.&#10;창을 띄워 둔 채 하는 화면 공유는 Windows 가 알려주지 않아 잡지 못합니다."><input type="checkbox" id="s-hold"> 전체 화면 · 발표 중에는 알림을 미룸 <i class="opt">끝나면 묶어서 한 번</i></label>
-
-  <span class="step">동기화 <i class="opt">PC · 휴대폰</i></span>
-  <p class="hint sync-msg" id="sync-msg" aria-live="polite">—</p>
-  <div class="quick">
-    <button type="button" id="sync-now" hidden>지금 동기화</button>
-    <button type="button" id="sync-btn" hidden>Google 계정으로 로그인</button>
-  </div>
-  <!-- 되돌릴 수 없는 단추는 자주 누르는 단추와 한 줄에 두지 않는다 -->
-  <div class="quick far">
-    <button type="button" class="danger" id="sync-del" hidden>계정 · 클라우드 데이터 삭제</button>
-  </div>
-  </div>
-  <div class="vr"></div>
-  <div class="s-col">
-
-  <span class="step">화면</span>
-  <!-- 이 앱의 색은 해 높이로 하루 종일 바뀐다. 그게 싫은 사람도 있고, 밤에
-       일하는 사람은 한낮 색이 눈을 찌른다 - 한 자리에 세워 둘 수 있게 한다. -->
-  <div class="seg" id="s-theme" role="group" aria-label="화면 밝기">
-    <button type="button" data-v="auto">해를 따라</button>
-    <button type="button" data-v="light">밝게</button>
-    <button type="button" data-v="dark">어둡게</button>
-  </div>
-  <p class="hint">해를 따르면 아침 · 한낮 · 노을 · 밤이 저절로 건너갑니다.</p>
-  <label class="chk"><input type="checkbox" id="s-sky"> 하늘과 궤도 <i class="opt">끄면 그 자리에 시계와 날짜만</i></label>
-  <label class="chk"><input type="checkbox" id="s-walk"> 돌멩이 움직임 <i class="opt">끄면 가운데에 가만히 앉아 눈만 굴립니다</i></label>
-
-  <span class="step">프로그램</span>
-  <label class="chk"><input type="checkbox" id="s-auto"> Windows 시작할 때 자동 실행</label>
-  <!-- 둘 다 설치 직후 한 번 누르고 마는 것이라 나란히 둔다 -->
-  <div class="quick">
-    <button type="button" id="s-shortcut">바탕화면에 바로가기 만들기</button>
-    <button type="button" id="s-test">알림 미리보기</button>
-  </div>
-  <label class="chk"><input type="checkbox" id="s-upd"> 새 버전 자동으로 받기 <i class="opt">알림이 없는 조용한 때에 알아서 바꿉니다</i></label>
-  <div class="quick upd-row"><span class="hint" id="s-ver">버전</span><button type="button" id="s-upd-btn">업데이트 확인</button></div>
-  <p class="hint">저장 위치 <code id="s-where">%APPDATA%\LazyScheduler\data.json</code></p>
-  </div>
-  </div>
-  <div class="btns split">
-    <div><button class="ghost danger" id="s-quit">완전히 종료</button></div>
-    <div>
-      <span class="s-saved" id="s-saved" aria-live="polite"></span>
-      <button class="ghost" data-close>닫기</button>
-    </div>
-  </div>
 </div>
 
 <!-- ── 확인 ── -->
@@ -303,6 +197,5 @@
 <script src="demo.js"></script>
 <script src="app.js"></script>
 <script src="sky.js"></script>
-<script src="pebble.js"></script>
 </body>
 </html>
