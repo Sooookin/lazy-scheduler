@@ -34,6 +34,19 @@ def server():
     srv.server_close()
 
 
+def _empty(d):
+    """d 를 빈 폴더로. Windows 에서는 앞 테스트의 스레드(서버 · 카드)가 파일을 아직 쥐고 있으면 지우기가 조용히 실패하고
+    폴더가 남는다 - CI 에서 가끔 'FileExistsError' 로 릴리스가 멈췄다 (v2.8.0 · v2.9.0). 잠깐씩 기다리며 몇 번 더 지운다."""
+    import time
+    for _ in range(20):
+        shutil.rmtree(d, ignore_errors=True)
+        if not os.path.exists(d):
+            break
+        time.sleep(0.05)
+    os.makedirs(d, exist_ok=True)
+    assert not os.listdir(d), "앞 테스트의 데이터가 지워지지 않았다: %s" % os.listdir(d)
+
+
 @pytest.fixture(autouse=True)
 def fresh_data():
     """테스트마다 빈 데이터 폴더와 초기 상태에서 시작한다."""
@@ -41,8 +54,7 @@ def fresh_data():
     from core import store
     from desktop import toast
 
-    shutil.rmtree(paths.DATA_DIR, ignore_errors=True)
-    os.makedirs(paths.DATA_DIR)
+    _empty(paths.DATA_DIR)
     store.NOTICE = None
     paths._token = None
     toast._seen.clear()
