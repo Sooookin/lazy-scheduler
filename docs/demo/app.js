@@ -474,8 +474,27 @@ function tickClock(){
   const el = $('#clock');
   if(el._v === v) return;
   const was = el._v;
-  el._v = v; el.textContent = v;
+  el._v = v; clockTo(el, v, was);
+  sunTo();
   if(was && STATE && view === 'today' && !DRAG && !document.hidden) drawToday();
+}
+/* 시계 숫자 굴림: 바뀐 자리의 숫자만 위로 한 칸 (옛 숫자는 data-o 로 새 숫자 위 칸에 붙는다). 움직임을 껐으면 그냥 바꾼다 */
+function clockTo(el, v, was){
+  if(!was || calm() || document.hidden || was.length !== v.length){ el.textContent = v; return; }
+  el.innerHTML = [...v].map((c, k) => c === was[k] ? c : '<span class="dg"><i data-o="' + was[k] + '">' + c + '</i></span>').join('');
+}
+/* 해시계 하늘: 머리 뒤 하늘의 가장 밝은 곳이 아침 브리핑 → 하루 끝 사이를 왼쪽에서 오른쪽으로 옮겨 간다.
+   10분 단위로만 옮긴다 (뿌리 변수를 쓰면 화면 전체 스타일을 다시 센다). 하루 끝 한 시간 전부터는 옅게 따뜻한 빛 */
+let _sun = '';
+function sunTo(){
+  if(!STATE) return;
+  const a = mins((STATE.settings && STATE.settings.brief_time) || '08:30'), b = dayEnd(), n = Math.floor(nowMin() / 10) * 10;
+  const p = Math.max(0, Math.min(1, (n - a) / Math.max(60, b - a)));
+  const x = (6 + 88 * p).toFixed(1) + '%', c = n >= b - 60 ? 'var(--sun-eve)' : 'var(--sun-day)';
+  if(_sun === x + c) return;
+  _sun = x + c;
+  document.documentElement.style.setProperty('--sun-x', x);
+  document.documentElement.style.setProperty('--sun', c);
 }
 tickClock();
 setInterval(tickClock, 5000);
@@ -494,6 +513,7 @@ function take(o){
   lastSeen = seen;
   render(o);
   updNotice(o.update);
+  sunTo();
   morningDoor();
   if(!load._first){
     load._first = true;
@@ -755,7 +775,7 @@ function setImp(i, on){
    지우기는 되돌릴 수 없는 유일한 항목이라 빨간 글씨로 맨 아래에 따로 둔다 -
    손이 미끄러져도 다른 것을 누르게 되는 자리다. */
 function ctxRows(i, where){
-  const r = [['edit', '자세히']];
+  const r = [['edit', '고치기']];
   if(!(i.kind === 'routine' && where === 'routines'))
     r.push(['done', i.done ? '끝냄 취소' : '끝냄']);
   if(!i.done){
@@ -1894,7 +1914,8 @@ const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','
 const MONTH = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const wdE = k => WDE[dObj(k).getDay()];
 /* WED 28 (요일 · 날) - 줄의 왼쪽 열. 날은 두 자리로 맞춰 요일 끝이 한 선에 선다 */
-const lblOf = k => ({a:wdE(k), b:String(dObj(k).getDate())});
+/* 날짜표 [날 | 요일] - 날이 먼저 (style.css 의 날짜표) */
+const lblOf = k => ({a:String(dObj(k).getDate()), b:wdE(k)});
 const fullE = k => { const d = dObj(k); return WDE[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()]; };
 const shortE = k => { const d = dObj(k); return d.getDate() + ' ' + MON[d.getMonth()]; };
 
@@ -1935,10 +1956,11 @@ function wireRow(el){
   const I = () => el._it;
   el.tabIndex = 0;
   el.oncontextmenu = e => { e.preventDefault(); roHide(); ctxOpen(e.clientX, e.clientY, I()); };
+  /* 2026-11: 줄을 누르면 끝냄. 매일 하는 일은 끝내기이고 고치기는 가끔이다 - 고치기는 Enter · 오른쪽 단추 · 읽기 띠의 '고치기'.
+     잘못 눌러도 아래 되돌리기 한 줄(Ctrl Z)로 돌아온다 */
   el.addEventListener('click', e => {
     if(DRAG_END > Date.now() - 50) return;
-    if(e.target.closest('.dot')) return toggleDone(I(), el);
-    startEdit(I());
+    toggleDone(I(), el);
   });
   el.onkeydown = e => {
     if(e.target !== el || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
@@ -1996,8 +2018,8 @@ function toggleDone(i, el){
    렌즈에서 멀어질수록 원통을 따라 기울며 옅어진다 (반지름 320 의 원통에 감은 것처럼). 휠로 굴려 지나온 일과
    남은 일을 보고, 3초 동안 손을 놓으면 원통이 '지금' 으로 돌아온다. 렌즈의 윗변이 곧 지금 선이다.
    움직임을 꺼 두었으면(Windows 애니메이션 효과) 원통 없이 평평하게 늘어선다. */
-/* 줄 40 · 렌즈 80 (줄 둘). 모두 40 격자 - 오른쪽 판의 줄과 같은 선에 선다 */
-const RH = 40, WH = 80;
+/* 줄 36 · 렌즈 72 (줄 둘). 모두 36 격자 - 오른쪽 카드의 줄과 같은 선에 선다 (CSS 의 --rh) */
+const RH = 36, WH = 72;
 let OFFT = 0, _wAcc = 0, _wBack = 0, DRUM_ROWS = {min:0, max:0};
 function proj(Y0, yv, h){
   /* 2026-11 다듬기: 원통으로 휘던 투영을 걷었다 - 굴릴 때 줄이 오른쪽 판의 공책 줄에서 벗어났다.
@@ -2071,6 +2093,9 @@ function eveDue(){
 function morningDoor(){
   if(CAPTURE || TRI || !STATE || SHOT_NODOOR || lsGet('ls.morn') === STATE.today) return;
   lsSet('ls.morn', STATE.today);
+  /* 아침 펼침: 하루를 여는 한 번 - 카드 셋이 80ms 씩 차례로 떠오른다 */
+  if(view === 'today') ['#v-today .pane.L .card', '#v-today .pane.R .card', '#any'].forEach((q, k) => {
+    const el = $(q); if(el){ el.style.animationDelay = k * 80 + 'ms'; replay(el, 'deal'); } });
   if(view === 'today' && amPool().length) triStart('am', amPool());
 }
 /* 렌즈 오른쪽 끝. 쉬는 때는 끝냄 · 미루기 둘, 미루기를 누르면 그 자리에서 갈 곳 (빈 때 · 내일 · 다음 영업일).
@@ -2223,12 +2248,13 @@ function patchKids(node, frag){
   a.forEach((x, k) => { if(x.outerHTML !== b[k].outerHTML) node.replaceChild(b[k], x); else x._it = b[k]._it; });
 }
 
-/* 선반 높이: 머리 PH + 줄 40 × n. 가운데 홈을 끌어 바꾸고, 이 PC 에만 기억한다. PH = CSS 의 --ph (판 · 선반 머리) */
+/* 선반 높이: 머리 PH + 줄 RH × n. 가운데 홈을 끌어 바꾸고, 이 PC 에만 기억한다. PH = CSS 의 --ph (판 · 선반 머리) */
 const PH = 40;
 let SHELF_N = (() => { try{ const v = +localStorage.getItem('ls.shelf'); return v >= 1 && v <= 8 ? v : 0; }catch(e){ return 0; } })();
 function shelfN(){
-  const H = $('#main').clientHeight;
-  const auto = Math.max(2, Math.min(4, Math.floor((H - PH - 3 * RH - WH - 2 * RH - PH) / RH)));
+  const H = $('#main').clientHeight - 2 * 8;   /* 카드 아래 틈 · 카드와 선반 사이 틈 (CSS 의 --gut) */
+  /* 끌어 둔 높이가 없으면 다섯 줄 (오늘 판에 지나온 일 둘 · 렌즈 · 남은 일 둘이 설 자리는 남긴다) */
+  const auto = Math.max(2, Math.min(5, Math.floor((H - PH - 2 * RH - WH - 2 * RH - PH) / RH)));
   return Math.min(SHELF_N || auto, Math.max(1, Math.floor((H - PH - 2 * RH - WH - PH) / RH)));
 }
 function placeShelf(){
@@ -2254,10 +2280,18 @@ function placeShelf(){
 })();
 
 /* ══════════ 다가올 날 (내일부터 7일) ══════════
-   날마다 [요일 날 | 동그라미 | 이름]. 일이 없는 영업일은 날만 한 줄(32), 일이 없는 쉬는 날은 이어지는 날끼리
+   네 주 (overview 의 upcoming_days), 스크롤. 날마다 [날 요일 | 동그라미 | 이름], 날의 첫 줄 위에 진한 선 하나.
+   날짜(또는 일이 없는 날의 줄)를 누르면 그날 전체 - 새 항목이 아니다 (새 항목은 가끔 하는 일이다).
+   일이 없는 영업일은 날만 한 줄, 일이 없는 쉬는 날은 이어지는 날끼리
    한 줄로 접고 공휴일 이름을 붙인다. 하루에 넷 이상이면 둘만 보이고 +n. 기간 업무는 시작한 날부터 끝나는 날까지
    왼쪽 여백에 가는 세로선으로 잇는다 (마우스를 올리면 청록). */
 const EXP = new Set();
+const upLab = lblOf;
+/* 그날 전체: 그날의 할 일 · 루틴 회차 · 걸친 기간. 루틴 회차는 다가올 날 범위를 한 번에 불러 둔다 */
+function openDay(d){
+  ensureRoutines(addDay(STATE.today, 1), addDay(STATE.today, STATE.upcoming_days || 7));
+  dayModal(d, dayItems(d));
+}
 function drawUp(o, gh){
   const box = $('#up');
   const items = (o.upcoming || []).filter(i => !FLD.edit || FLD.edit.id !== i.id);
@@ -2268,38 +2302,42 @@ function drawUp(o, gh){
   const rowAt = {}, dayAt = {};
   let k = 1;
   const add = el => { f.appendChild(el); return el; };
-  while(k <= 7){
+  const UPD = o.upcoming_days || 7;
+  while(k <= UPD){
     const d = addDay(o.today, k), its = (by[d] || []).slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
       (a.ghost ? 1 : 0) - (b.ghost ? 1 : 0) || (a.time || '99:99').localeCompare(b.time || '99:99'));
     const biz = isBiz(d);
     if(!its.length){
       if(!biz){
         let e = k;
-        while(e + 1 <= 7 && !isBiz(addDay(o.today, e + 1)) && !(by[addDay(o.today, e + 1)] || []).length) e++;
+        while(e + 1 <= UPD && !isBiz(addDay(o.today, e + 1)) && !(by[addDay(o.today, e + 1)] || []).length) e++;
         const hol = [];
         for(let j = k; j <= e; j++){ const x = addDay(o.today, j); dayAt[x] = f.childNodes.length; const h = (STATE.holiday_names || {})[x]; if(h && !hol.includes(h)) hol.push(h); }
         const el = document.createElement('div');
-        el.className = 'r day off'; el.dataset.drop = d;
-        const l = lblOf(d), last = e > k ? lblOf(addDay(o.today, e)) : null;
-        el.innerHTML = '<span class="tm"><span>' + l.a + '</span><span>' + esc(l.b) + '</span></span><span class="dot nd"></span>' +
-          '<div class="nm"><span class="rest">' + esc([last ? last.a + ' ' + last.b.trim() : '', hol.join(' · ')].filter(Boolean).join('   ')) + '</span></div>';
+        el.className = 'r day off ds'; el.dataset.drop = d;
+        const l = upLab(d), last = e > k ? upLab(addDay(o.today, e)) : null;
+        el.innerHTML = '<span class="tm"><span>' + esc(l.a) + '</span><span>' + l.b + '</span></span><span class="dot nd"></span>' +
+          '<div class="nm"><div class="n1">' + (last ? '<span class="tm"><span>' + esc(last.a) + '</span><span>' + last.b + '</span></span>' : '') +
+          (hol.length ? '<span class="hn">' + esc(hol.join(' · ')) + '</span>' : '') + '</div></div>';
+        el.onclick = () => openDay(d);
         add(el); k = e + 1; continue;
       }
       dayAt[d] = f.childNodes.length;
       const el = document.createElement('div');
-      el.className = 'r day blank'; el.dataset.drop = d;
-      const l = lblOf(d);
-      el.innerHTML = '<span class="tm"><span>' + l.a + '</span><span>' + esc(l.b) + '</span></span><span class="dot nd"></span><div class="nm"></div>';
-      el.title = '눌러서 이 날에 적기';
-      el.onclick = () => fieldDay(d);
+      el.className = 'r day blank ds'; el.dataset.drop = d;
+      const l = upLab(d);
+      el.innerHTML = '<span class="tm"><span>' + esc(l.a) + '</span><span>' + l.b + '</span></span><span class="dot nd"></span><div class="nm"></div>';
+      el.onclick = () => openDay(d);
       add(el); k++; continue;
     }
     dayAt[d] = f.childNodes.length;
     const many = its.length > 3, open = EXP.has(d);
     const shown = open || !many ? its : its.slice(0, 2);
     shown.forEach((i, n) => {
-      const el = rowEl(i, {lab:n ? {a:'', b:''} : lblOf(d), cls:(biz ? '' : 'offday') + (n === 0 ? ' first' : '')});
+      const el = rowEl(i, {lab:n ? {a:'', b:''} : upLab(d), cls:(biz ? '' : 'offday') + (n === 0 ? ' first ds' : '')});
       el.dataset.drop = d;
+      /* 날짜를 누르면 그날 전체 (루틴 포함). 줄의 나머지는 다른 줄처럼 끝냄 */
+      if(n === 0) el.querySelector('.tm').addEventListener('click', e => { e.stopPropagation(); openDay(d); });
       rowAt[i.id] = f.childNodes.length;
       add(el);
     });
@@ -2339,8 +2377,12 @@ function drawUp(o, gh){
 function drawToday(){
   if(!STATE || view !== 'today') return;
   const o = STATE, gh = FLD.ghost;
-  placeShelf();
+  sunTo();
   const m = todayModel(o, gh);
+  /* 언제든: 오늘 할 시각 없는 일 + 날짜 없는 메모. 둘 다 '시각 없이 언제든' 이라 한 판이다 (2026-11 Notes 를 합쳤다) */
+  const notes = (o.floating || []).filter(i => !FLD.edit || FLD.edit.id !== i.id).concat(gh && gh.kind === 'floating' ? [gh] : []);
+  const any = m.unt.concat(notes);
+  placeShelf();
   drawDrum(m);
   const late = o.overdue.length + o.todays.filter(i => isLate(i)).length;
   const tc = TRI && triCur();
@@ -2348,9 +2390,12 @@ function drawToday(){
   const moveable = o.overdue.filter(i => i.id && i.kind !== 'routine').length;
   $('#t-late').classList.toggle('act', !!moveable);
   $('#t-late').title = moveable ? '지난 날의 일 ' + moveable + '개를 오늘로' : '';
-  fillList($('#any-list'), m.unt.slice(0, shelfN() + 6), () => ({}));
-  const notes = (o.floating || []).filter(i => !FLD.edit || FLD.edit.id !== i.id).concat(gh && gh.kind === 'floating' ? [gh] : []);
-  fillList($('#notes-list'), notes, () => ({}));
+  fillList($('#any-list'), any, () => ({}));
+  /* 머리말 옆의 개수: 남은 것만 (끝낸 것 · 쓰는 중인 것은 세지 않는다) */
+  const cnt = (id, n) => { $(id).textContent = n || ''; };
+  cnt('#c-today', o.todays.filter(i => i.time && !doneNow(i)).length);
+  cnt('#c-any', any.filter(i => !i.ghost && !doneNow(i)).length);
+  cnt('#c-up', (o.upcoming || []).filter(i => !i.done).length);
   drawUp(o, gh);
 }
 /* 선이 걸친 기간 업무에 마우스를 올리면 그 선이 청록이 된다 */
@@ -2395,7 +2440,8 @@ function roPaint(i){
   ro._it = i;
   ro.innerHTML = (ed && i.date ? '<button type="button" class="tm e" data-e="date">' : '<span class="tm">') + '<span>' + esc(lab.a) + '</span><span>' + esc(lab.b) + '</span>' + (ed && i.date ? '</button>' : '</span>') +
     '<span class="dsp"></span><b>' + esc(i.title) + '</b><span class="kvs">' + kv.map(([k, v, c, e]) => '<span>' + (k ? '<i>' + k + '</i>' : '') +
-    (ed && e ? '<button type="button" class="e ' + c + '" data-e="' + e + '">' + esc(v) + '</button>' : '<span class="' + c + '">' + esc(v) + '</span>') + '</span>').join('') + '</span>';
+    (ed && e ? '<button type="button" class="e ' + c + '" data-e="' + e + '">' + esc(v) + '</button>' : '<span class="' + c + '">' + esc(v) + '</span>') + '</span>').join('') + '</span>' +
+    (i.id ? '<button type="button" class="e go" data-e="edit">고치기</button>' : '');
   ro.classList.add('on');
 }
 function roLater(){ clearTimeout(_roT); clearTimeout(_roS); _roT = setTimeout(() => { if(!ROP) roHide(); }, $('#ro .e') ? 500 : 140); }
@@ -2426,6 +2472,7 @@ function ropOpen(b){
 $('#ro').addEventListener('click', e => {
   const b = e.target.closest('.e');
   if(!b) return;
+  if(b.dataset.e === 'edit'){ const i = $('#ro')._it; roHide(); return startEdit(i); }
   if(ROP && ROP.kind === b.dataset.e) return ropClose();
   ropOpen(b);
 });
@@ -2833,11 +2880,13 @@ $$('#titlebar [data-v]').forEach(b => { b.onclick = () => setView(b.dataset.v ==
 /* 설정은 연 곳으로 닫는다 (오른쪽 아래 닫기 · 설정 그림 다시 · Esc) */
 const closeSet = () => setView(PREV_V || 'today');
 $('#s-close').onclick = closeSet;
-/* 고른 화면 이름 아래의 선 (2px 먹). 화면을 바꾸면 미끄러져 옮겨 간다 */
+/* 고른 화면 이름의 흰 칩. 화면을 바꾸면 미끄러져 옮겨 간다 */
 function placeTab(){
   $$('#titlebar [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   const on = $('#titlebar [data-v="' + view + '"]'), hb = $('#titlebar').getBoundingClientRect();
-  if(on){ const r = on.getBoundingClientRect(); $('#tabline').style.cssText = 'left:' + (r.left - hb.left) + 'px; width:' + r.width + 'px'; }
+  /* 설정은 화면 이름이 아니라 칩이 가지 않는다 - 그 자리에서 사라졌다가 돌아올 때 다시 선다 */
+  $('#tabline').classList.toggle('off', view === 'set');
+  if(on && view !== 'set'){ const r = on.getBoundingClientRect(); $('#tabline').style.cssText = 'left:' + (r.left - hb.left) + 'px; width:' + r.width + 'px'; }
 }
 addEventListener('resize', () => { placeTab(); if(view === 'today') drawToday(); });
 
@@ -2966,7 +3015,6 @@ function dayModal(key, list){
   all.forEach(t => {
     const i = t._rt ? t : (t.due_date ? asItem(t) : t);
     const el = rowEl(i, {lab:{a:'', b:i.start ? '' : (i.time || '')}});
-    el.addEventListener('click', e => { if(!e.target.closest('.dot')) closeM('#m-day'); }, true);
     box.appendChild(el);
   });
   if(!box.children.length) box.innerHTML = '<div class="empty">없음</div>';

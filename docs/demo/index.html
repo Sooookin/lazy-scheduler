@@ -13,7 +13,7 @@
 <body>
 
 <!-- ══════════ 머리 (56) ══════════
-     한 줄: 시계 · 날짜 | 문장 칸 (＋ 이름과 언제를 한 줄로) | 오늘 · 달력 · 전체 | 설정 | 창 단추.
+     한 줄: 시각 · 날짜 (시각이 앞 - 큰 것이 먼저 읽힌다) | 문장 칸 (＋ 이름과 언제를 한 줄로) | 오늘 · 달력 · 전체 | 설정 | 창 단추.
      머리 전체가 창의 제목줄이다 (끌어서 옮기기 · 두 번 눌러 최대화). 문장 칸은 늘 여기 있다 -
      아무 글자나 치면 이리로 들어온다. 친 말 중 날짜 · 시각 · 반복으로 읽힌 말은 청록으로 칠해지고,
      오른쪽에 무엇이 만들어질지(FRI 30 OCT 15:00)가 선다. -->
@@ -54,19 +54,18 @@
 <main class="main" id="main">
 
   <!-- ══════════ 오늘 ══════════
-       왼쪽 위: Today - 원통. 다음 일이 렌즈(20) 위에 서고, 지나온 일은 위로 · 남은 일은 아래로 원통을 따라 기운다.
-       왼쪽 아래: Anytime - 오늘 할, 시각 없는 일. 오른쪽 위: Upcoming - 내일부터 7일. 오른쪽 아래: Notes - 날짜 없는 것.
-       아래 두 선반의 높이는 가운데 홈을 끌어 바꾼다. -->
+       왼쪽 위: Today - 다음 일이 렌즈 위에 서고, 지나온 일은 위로 · 남은 일은 아래로.
+       왼쪽 아래: Anytime - 시각 없는 일 (오늘 할 일 + 날짜 없는 메모, 2026-11 Notes 를 합쳤다). 높이는 그 위 틈을 끌어 바꾼다.
+       오른쪽: Upcoming - 내일부터 네 주, 스크롤. 날을 누르면 그날 전체. -->
   <section class="v v-today" id="v-today">
     <div class="pane L" data-drop="0">
-      <div class="ph"><span class="pt">Today</span><span class="pn" id="t-late"></span></div>
-      <div class="drum" id="drum"></div>
-      <div class="shelf" id="any" data-drop="0"><div class="ph"><span class="pt">Anytime</span></div><div class="slist" id="any-list"></div></div>
+      <div class="card"><div class="ph"><span class="pt">Today</span><span class="pc" id="c-today"></span><span class="pn" id="t-late"></span></div>
+      <div class="drum" id="drum"></div></div>
+      <div class="shelf" id="any" data-drop="0"><div class="ph"><span class="pt">Anytime</span><span class="pc" id="c-any"></span></div><div class="slist" id="any-list"></div></div>
     </div>
     <div class="pane R">
-      <div class="ph"><span class="pt">Upcoming</span></div>
-      <div class="up" id="up"></div>
-      <div class="shelf" id="notes" data-drop="memo"><div class="ph"><span class="pt">Notes</span></div><div class="slist" id="notes-list"></div></div>
+      <div class="card"><div class="ph"><span class="pt">Upcoming</span><span class="pc" id="c-up"></span></div>
+      <div class="up" id="up"></div></div>
     </div>
     <div class="seam-h" id="seam" title="끌어서 선반 높이 조절 · 두 번 누르면 처음대로"></div>
   </section>

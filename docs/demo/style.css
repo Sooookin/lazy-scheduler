@@ -2,8 +2,10 @@
    LazyScheduler — XX (2026-11, Claude Design 보드 38 '원통 XX' 에서)
 
    생각
-   · 색은 종이 하나. 판 넷(오늘 · 언제든 · 다가올 날 · 메모)이 모두 같은 종이이고, 차이는 깊이 둘로만 둔다:
-     판 사이의 파인 홈(4px, --bg) · 다음 일이 놓인 렌즈(떠 있는 흰 면). 머리는 그 위에 떠서 얕은 그림자를 드리운다.
+   · 2026-11 가독성 (D 절충): 읽힘은 대비의 위계다 - 영역 > 머리말 > 줄 > 글자를 저마다 다른 수단으로 세운다.
+     영역은 깊이: 판 넷이 하늘빛 안개 바탕(--ground) 위에 뜬 흰 카드이고, 머리는 따로 칠하지 않고 바탕의 가장 맑은 곳에 선다.
+     머리말은 먹 500 + 남은 개수 + 1px 먹 선, 줄은 간격 36, 글자는 14 와 짙은 먹.
+   · 색은 하늘(#9ccbcd) 하나의 색상각에서 나온다: 흑연 위의 하늘(렌즈 · +) · 선의 하늘(--accent) · 글자의 하늘(--teal) · 바탕의 옅은 하늘.
    · 서명은 원통 하나. 다음 일이 렌즈 위에서 20 으로 서고, 지나온 일 · 남은 일은 원통을 따라 기울며 옅어진다.
      렌즈의 윗변(2px 청록)이 곧 '지금' 이다. 그 밖의 것은 모두 조용하다.
    · 글자는 넷: 24 (시계) · 20 (렌즈의 다음 일) · 14 (일의 이름) · 12 (그 밖의 모든 것).
@@ -28,18 +30,18 @@
 :root{
   /* >>> tokens.py 가 만든다. 여기서 직접 고치지 말 것 (tools/gen_tokens.py) */
   /* 낮 · 밤의 재료. web/sky.js 가 여기서 읽어 --surface · --text · … 를 만든다. */
-  --lit-panel:#fbfaf7; --lit-base:#ebebe9; --lit-lens:#ffffff; --lit-ink:#3b3e43; --lit-ink2:#6f7277; --lit-teal:#4f797b; --lit-accent:#609a9d; --lit-night:#353840; --lit-lens-n:#3e424a; --lit-pale:#ecebe7; --lit-pale2:#b0b2b6; --lit-teal-lit:#9ccbcd; --lit-teal-deep:#426a6c; --lit-accent-lit:#86b6b8; --lit-lens-a:#4a4e56; --lit-lens-a-n:#e9e7e2; --lit-late:#b6555d; --lit-late-lit:#eba7ad; --lit-hol:#b6555d; --lit-hol-lit:#eba7ad; --lit-danger:#b6555d; --lit-danger-lit:#eba7ad; --lit-imp:#f9e3a6; --lit-imp-lit:#665d40;
+  --lit-panel:#fdfefe; --lit-base:#e3ecee; --lit-base-top:#d2e5e9; --lit-shelf:#f4f8f9; --lit-lens:#ffffff; --lit-ink:#283034; --lit-ink2:#5c6569; --lit-teal:#347074; --lit-accent:#529fa3; --lit-night:#333b40; --lit-base-n:#23292d; --lit-base-top-n:#2a3a41; --lit-shelf-n:#2f363b; --lit-lens-n:#3c454b; --lit-pale:#e9eef0; --lit-pale2:#aab4b8; --lit-teal-lit:#9ccbcd; --lit-teal-deep:#2b6469; --lit-accent-lit:#87c6c9; --lit-lens-a:#3a4449; --lit-lens-a-n:#e4eef0; --lit-late:#b6555d; --lit-late-lit:#eba7ad; --lit-hol:#b6555d; --lit-hol-lit:#eba7ad; --lit-danger:#b6555d; --lit-danger-lit:#eba7ad; --lit-imp:#f9e3a6; --lit-imp-lit:#665d40;
   /* 낮의 기본값. 자바스크립트가 창 요소에 덮어쓴다. */
-  --surface:#fbfaf7; --bg:#ebebe9; --lens:#ffffff; --text:#3b3e43; --text2:#6f7277; --teal:#4f797b;
-  --faint:#9c9ea0; --late:#b6555d; --hol:#b6555d; --danger:#b6555d; --imp:#f9e3a6;
-  --on-teal:#fff; --field:#ffffff; --accent:#609a9d;
-  --lensa:#4a4e56; --lensa-text:#ecebe7; --lensa-text2:#b0b2b6; --lensa-teal:#9ccbcd; --lensa-late:#eba7ad;
-  --hair:rgba(48,50,54,.10); --hair2:rgba(48,50,54,.16); --next:rgba(54,122,131,.07);
-  --hover:rgba(48,50,54,.035); --hover-hi:rgba(48,50,54,.07);
+  --surface:#fdfefe; --bg:#e3ecee; --bg-top:#d2e5e9; --shelfbg:#f4f8f9; --lens:#ffffff; --text:#283034; --text2:#5c6569; --teal:#347074;
+  --faint:#909699; --late:#b6555d; --hol:#b6555d; --danger:#b6555d; --imp:#f9e3a6;
+  --on-teal:#fff; --field:#ffffff; --accent:#529fa3;
+  --lensa:#3a4449; --lensa-text:#e9eef0; --lensa-text2:#aab4b8; --lensa-teal:#9ccbcd; --lensa-late:#eba7ad;
+  --hair:rgba(40,48,52,.08); --hair2:rgba(40,48,52,.16); --next:rgba(54,122,131,.07);
+  --hover:rgba(40,48,52,.035); --hover-hi:rgba(40,48,52,.07);
   /* 굵기 */
   --w-thin:300; --w-sec:400; --w-pri:500;
   /* 글자: 크기와 자간은 늘 짝으로 쓴다 (--fs-x 를 썼으면 --tr-x 도) */
-  --fs-clock:28px; --tr-clock:-0.02em; --fs-title:18px; --tr-title:-0.01em; --fs-lead:13px; --tr-lead:0.01em; --fs-label:11px; --tr-label:0.04em;
+  --fs-clock:26px; --tr-clock:-0.02em; --fs-title:16px; --tr-title:-0.01em; --fs-lead:13px; --tr-lead:0.01em; --fs-label:11px; --tr-label:0.04em;
   /* 모서리 */
   --r:0px;
   --ease:cubic-bezier(.2,.8,.2,1); --ease-move:cubic-bezier(.32,.72,0,1); --ease-exit:cubic-bezier(.4,0,1,1); --ease-pop:cubic-bezier(.34,1.56,.64,1);
@@ -47,10 +49,10 @@
   /* <<< tokens.py */
   /* 문서 여백. 판 안의 글자 열은 모두 판 끝에서 24 안쪽에서 선다 (2026-11 다듬기: 32 → 24, 글자가 작아진 만큼) */
   --doc:24px;
-  /* 줄의 열: [시각 · 날짜 52] 12 [동그라미 10] 12 [이름]. 52 = 가장 긴 날짜표 MON 30 (11px) 을 잰 폭
-     (요일 30.4 + 4 + 숫자 두 자리 16 = 50.4 → 4 의 눈금으로 올림).
+  /* 줄의 열: [시각 · 날짜 56] 12 [동그라미 10] 12 [이름]. 56 = 가장 긴 날짜표를 잰 폭: 다가올 날의 '30 MON'
+     (날 18 가는 획 22 칸 + 4 + 요일 11px MON 29.6 = 55.6 → 4 의 눈금으로 올림). 예전 52 는 'MON 30' (11px) 의 폭.
      --namex 는 이름이 서는 곳 - 읽기 띠 · 자세히 · 새 항목 종이의 값이 모두 이 선에 선다 */
-  --tmw:52px; --dotw:10px;
+  --tmw:56px; --dotw:10px;
   --namex:calc(var(--tmw) + 12px + var(--dotw) + 12px);
   /* 판 머리 · 선반 머리 · 무리 머리 · 읽기 띠의 높이는 하나 */
   --ph:40px;
@@ -62,13 +64,31 @@
   /* 창 단추 묶음의 폭 (46 × 3). macOS 에서는 왼쪽에 선다 */
   --wins:138px; --wl:0px;
   --shelf:164px;
+  /* 2026-11 D 절충: 카드 사이 · 둘레의 틈 (바탕이 비치는 곳). 줄은 36 (렌즈 72 = 줄 둘) */
+  --gut:8px; --rh:36px;
+  /* 카드 (판 넷 · 달력 · 자세히 종이)의 그림자. --shade 는 sky.js 가 낮 · 밤으로 바꾼다 */
+  --shade:28,52,60;
+  /* 2026-11 재료: 빛은 위에서 하나. 카드는 도자기 판 - 윗변 1px 빛(--hi) · 위에서 아래로 아주 옅은 결(--face) ·
+     바닥에 붙은 짧은 그림자와 멀리 퍼지는 그림자 두 겹. --hi · --face-a 는 sky.js 가 낮 · 밤으로 바꾼다 */
+  --hi:rgba(255,255,255,.9); --face-a:.6;
+  --face:linear-gradient(rgba(255,255,255,var(--face-a)), rgba(var(--shade),.025));
+  --card:inset 0 1px 0 var(--hi), 0 0 0 1px rgba(var(--shade),.05), 0 1px 1px rgba(var(--shade),.07),
+    0 3px 6px -3px rgba(var(--shade),.10), 0 22px 40px -22px rgba(var(--shade),.42);
+  /* 해시계 하늘: 머리 뒤 하늘의 가장 밝은 곳이 하루 진행(아침 브리핑 → 하루 끝)을 따라 옮겨 간다 (--sun-x · --sun: app.js 의 sunTo).
+     색은 그대로, 빛의 자리만. 하루 끝 무렵에는 아주 옅게 따뜻해진다 (--sun-day · --sun-eve: sky.js) */
+  --sun-day:rgba(255,255,255,.75); --sun-eve:rgba(255,244,232,.85); --sun:var(--sun-day); --sun-x:50%;
+  /* 바탕: 위 끝(머리 뒤)이 가장 맑은 하늘빛 안개. 머리와 몸이 같은 바탕을 나눠 쓴다 (fixed) */
+  --ground:radial-gradient(ellipse 480px 150px at var(--sun-x) 0, var(--sun), transparent 72%) fixed,
+    linear-gradient(to bottom, var(--bg-top), var(--bg) 320px) fixed var(--bg);
+  /* 카드 사이 바탕의 미세 결 (무광 유리, 3%). 머리 뒤에는 깔지 않는다 - 글자 아래에는 결이 없다 */
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .11 0 0 0 0 .2 0 0 0 0 .24 0 0 0 .14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 html[data-os="mac"]{--wl:138px}
 
 *{box-sizing:border-box}
 [hidden]{display:none !important}
 html,body{height:100%}
-body{margin:0; overflow:hidden; user-select:none; color:var(--text); background-color:var(--bg);
+body{margin:0; overflow:hidden; user-select:none; color:var(--text); background:var(--ground);
   font-family:var(--ko); font-weight:var(--w-sec); font-size:var(--fs-lead); letter-spacing:var(--tr-lead);
   -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1}
 input,textarea{user-select:text}
@@ -91,36 +111,42 @@ html[data-os="mac"] body.pv .grip{display:none}
 
 /* ══════════ 머리 (56) ══════════
    시계 · 날짜 | 문장 칸 | 오늘 · 달력 · 전체 | 설정 | 창 단추. 판 위에 떠서 얕은 그림자를 하나 드리운다. */
-.head{position:fixed; left:0; right:0; top:0; height:56px; z-index:8; background-color:var(--surface);
-  box-shadow:0 1px 0 var(--hair2), 0 8px 14px -10px rgba(23,24,26,.22)}
-/* 시계: 왼쪽 판 글자 열의 오른끝(늦음 n · 렌즈의 오른끝과 같은 선)에 선다. 가운데 홈을 사이에 두고 화면 이름과 마주 본다 -
-   머리의 무게가 가운데에 모이고, 두 끝에는 가벼운 것(+ · 창 단추)만 남는다 */
-.clk{position:absolute; right:calc(50% + 2px + var(--doc) + 4px); top:0; height:56px; display:flex; flex-direction:row-reverse; align-items:baseline;
-  gap:12px; padding-top:12px; white-space:nowrap; pointer-events:none}
+.head{position:fixed; left:0; right:0; top:0; height:56px; z-index:8; background:var(--ground)}
+/* 시각 · 날짜: 시각이 먼저 (큰 것이 먼저 읽힌다). 머리도 줄과 같은 두 열로 짠다 - + 는 왼쪽 카드의 시각 열에, 시계는 이름 열
+   (--namex)에 선다. 시각과 날짜 사이 16. 세로는 광학 보정 2px 아래 - 숫자는 줄 상자의 위쪽에 몰려 있어 상자를 가운데 두면
+   눈에는 위로 떠 보였다 */
+.clk{position:absolute; left:calc(var(--wl) + var(--gut) + var(--doc) + var(--namex)); top:0; height:56px; display:flex; align-items:baseline;
+  gap:16px; padding-top:calc(12px + 2px); white-space:nowrap; pointer-events:none}
 .clk b{font-family:var(--mono); font-size:var(--fs-clock); letter-spacing:var(--tr-clock); line-height:32px;
   font-weight:var(--w-thin); color:var(--text)}
-.clk span{display:inline-block; font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; color:var(--text2)}
+/* 분이 바뀌면 바뀐 자리의 숫자만 위로 한 칸 굴러간다 (app.js 의 tickClock). 옛 숫자는 새 숫자 위 칸에 붙어 함께 오른다 */
+.clk .dg{display:inline-block; clip-path:inset(0 -4px)}
+.clk .dg i{position:relative; display:inline-block; font-style:normal; animation:roll .42s var(--move) both}
+.clk .dg i::before{content:attr(data-o); position:absolute; left:0; bottom:100%}
+@keyframes roll{from{transform:translateY(100%)}}
+.clk > span{display:inline-block; font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; color:var(--text2)}
 
 /* 문장 칸: 왼끝은 시계 묶음 끝 + 24 (묶음과 묶음 사이, --clk-w 는 app.js 가 잰다),
    오른끝은 왼쪽 판의 글자 열 끝 (판 끝에서 32 + 홈 4 = 가운데에서 38) */
-.field{position:absolute; left:calc(var(--wl) + var(--doc) + var(--clk-w, 168px) + 24px); right:calc(50% + 2px + var(--doc) + 4px); top:14px; height:28px;
+.field{position:absolute; left:calc(var(--wl) + var(--doc) + var(--clk-w, 168px) + 24px); right:calc(50% + var(--gut) / 2 + var(--doc)); top:14px; height:28px;
   display:flex; align-items:center; gap:12px; cursor:text; transition:box-shadow var(--t-med) var(--ease)}
 .field.open{box-shadow:inset 0 -1px 0 var(--accent)}
 /* 쓰는 동안 칸은 화면 이름 자리까지 넓어진다 - 머리가 통째로 쓰는 자리가 된다 (화면 이름은 쓰는 동안 쓸 일이 없다) */
 .field{transition:box-shadow var(--t-med) var(--ease), right var(--t-move) var(--move)}
 .field.open{right:calc(var(--wins) - var(--wl) + 24px + 28px + 24px)}
-.tabs, .tabline{transition:opacity var(--t-med) var(--ease)}
+.tabs{transition:opacity var(--t-med) var(--ease)}
+.tabline.off{opacity:0}
 body.composing .tabs, body.composing .tabline{opacity:0; pointer-events:none}
 /* 창 안에서는 + 만 (새 항목 종이를 연다). 문장 칸은 어디서든 새 항목의 작은 창(html.capture)에만 */
-html:not(.capture) .field{left:calc(var(--wl) + var(--doc)); right:auto; cursor:default}
+html:not(.capture) .field{left:calc(var(--wl) + var(--gut) + var(--doc)); right:auto; cursor:default}
 html:not(.capture) .field .fbox, html:not(.capture) .fsum, html:not(.capture) #f-more, html:not(.capture) #f-del{display:none !important}
 /* 쓰는 동안 읽기 띠는 내려오지 않는다 - 칸 아래 판과 겹친다 */
 body.composing .ro{visibility:hidden}
-.plus{position:relative; flex:0 0 28px; height:28px; border:0; padding:0; cursor:pointer; background-color:var(--accent);
+.plus{position:relative; flex:0 0 28px; height:28px; border:0; padding:0; cursor:pointer; background-color:var(--lensa);
   transition:filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease)}
-.plus:hover{filter:brightness(1.08)}
+.plus:hover{filter:brightness(1.15)}
 .plus:active{transform:translateY(1px)}
-.plus i{position:absolute; left:8px; top:13px; width:12px; height:2px; background-color:var(--on-teal);
+.plus i{position:absolute; left:8px; top:13px; width:12px; height:2px; background-color:var(--lensa-teal);
   transition:transform var(--t-slow) var(--move)}
 .plus i + i{transform:rotate(90deg)}
 .field.open .plus i{transform:rotate(45deg)}
@@ -166,23 +192,22 @@ kbd{display:inline-flex; align-items:center; justify-content:center; min-width:2
 .fx:hover{color:var(--text)}
 .fx.bad:hover{color:var(--danger)}
 
-/* 화면 이름: 왼끝이 오른쪽 판의 글자 열에 선다. 고른 것은 먹 · 500, 그 아래 2px 먹 선 */
-.tabs{position:absolute; left:calc(50% + 2px + var(--doc) + 4px); top:0; height:56px; display:flex; gap:24px}
-.tabs button, .tab-set{height:56px; padding:0; border:0; background:none; cursor:pointer; white-space:nowrap;
+/* 화면 이름: 바탕 위에 낱말 셋, 첫 낱말이 오른쪽 카드의 글자 열에 선다. 고른 것은 먹 500 과 그 아래 2px 먹 막대 하나.
+   (2026-11: 우물 + 흰 칩 · 흰 칩 하나를 거쳐 왔다 - 상자를 씌우면 버튼 모음처럼 보여 싸 보였다. 글자 그 자체로 가른다) */
+.tabs{position:absolute; left:calc(50% + var(--gut) / 2 + var(--doc)); top:14px; height:28px; display:flex; gap:24px}
+.tabs button{position:relative; z-index:2; height:28px; padding:0; border:0; background:none; cursor:pointer; white-space:nowrap;
   font-size:var(--fs-lead); letter-spacing:var(--tr-lead); color:var(--text2); transition:color var(--t-fast) var(--ease)}
-.tabs button:hover, .tab-set:hover{color:var(--text)}
-/* 손을 올리면 글자 아래 1px 가 가운데서 양쪽으로 그어진다 (고른 것의 2px 먹 선과 같은 자리) */
-.tabs button, .tab-set{position:relative}
-.tabs button::after, .tab-set::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background-color:var(--text2);
-  transform:scaleX(0); transition:transform var(--t-slow) var(--move)}
-.tabs button:hover::after, .tab-set:hover::after{transform:none}
-.tabs button.on::after, .tab-set.on::after{display:none}
-.tabs button.on, .tab-set.on{color:var(--text); font-weight:var(--w-pri)}
+.tabs button:hover{color:var(--text)}
+.tabs button.on{color:var(--text); font-weight:var(--w-pri)}
+.tab-set{position:relative; height:56px; padding:0; border:0; background:none; cursor:pointer; color:var(--text2); transition:color var(--t-fast) var(--ease)}
+.tab-set:hover, .tab-set.on{color:var(--text)}
+.tab-set svg rect{fill:var(--bg-top)}
 /* 설정은 화면 이름이 아니라 창의 도구다 - 낱말 대신 눈금 그림 하나로, 창 단추와 같은 46 칸에 붙는다 */
 .tab-set{position:absolute; top:0; right:calc(var(--wins) - var(--wl)); width:46px; display:grid; place-items:center}
 .tab-set svg{width:16px; height:16px}
 html[data-os="mac"] .tab-set{right:0}
-.tabline{position:absolute; bottom:0; height:2px; background-color:var(--text); pointer-events:none;
+/* 고른 화면 이름 아래의 막대: 낱말 폭, 글자 아래 6. 화면을 바꾸면 그 이름으로 미끄러져 간다 (app.js 의 placeTab) */
+.tabline{position:absolute; z-index:1; top:calc(14px + 28px); height:2px; pointer-events:none; background-color:var(--text);
   transition:left var(--t-move) var(--move), width var(--t-move) var(--move)}
 /* 창 단추: 46 × 56. 그림은 10px 선 하나 */
 .wins{position:absolute; right:0; top:0; display:flex}
@@ -200,9 +225,9 @@ html[data-os="mac"] #w-close{order:1} html[data-os="mac"] #w-min{order:2} html[d
 
 /* 읽기 띠: 줄에 마우스를 올리면 머리 아래로 내려온다. 높이는 판 머리와 같은 56 - 아래로 머리 조각이 비치지 않게 덮고,
    아래 선도 판 머리와 같은 진한 1px. 값은 상자 없이 [이름표 값] 쌍 - 자세히(전체)와 같은 낱말 */
-.ro{position:fixed; left:0; right:0; top:56px; height:var(--ph); z-index:7; padding:0 var(--doc);
+.ro{position:fixed; left:var(--gut); right:var(--gut); top:56px; height:var(--ph); z-index:7; padding:0 var(--doc);
   display:flex; align-items:center; gap:12px; white-space:nowrap; overflow:hidden; pointer-events:none;
-  background-color:var(--lens); box-shadow:inset 0 -1px 0 var(--text2), 0 12px 28px -14px rgba(23,24,26,.18);
+  background-color:var(--lens); box-shadow:inset 0 2px 0 var(--accent), inset 0 -1px 0 var(--text2), 0 12px 28px -14px rgba(23,24,26,.18);
   opacity:0; transform:translateY(calc(var(--ph) * -1));
   transition:transform var(--t-slow) var(--move), opacity var(--t-med) var(--ease)}
 .ro.on{opacity:1; transform:none}
@@ -210,6 +235,7 @@ html[data-os="mac"] #w-close{order:1} html[data-os="mac"] #w-min{order:2} html[d
 .ro.on .e{pointer-events:auto; cursor:pointer}
 .ro .e{border:0; background:none; padding:0; font:inherit; color:inherit; letter-spacing:inherit}
 .ro .e:hover, .ro .e:focus-visible{outline:0; color:var(--teal); box-shadow:inset 0 -1px 0 var(--accent)}
+.ro .e.go{margin-left:auto; flex:none; height:28px; padding:0 4px; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--teal)}
 .ro button.tm{text-align:left}
 /* 값 아래 작은 판: 띠 바로 밑, 고를 것 한 줄 */
 .rop{position:fixed; top:calc(56px + var(--ph)); z-index:8; display:flex; gap:4px; padding:8px; background-color:var(--lens); box-shadow:var(--lift);
@@ -220,7 +246,7 @@ html[data-os="mac"] #w-close{order:1} html[data-os="mac"] #w-min{order:2} html[d
   font-family:inherit; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text)}
 .rop button:hover{color:var(--teal)}
 .rop button.on{box-shadow:inset 0 0 0 1px var(--text2)}
-.ro .tm{flex:0 0 var(--tmw); display:flex; align-items:baseline; gap:4px; white-space:pre; font-family:var(--mono);
+.ro .tm{flex:0 0 var(--tmw); display:flex; align-items:baseline; gap:8px; white-space:pre; font-family:var(--mono);
   font-size:var(--fs-label); letter-spacing:.1em; font-weight:var(--w-sec); color:var(--text)}
 .ro .tm span:empty{display:none}
 .ro .dsp{flex:0 0 var(--dotw)}
@@ -234,7 +260,7 @@ html[data-os="mac"] #w-close{order:1} html[data-os="mac"] #w-min{order:2} html[d
 .ro .kvs .note{max-width:200px; overflow:hidden; text-overflow:ellipsis; color:var(--text2)}
 
 /* 연결 끊김 · 데이터 복구 같은 알림 띠: 머리 바로 아래 */
-.strip{position:fixed; left:0; right:0; top:56px; height:40px; z-index:7; padding:0 var(--doc);
+.strip{position:fixed; left:var(--gut); right:var(--gut); top:56px; height:40px; z-index:7; padding:0 var(--doc);
   display:flex; align-items:center; gap:12px; background-color:var(--lens); box-shadow:inset 0 -1px 0 var(--hair2)}
 .strip.bad .s-msg{color:var(--late)}
 .strip .s-msg{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -247,52 +273,71 @@ body.offline .main{opacity:.6}
 /* ══════════ 판 ══════════ */
 .main{position:fixed; left:0; right:0; top:56px; bottom:0}
 .v{position:absolute; inset:0}
-.v-today, .v-all, .v-set{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); column-gap:4px; background-color:var(--bg)}
-.pane{position:relative; min-width:0; min-height:0; background-color:var(--surface); display:flex; flex-direction:column}
-.v-today .pane{background-color:var(--bg)}
+.v-today, .v-all, .v-set{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); column-gap:var(--gut); padding:0 var(--gut) var(--gut)}
+.pane{position:relative; min-width:0; min-height:0; background-color:var(--surface); background-image:var(--face); box-shadow:var(--card); display:flex; flex-direction:column}
+/* 오늘 화면의 판은 카드 둘(위: 오늘 · 다가올 날, 아래: 선반)을 세로로 쌓는 틀일 뿐이다 */
+.v-today .pane{background-color:transparent; background-image:none; box-shadow:none; gap:var(--gut)}
+.card{position:relative; flex:1; min-height:0; display:flex; flex-direction:column; background-color:var(--surface); background-image:var(--face); box-shadow:var(--card)}
+/* 바탕의 결: 머리 아래(.main)에만 */
+.main::before{content:""; position:absolute; inset:0; pointer-events:none; background-image:var(--grain)}
+/* 아침 펼침: 그날 처음 창을 열 때 한 번, 카드 넷이 80ms 씩 차례로 떠오른다 (app.js 의 morningDoor) */
+.deal{animation:deal var(--t-move) var(--move) backwards}
+@keyframes deal{from{opacity:0; transform:translateY(14px)}}
 .view-in{animation:vin var(--t-slow) var(--ease)}
 @keyframes vin{from{opacity:0; transform:translateY(8px)}}
 
 /* 판 머리 (56): 영문 머리말 + 아래 1px 진한 선 */
 /* 판 머리. 자세히 종이의 .pv.ph(빈 값)와 이름이 겹치므로 판 · 선반 바로 아래의 것만 */
-.pane > .ph, .shelf > .ph{flex:0 0 var(--ph); height:var(--ph); padding:0 var(--doc) 12px; display:flex; align-items:flex-end; gap:12px;
-  background-color:var(--surface); box-shadow:inset 0 -1px 0 var(--text2); white-space:nowrap}
-.pane.R > .ph, .pane.R .shelf > .ph{padding-left:calc(var(--doc) + 4px)}
+/* 판 머리 (40): 렌즈와 같은 흑연 띠에 흰 글자 (밤에는 렌즈를 따라 밝은 종이에 먹 글자). 머리가 목록과 다른 층으로 단번에 갈린다.
+   글자는 하늘이 아니라 흰빛 - 하늘은 렌즈(시각 · 지금 선)에만 남겨 렌즈가 서명으로 남는다.
+   (2026-11: 하늘빛 띠 · 회색 띠 · 흑연 12% 띠는 바탕과 충분히 갈리지 않았다 - 캔버스 '판 머리 줄 시안' B) */
+.pane > .ph, .card > .ph, .shelf > .ph{flex:0 0 var(--ph); height:var(--ph); padding:0 var(--doc) 12px; display:flex; align-items:flex-end; gap:12px;
+  background-color:var(--lensa); white-space:nowrap}
+.pane > .ph .pt, .card > .ph .pt, .shelf > .ph .pt{color:var(--lensa-text)}
+.pane > .ph .pc, .card > .ph .pc, .shelf > .ph .pc{color:var(--lensa-text2)}
+.pane > .ph .pn, .card > .ph .pn{color:var(--lensa-late)}
+.pane.R > .ph, .pane.R .shelf > .ph{padding-left:var(--doc)}
 /* 왼쪽 판의 오른끝도 32 + 홈 4 - 줄(.r)과 같은 선 */
-.pane.L > .ph, .pane.L .shelf > .ph{padding-right:calc(var(--doc) + 4px)}
-.pt{font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; font-weight:var(--w-sec); color:var(--text)}
+.pane.L > .ph, .pane.L .shelf > .ph{padding-right:var(--doc)}
+.pt{font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; font-weight:var(--w-pri); color:var(--text)}
+/* 머리말 옆의 개수: 남은 것만 센다 (0 이면 비운다) */
+.pc{font-family:var(--mono); font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text2)}
+.pc:empty{display:none}
 .pn{margin-left:auto; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--late)}
 .pn b{font-family:var(--mono); font-weight:var(--w-sec)}
-.shelf{flex:0 0 var(--shelf); height:var(--shelf); border-top:4px solid var(--bg); background-color:var(--surface); overflow:hidden;
+.shelf{flex:0 0 var(--shelf); height:var(--shelf); background-color:var(--shelfbg); background-image:var(--face); box-shadow:var(--card); overflow:hidden;
   display:flex; flex-direction:column}
 .shelf > .ph{flex:0 0 var(--ph); height:var(--ph); padding-bottom:12px}
-.slist{flex:1; min-height:0}
+.slist{flex:1; min-height:0; overflow-y:auto; overflow-x:hidden}
 /* 선반(언제든 · 메모)의 일에는 시각이 없다 - 빈 시각 열을 두지 않고 동그라미가 글자 열에 선다 */
 .slist .r .tm{display:none}
-.seam-h{position:absolute; left:0; right:0; bottom:calc(var(--shelf) - 6px); height:8px; z-index:5; cursor:row-resize}
-.seam-h:hover, body.seaming .seam-h{background:linear-gradient(to bottom, transparent 2px, var(--hair2) 2px, var(--hair2) 6px, transparent 6px)}
+.seam-h{position:absolute; left:var(--gut); right:calc(50% + var(--gut) / 2); bottom:calc(var(--gut) + var(--shelf)); height:var(--gut); z-index:5; cursor:row-resize}
+.seam-h:hover, body.seaming .seam-h{background:linear-gradient(to bottom, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px)}
 body.seaming{cursor:row-resize}
 
 /* ══════════ 줄 ══════════
    [왼쪽 열 48: 시각 · 날짜] 12 [동그라미 12] 12 [이름 14]. 줄 사이 선은 글자 열 안에서만.
    왼쪽 판의 오른끝은 32 + 홈 4 (= 오른쪽 판의 왼끝과 같은 거리) - 가운데 홈을 사이에 두고 두 판의 글자 열이 거울처럼 선다. */
-.r{position:relative; height:40px; flex:0 0 auto; padding:0 calc(var(--doc) + 4px) 0 var(--doc); display:flex; align-items:center; gap:12px;
+.r{position:relative; height:var(--rh); flex:0 0 auto; cursor:pointer; padding:0 var(--doc) 0 var(--doc); display:flex; align-items:center; gap:12px;
   outline:0; transition:background-color var(--t-fast) var(--ease)}
-.pane.R .r, .v-set .pane.R .r{padding:0 var(--doc) 0 calc(var(--doc) + 4px)}
+.pane.R .r, .v-set .pane.R .r{padding:0 var(--doc) 0 var(--doc)}
 /* 줄 사이 선은 판 끝에서 끝까지. 손을 올리면 그 선이 왼쪽부터 먹색으로 그어진다 (분침이 지나가듯, 한 번) */
 .r::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; pointer-events:none;
   background:linear-gradient(var(--text2), var(--text2)) left center / 0 100% no-repeat, var(--hair);
   transition:background-size var(--t-move) var(--move)}
-.r:hover{background-color:var(--hover)}
+.r:hover{background-color:color-mix(in srgb, var(--accent) 8%, transparent)}
 .r:hover::after{background-size:100% 100%, auto}
 .r:hover:not(.late):not(.done) .dot{box-shadow:inset 0 0 0 1.5px var(--text)}
 .r:focus-visible{box-shadow:inset 2px 0 0 var(--accent)}
-.r .tm{flex:0 0 var(--tmw); display:flex; align-items:baseline; gap:4px; white-space:pre; font-family:var(--mono);
+.r .tm{flex:0 0 var(--tmw); display:flex; align-items:baseline; gap:8px; white-space:pre; font-family:var(--mono);
   font-size:var(--fs-label); letter-spacing:.06em; font-weight:var(--w-sec); color:var(--text2)}
-/* 날짜표: 요일은 고정 폭, 날 숫자는 두 자리 칸(16)에 오른쪽 맞춤 - 일의 자리가 위아래 줄에서 한 세로선에 선다
-   (같은 폭 숫자의 1 은 칸 가운데에 서서, 왼쪽 맞춤이면 9 와 10 의 잉크가 어긋나 보였다) */
-.r .tm span:first-child:not(:empty):not(:only-child){flex:0 0 calc(var(--tmw) - 4px - 16px)}
-.r .tm span:first-child:not(:empty):not(:only-child) + span{flex:0 0 16px; text-align:right}
+/* 날짜표 (앱 어디서나 하나): [날 14 · 두 자리 칸 16 에 오른쪽 맞춤 | 8 | 요일 11]. 날이 먼저 - 이름(한글)과 모양이 다른 숫자가
+   고정 열에 서서 오늘 판의 시각처럼 읽힌다. 일의 자리가 위아래 줄에서 한 세로선에 서고, 요일도 한 세로선에 선다.
+   시각(08:30)은 둘째 칸 하나뿐이고, 'TODAY' 같은 낱말은 첫 칸 하나뿐이라 여기 걸리지 않는다 */
+.r .tm span:first-child:not(:empty):has(+ span:not(:empty)), .ro .tm span:first-child:not(:empty):has(+ span:not(:empty)){
+  flex:0 0 16px; text-align:right; font-size:var(--fs-lead); letter-spacing:var(--tr-lead); line-height:20px}
+.r .tm span:first-child:not(:empty) + span:not(:empty), .ro .tm span:first-child:not(:empty) + span:not(:empty){letter-spacing:.06em}
+.r:not(.late) .tm span:first-child:not(:empty) + span:not(:empty), .ro .tm span:first-child:not(:empty) + span:not(:empty){color:var(--text2)}
 .r .tm span:empty{display:none}
 .r.late .tm{color:var(--late)}
 .r.done .tm{color:var(--faint)}
@@ -309,11 +354,18 @@ body.seaming{cursor:row-resize}
   border-left:1.25px solid var(--text); border-bottom:1.25px solid var(--text); transform:translateY(-.5px) rotate(-45deg);
   opacity:0; transition:opacity var(--t-fast) var(--ease)}
 .r:not(.done) .dot:not(.nd):hover::after{opacity:1}
-.r.pop .dot{animation:pop var(--t-slow) var(--ease-pop)}
+/* 끝냄: 고리가 하늘로 차고 흰 체크가 선 뒤, 물결이 한 번 퍼지고 끝낸 빛(--faint)으로 가라앉는다 */
+.r.pop .dot{animation:pop var(--t-slow) var(--ease-pop), donef .7s var(--ease)}
+.r.pop .dot::after{border-color:#fff; animation:donek .7s var(--ease)}
 @keyframes pop{50%{transform:scale(1.25)}}
+@keyframes donef{
+  0%{background-color:var(--accent); box-shadow:inset 0 0 0 1.5px var(--accent), 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent)}
+  45%{background-color:var(--accent); box-shadow:inset 0 0 0 1.5px var(--accent), 0 0 0 10px transparent}
+  100%{background-color:var(--faint); box-shadow:inset 0 0 0 1.5px var(--faint), 0 0 0 10px transparent}}
+@keyframes donek{0%, 50%{opacity:1} 100%{opacity:0}}
 .r .nm{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:4px}
 .r .n1{display:flex; min-width:0}
-.r .nt{position:relative; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:text;
+.r .nt{position:relative; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   font-size:var(--fs-lead); letter-spacing:var(--tr-lead); line-height:20px; color:var(--text); transition:color var(--t-slow) var(--ease)}
 /* 끝낸 일: 선이 이름을 왼쪽부터 긋고 지나간다 */
 .r .nt::after{content:""; position:absolute; left:0; top:54%; height:1px; width:0; background-color:var(--faint);
@@ -333,7 +385,7 @@ body.seaming{cursor:row-resize}
 .drop-on, .r.drop-on{background-color:var(--next) !important}
 
 /* ══════════ 원통 ══════════ */
-.drum{position:relative; flex:1; min-height:0; overflow:hidden; background-color:var(--surface)}
+.drum{position:relative; flex:1; min-height:0; overflow:hidden}
 .drum .r{position:absolute; left:0; right:0; backface-visibility:hidden; transform-origin:50% 50%;
   transition:top var(--t-move) var(--move), transform var(--t-move) var(--move), opacity var(--t-slow) var(--ease), height var(--t-move) var(--move)}
 .drum .r.in{opacity:0 !important}
@@ -388,32 +440,37 @@ body.seaming{cursor:row-resize}
 .drum .r.lens.alt .dot.nd + .nm .nt{color:var(--faint)}
 /* 저녁 문의 '남은 n' 은 고를 거리 - 흐리게 두지 않는다 (바로 위의 흐린 이름보다 뒤에 두어 이긴다) */
 .drum .r.lens.eve .dot.nd + .nm .nt{color:var(--lensa-text)}
-/* 렌즈 (시그니처): 화면에서 유일하게 뒤집힌 면 - 낮에는 흑연, 밤에는 밝은 종이 (--lensa, sky.js) */
-.lensbg{position:absolute; left:0; right:0; height:80px; z-index:1; pointer-events:none; background-color:var(--lensa);
+/* 렌즈 (시그니처): 화면에서 유일하게 뒤집힌 면 - 낮에는 무광 흑연, 밤에는 밝은 종이 (--lensa, sky.js).
+   2026-11: 광택 · 숫자 번짐 · 게이지 · 빛 스침을 얹어 보았다가 걷었다 - 효과가 겹치니 싸 보였다. 면 하나 + 하늘 선 하나 + 그림자 하나 */
+.lensbg{position:absolute; left:0; right:0; height:calc(var(--rh) * 2); z-index:1; pointer-events:none; background-color:var(--lensa);
   box-shadow:0 18px 30px -16px rgba(23,24,26,.45);
   transition:top var(--t-move) var(--move), transform var(--t-move) var(--move), opacity var(--t-slow) var(--ease)}
-.nowl{position:absolute; left:0; right:0; height:2px; z-index:4; pointer-events:none; background-color:var(--accent);
+.nowl{position:absolute; left:0; right:0; height:2px; z-index:4; pointer-events:none; background-color:var(--lensa-teal);
   transition:top var(--t-move) var(--move), transform var(--t-move) var(--move), opacity var(--t-slow) var(--ease)}
 
 /* ══════════ 다가올 날 ══════════ */
-.up{position:relative; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; background-color:var(--surface); scrollbar-width:thin;
+.up{position:relative; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
   padding-bottom:24px; -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 24px), transparent); mask-image:linear-gradient(to bottom, #000 calc(100% - 24px), transparent)}
 /* 아래 끝 24 를 흐려서 마지막 줄이 반으로 잘려 보이지 않게 (끝까지 내리면 여백 24 가 흐린 자리를 받는다) */
 /* 줄 단위로 멈춘다 - 오늘 판의 공책 줄과 늘 같은 높이에 선다 */
 .up{scroll-snap-type:y mandatory}
 .up > .r{scroll-snap-align:start}
-.up::-webkit-scrollbar{width:4px}
-.up::-webkit-scrollbar-thumb{background-color:var(--hair2)}
 .up .r .tm{color:var(--text)}
+.up .r.day .tm span + span, .up .r.offday .tm span + span{color:inherit}
+/* 이어지는 쉬는 날을 접은 줄: 둘째 날도 같은 날짜표 (크기 · 모양이 같아야 한 쌍으로 읽힌다), 공휴일 이름은 그 뒤 */
+.up .r.day.off .n1{display:flex; align-items:baseline; gap:24px}
+.up .r.day.off .n1 .tm{flex:none; color:var(--faint)}
+.up .r.day.off .hn{font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--late)}
+.up .r.first .tm, .up .r.day .tm{cursor:pointer}
+.up .r.first .tm:hover span, .up .r.day:hover .tm span{color:var(--teal)}
+.up .r.ds:not(:first-child)::before{content:""; position:absolute; left:0; right:0; top:-1px; height:1px; pointer-events:none;
+  background-color:color-mix(in srgb, var(--text) 38%, transparent)}
 .up .r.offday .tm{color:var(--faint)}
 /* 쉬는 날은 한 가지로: 일이 있든 없든 옅은 바탕 + 옅은 날짜 */
-.up .r.offday{background-color:color-mix(in oklab, var(--text) 2.5%, transparent)}
 .up .r.day .tm{color:var(--text2)}
 .up .r.day.off .tm{color:var(--faint)}
-.up .r.day.off .rest{font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.02em; white-space:pre; color:var(--text2)}
 .up .r.day.off::after{display:none}
-.up .r.day.off{background-color:color-mix(in oklab, var(--text) 2.5%, transparent)}
-.up .r.day.blank{cursor:pointer}
+.up .r.day{cursor:pointer}
 .up .r.more{cursor:pointer}
 .up .r.more .mono{font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text2)}
 .up .r.more:hover .mono{color:var(--text)}
@@ -421,7 +478,7 @@ body.seaming{cursor:row-resize}
    시작이 7일 밖이면 위 끝을 흐려 '위에서 이어진다' 고 말한다. 끝의 가로선은 글자 열(32 + 4) 앞 4 에서 멈춘다 */
 .lane{--lc:var(--text2); position:absolute; left:var(--lx, 14px); width:1px; background-color:var(--lc); pointer-events:none; transition:background-color var(--t-fast) var(--ease)}
 .lane:not(.cap){background:linear-gradient(to bottom, transparent, var(--lc) 24px)}
-.lane::after, .lane.cap::before{content:""; position:absolute; left:0; width:calc(var(--doc) - var(--lx, 14px)); height:1px; background-color:var(--lc)}
+.lane::after, .lane.cap::before{content:""; position:absolute; left:0; width:calc(var(--doc) - var(--lx, 14px) - 6px); height:1px; background-color:var(--lc)}
 .lane::after{bottom:0}
 .lane.cap::before{top:0}
 .lane.hi{--lc:var(--accent)}
@@ -432,7 +489,7 @@ body.seaming{cursor:row-resize}
 .dragg i{width:12px; height:12px; border-radius:50%; box-shadow:inset 0 0 0 1.5px var(--text2)}
 
 /* ══════════ 달력 ══════════ */
-.v-cal{background-color:var(--surface); padding:0 var(--doc) var(--doc); display:grid; grid-template-rows:var(--ph) 32px minmax(0, 1fr)}
+.v-cal{inset:0 var(--gut) var(--gut); background-color:var(--surface); background-image:var(--face); box-shadow:var(--card); padding:0 var(--doc) var(--doc); display:grid; grid-template-rows:var(--ph) 32px minmax(0, 1fr)}
 .calh{display:flex; align-items:center; gap:8px}
 .cal-ym{margin-right:12px; font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; font-weight:var(--w-sec)}
 .sq{width:28px; height:28px; border:0; padding:0; cursor:pointer; background:none; box-shadow:inset 0 0 0 1px var(--hair2);
@@ -460,7 +517,7 @@ body.seaming{cursor:row-resize}
   font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text)}
 .cc.off .cn, .cc.past .cn{color:var(--text2)}
 .cc.out .cn{color:var(--faint)}
-.cc.now .cn{background-color:var(--teal); color:var(--on-teal); font-weight:var(--w-pri)}
+.cc.now .cn{background-color:var(--lensa); color:var(--lensa-teal); font-weight:var(--w-pri)}
 .cc .hn{min-width:0; overflow:hidden; text-overflow:ellipsis; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--late)}
 .ce{display:flex; align-items:center; gap:8px; min-width:0; height:16px; white-space:nowrap;
   font-size:var(--fs-label); letter-spacing:var(--tr-label); line-height:16px; color:var(--text)}
@@ -503,22 +560,22 @@ body.seaming{cursor:row-resize}
 
 /* ══════════ 전체 · 설정의 묶음 머리 ══════════ */
 .gh{flex:0 0 var(--ph); height:var(--ph); margin:0 var(--doc); display:flex; align-items:center; gap:12px; white-space:nowrap;
-  font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; font-weight:var(--w-sec); color:var(--text)}
-.pane.R .gh{margin-left:calc(var(--doc) + 4px)}
-.pane.L .gh{margin-right:calc(var(--doc) + 4px)}
+  font-family:var(--mono); font-size:var(--fs-label); letter-spacing:.1em; text-transform:uppercase; font-weight:var(--w-pri); color:var(--text)}
+.pane.R .gh{margin-left:var(--doc)}
+.pane.L .gh{margin-right:var(--doc)}
 .gh::after{content:""; flex:1; height:1px; background-color:var(--hair2)}
 .gh .gc{font-weight:var(--w-sec); color:var(--text2)}
 .gh.gap{margin-top:16px}
-.pane.scroll{overflow-y:auto; overflow-x:hidden; padding:8px 0 var(--doc); scrollbar-width:thin; display:block}
+.pane.scroll{overflow-y:auto; overflow-x:hidden; padding:8px 0 var(--doc); display:block}
 .pane.scroll .gh{display:flex}
 .v-all .pane.L{padding-top:8px}
 .v-all .r{cursor:pointer}
-.v-all .r.sel{background-color:var(--hover-hi)}
-.v-all .r.sel::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background-color:var(--text)}
+.v-all .r.sel{background-color:color-mix(in srgb, var(--accent) 13%, transparent)}
+.v-all .r.sel::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background-color:var(--accent)}
 #insp{padding-top:8px}
-.kv{position:relative; height:40px; margin:0 var(--doc) 0 calc(var(--doc) + 4px); display:flex; align-items:center; gap:12px}
+.kv{position:relative; height:var(--rh); margin:0 var(--doc) 0 var(--doc); display:flex; align-items:center; gap:12px}
 /* 줄 사이 선은 판 끝에서 끝까지 (목록의 줄과 같다): 여백만큼 밖으로 */
-.kv::after{content:""; position:absolute; left:calc((var(--doc) + 4px) * -1); right:calc(var(--doc) * -1); bottom:0; height:1px; background-color:var(--hair)}
+.kv::after{content:""; position:absolute; left:calc(var(--doc) * -1); right:calc(var(--doc) * -1); bottom:0; height:1px; background-color:var(--hair)}
 .kv .kk{flex:0 0 calc(var(--namex) - 12px); font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text2)}
 .kv .vv{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text)}
 .kv .vv.n{font-size:var(--fs-lead); letter-spacing:var(--tr-lead)}
@@ -526,7 +583,7 @@ body.seaming{cursor:row-resize}
 .kv .vv.dim{color:var(--text2)}
 .kv .vv .m{font-family:var(--mono); text-transform:uppercase}
 .kv .vv.late{color:var(--late)}
-.acts{margin:16px var(--doc) 0 calc(var(--doc) + 4px + var(--namex)); display:flex; align-items:center; gap:8px}
+.acts{margin:16px var(--doc) 0 calc(var(--doc) + var(--namex)); display:flex; align-items:center; gap:8px}
 .btn{height:32px; padding:0 16px; border:0; cursor:pointer; white-space:nowrap; background-color:var(--lens);
   box-shadow:inset 0 0 0 1px var(--hair2); min-width:72px;
   font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text); transition:box-shadow var(--t-fast) var(--ease)}
@@ -540,10 +597,10 @@ body.seaming{cursor:row-resize}
 /* 줄 56: 이름 하나 (상태를 알리는 둘째 줄이 서면 72) */
 .srow{position:relative; flex:0 0 auto; min-height:48px; margin:0 var(--doc); display:flex; align-items:center; gap:16px}
 .srow:has(.sl span:not(:empty)){min-height:64px}
-.pane.R .srow{margin-left:calc(var(--doc) + 4px)}
-.pane.L .srow{margin-right:calc(var(--doc) + 4px)}
-.srow::after{content:""; position:absolute; left:calc(var(--doc) * -1); right:calc((var(--doc) + 4px) * -1); bottom:0; height:1px; background-color:var(--hair)}
-.pane.R .srow::after{left:calc((var(--doc) + 4px) * -1); right:calc(var(--doc) * -1)}
+.pane.R .srow{margin-left:var(--doc)}
+.pane.L .srow{margin-right:var(--doc)}
+.srow::after{content:""; position:absolute; left:calc(var(--doc) * -1); right:calc(var(--doc) * -1); bottom:0; height:1px; background-color:var(--hair)}
+.pane.R .srow::after{left:calc(var(--doc) * -1); right:calc(var(--doc) * -1)}
 .srow:has(+ .gh)::after, .srow:has(+ .sfoot)::after{display:none}
 .srow + .gh{margin-top:16px}
 .sl{flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; white-space:nowrap}
@@ -561,8 +618,8 @@ body.seaming{cursor:row-resize}
 .sbtns{display:flex; gap:8px}
 .sfoot{position:absolute; left:var(--doc); right:var(--doc); bottom:0; height:72px; display:flex; align-items:center; gap:12px; white-space:nowrap;
   font-size:var(--fs-label); letter-spacing:var(--tr-label); color:var(--text2)}
-.pane.R .sfoot{left:calc(var(--doc) + 4px)}
-.pane.L .sfoot{right:calc(var(--doc) + 4px)}
+.pane.R .sfoot{left:var(--doc)}
+.pane.L .sfoot{right:var(--doc)}
 .sfoot .sp{flex:1}
 .sfoot #s-close{min-width:72px}
 .sfoot .ver{font-family:var(--mono); color:var(--text2)}
@@ -571,7 +628,7 @@ body.seaming{cursor:row-resize}
 /* ══════════ 아래 가운데 한 줄 (되돌리기 · 알림말) ══════════ */
 .undo{position:fixed; z-index:30; left:0; right:0; bottom:24px; margin:0 auto; width:max-content; max-width:min(560px, calc(100vw - 32px));
   height:40px; padding:0 8px 0 16px; display:flex; align-items:center; gap:12px; white-space:nowrap;
-  background-color:var(--text); color:var(--surface); box-shadow:0 16px 40px -8px rgba(23,24,26,.4);
+  background-color:var(--lensa); color:var(--lensa-text); box-shadow:0 16px 40px -8px rgba(23,24,26,.4);
   font-size:var(--fs-label); letter-spacing:var(--tr-label);
   opacity:0; visibility:hidden; transform:translateY(8px);
   transition:opacity var(--t-fast) var(--ease-exit), transform var(--t-fast) var(--ease-exit), visibility 0s linear var(--t-fast)}
@@ -579,10 +636,10 @@ body.seaming{cursor:row-resize}
 .undo .u-v{opacity:.62}
 .undo .u-msg{min-width:0; overflow:hidden; text-overflow:ellipsis; font-weight:var(--w-pri)}
 .undo .u-btn{height:28px; padding:0 12px; border:0; cursor:pointer; display:flex; align-items:center; gap:8px;
-  background-color:color-mix(in oklab, var(--surface) 14%, transparent); color:var(--surface);
+  background-color:color-mix(in oklab, var(--lensa-text) 10%, transparent); color:var(--lensa-teal);
   font-size:var(--fs-label); letter-spacing:var(--tr-label); font-weight:var(--w-pri)}
-.undo .u-btn:hover{background-color:color-mix(in oklab, var(--surface) 22%, transparent)}
-.undo .u-s{position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--surface); opacity:.4; transform-origin:left; transform:scaleX(0)}
+.undo .u-btn:hover{background-color:color-mix(in oklab, var(--lensa-text) 18%, transparent)}
+.undo .u-s{position:absolute; left:0; right:0; bottom:0; height:2px; background-color:var(--lensa-teal); opacity:.7; transform-origin:left; transform:scaleX(0)}
 
 /* ══════════ 오른쪽 단추 차림표 ══════════ */
 .ctx{position:fixed; z-index:25; min-width:180px; padding:4px; background-color:var(--lens); box-shadow:var(--lift);
@@ -644,9 +701,9 @@ body.seaming{cursor:row-resize}
 .mg-list .r .nt{cursor:pointer}
 
 /* 자세히 종이: 머리 아래 판을 덮는다 */
-.modal.sheet{position:absolute; inset:0; z-index:6; margin:0; width:auto; max-width:none; height:auto; max-height:none;
+.modal.sheet{position:absolute; inset:0 var(--gut) var(--gut); z-index:6; margin:0; width:auto; max-width:none; height:auto; max-height:none;
   display:flex; flex-direction:column; overflow:hidden; padding:16px max(var(--doc), calc((100% - 1104px) / 2)) 16px;
-  background-color:var(--surface); box-shadow:none; transform:translateY(24px);
+  background-color:var(--surface); background-image:var(--face); box-shadow:var(--card); transform:translateY(24px);
   transition:opacity var(--t-med) var(--ease-exit), transform var(--t-move) var(--move), visibility 0s linear var(--t-med)}
 .modal.sheet.on{transform:none; transition:opacity var(--t-med) var(--ease), transform var(--t-move) var(--move)}
 .f-head{display:flex; align-items:center; gap:16px; flex:0 0 auto}
@@ -732,7 +789,7 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
 /* ---------- 새 항목 · 고치기 (app.js Form) ----------
    예전(2.7)의 뼈대를 XX 문법으로: 왼쪽은 이름 + 값의 세로 목록(날짜 · 시각 · 반복 · 알림 · 중요 · 설명),
    오른쪽은 지금 고른 줄의 도구 하나(달력 · 시계판 · 빈도 · 알림). 두 단은 홈의 두 판과 같은 글 열에 선다 -
-   왼쪽 글은 가운데에서 38 앞에서 끝나고 오른쪽 글은 38 뒤에서 시작한다 (판 32 + 홈 4 + 홈의 반 2).
+   왼쪽 글은 가운데에서 28 앞에서 끝나고 오른쪽 글은 28 뒤에서 시작한다 (카드 안 여백 24 + 카드 사이 틈의 반 4).
    값 줄의 값은 홈 목록의 이름과 같은 열(시각 48 · 12 · 점 12 · 12)에 선다. 글자는 넷 중 셋만: 이름 20 · 값 14 · 나머지 12 */
 .modal.sheet.form{--cp-w:1040px}
 /* 아래의 display 가 hidden 속성을 이기지 않게 */
@@ -750,10 +807,16 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
 .f-acts button.bad:hover{background-color:color-mix(in srgb, var(--danger) 10%, transparent); color:var(--danger)}
 
 .cp{flex:1 1 auto; min-height:0; width:100%; max-width:var(--cp-w); overflow-y:auto; overflow-x:hidden;
-  display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); column-gap:calc(2 * (32px + 4px + 2px)); align-items:start;
+  display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); column-gap:calc(2 * (var(--doc) + var(--gut) / 2)); align-items:start;
   padding:12px 12px 16px; margin:0 -12px; box-sizing:content-box}
-.cp::-webkit-scrollbar{width:6px}
-.cp::-webkit-scrollbar-thumb{background-color:var(--hair2); border-radius:3px}
+/* 스크롤바: 회색 막대 · 화살표 대신 카드 오른끝의 2px 선 하나 (8 칸 가운데). 손을 올린 판에서만 보이고, 그 위에서는 먹으로.
+   (scrollbar-width 를 쓰면 Chromium 이 아래 꾸밈을 무시하고 기본 막대로 돌아간다 - 쓰지 않는다) */
+::-webkit-scrollbar{width:8px; height:8px}
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-button{display:none}
+::-webkit-scrollbar-thumb{background-color:transparent; background-clip:content-box; border:3px solid transparent; min-height:32px}
+:hover::-webkit-scrollbar-thumb{background-color:var(--hair2)}
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active{background-color:var(--text2)}
 .cp-l{display:flex; flex-direction:column; min-width:0}
 
 /* 이름: 상자 없이 제목처럼. 밑줄 하나가 "여기에 쓴다" 를 말한다. 날짜로 읽은 말은 그 자리에 옅게 칠해진다
@@ -1011,6 +1074,6 @@ input.tf{cursor:pointer; font-variant-numeric:tabular-nums}
 html.capture body{background-color:var(--surface)}
 html.capture .main, html.capture .clk, html.capture .tabs, html.capture .tab-set, html.capture .tabline, html.capture .wins,
 html.capture .strip, html.capture .grip, html.capture #f-more, html.capture #f-del, html.capture .undo, html.capture .ro{display:none !important}
-html.capture .head{box-shadow:inset 0 -1px 0 var(--hair2)}
+html.capture .head{background:var(--surface); box-shadow:inset 0 -1px 0 var(--hair2)}
 html.capture .field, html.capture .field.open{left:var(--doc); right:var(--doc)}
 html.capture .fpop{box-shadow:none; transform:none; transition:none}
