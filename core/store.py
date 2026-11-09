@@ -1149,6 +1149,10 @@ def overview(data=None, now=None, rev=None):
     return dict(body, now=now.strftime("%H:%M"), notice=NOTICE, rev=rev)
 
 
+# 다가올 날 판이 내다보는 날 수 (instances 의 ahead=75 안쪽이어야 한다)
+UPCOMING_DAYS = 28
+
+
 def _overview_body(d, today):
     """overview 에서 시각 · 알림 띠 · rev 를 뺀 나머지. 일정과 날짜만 본다."""
     ti = today.isoformat()
@@ -1177,10 +1181,11 @@ def _overview_body(d, today):
     # ── 오늘 ────────────────────────────────────────────────
     todays = sorted([i for i in ins if i["date"] == ti], key=lambda i: (i["done"],) + key(i))
 
-    # ── 다가오는 마감 (7일) ──────────────────────────────────
+    # ── 다가오는 마감 (UPCOMING_DAYS 일) ─────────────────────
     # 할 일 전부와, 매일이 아닌 루틴(매주 · 매월 · 분기 …)의 다음 회차 하나. 매일 도는 루틴은
-    # 어차피 오늘 칸에 늘 있으므로 넣지 않는다 - 넣으면 7일 내내 같은 이름이 줄을 채운다.
-    wk = (today + timedelta(days=7)).isoformat()
+    # 어차피 오늘 칸에 늘 있으므로 넣지 않는다 - 넣으면 날마다 같은 이름이 줄을 채운다.
+    # 2026-11: 7일 → 28일. 창의 다가올 날 판이 스크롤되어 네 주를 내다본다 (날을 누르면 그날 전체 - 루틴 포함).
+    wk = (today + timedelta(days=UPCOMING_DAYS)).isoformat()
     upcoming = [i for i in ins if i["kind"] == "deadline" and i["date"]
                 and ti < i["date"] <= wk and not i["done"]]
     rt_seen = set()
@@ -1224,6 +1229,7 @@ def _overview_body(d, today):
         "overdue": overdue,
         "todays": todays,
         "upcoming": upcoming,
+        "upcoming_days": UPCOMING_DAYS,
         "routines": routines,
         "floating": floating,
         "stats": {

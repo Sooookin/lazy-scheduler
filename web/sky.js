@@ -18,7 +18,8 @@ const lum = c => { const [r, g, b] = hx(c).map(v => { v /= 255; return v <= .040
 /* tokens.py 가 넣어 둔 재료를 읽는다 - 색을 여기 또 적으면 언젠가 어긋난다 */
 const LIT = (() => {
   const cs = getComputedStyle(document.documentElement), o = {};
-  ['panel','base','lens','ink','ink2','teal','accent','night','lens-n','pale','pale2','teal-lit','teal-deep','accent-lit','lens-a','lens-a-n',
+  ['panel','base','base-top','shelf','lens','ink','ink2','teal','accent','night','base-n','base-top-n','shelf-n','lens-n','pale','pale2',
+   'teal-lit','teal-deep','accent-lit','lens-a','lens-a-n',
    'late','late-lit','hol','hol-lit','danger','danger-lit','imp','imp-lit']
     .forEach(k => { o[k] = cs.getPropertyValue('--lit-' + k).trim(); });
   return o;
@@ -45,8 +46,18 @@ function applyLight(dk){
   setLit('--surface', surface);
   setLit('--lens',    mixc(LIT.lens, LIT['lens-n'], dk));
   setLit('--field',   mixc(LIT.lens, LIT['lens-n'], dk));
-  /* 판 사이의 홈: 낮에는 종이에 먹 9%, 밤에는 종이에 흰빛 9% (밤에 더 어두운 홈은 구멍처럼 보인다) */
-  setLit('--bg',      mixc(surface, txt, .09));
+  /* 바탕: 카드가 떠 있는 하늘빛 안개. 위 끝(머리 뒤)이 가장 맑다. 선반 카드는 한 겹 하늘빛 */
+  setLit('--bg',      mixc(LIT.base, LIT['base-n'], dk));
+  setLit('--bg-top',  mixc(LIT['base-top'], LIT['base-top-n'], dk));
+  setLit('--shelfbg', mixc(LIT.shelf, LIT['shelf-n'], dk));
+  /* 카드 그림자의 빛깔: 낮에는 바탕의 하늘을 머금은 먹, 밤에는 검정 */
+  setLit('--shade',   flip ? '0,0,0' : '28,52,60');
+  /* 도자기 카드의 윗변 빛 · 결: 밤에는 거의 지운다 (어두운 면의 흰 빛은 테두리처럼 보인다) */
+  setLit('--hi',      flip ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.9)');
+  setLit('--face-a',  flip ? '.025' : '.6');
+  /* 해시계 하늘의 빛: 밤에는 달빛처럼 옅은 하늘 */
+  setLit('--sun-day', flip ? 'rgba(156,203,205,.07)' : 'rgba(255,255,255,.75)');
+  setLit('--sun-eve', flip ? 'rgba(235,200,170,.06)' : 'rgba(255,244,232,.85)');
   /* 글자는 섞지 않고 한 번에 뒤집는다 - 섞으면 그 사이에 회색 글자가 생긴다 */
   setLit('--text',    txt);
   setLit('--text2',   flip ? LIT.pale2 : LIT.ink2);
@@ -66,7 +77,7 @@ function applyLight(dk){
   setLit('--imp',     flip ? LIT['imp-lit'] : LIT.imp);
   setLit('--on-teal', flip ? LIT.night : '#fff');
   const ink = hx(txt).join(',');
-  setLit('--hair',     'rgba(' + ink + ',' + (flip ? '.13' : '.10') + ')');
+  setLit('--hair',     'rgba(' + ink + ',' + (flip ? '.12' : '.08') + ')');
   setLit('--hair2',    'rgba(' + ink + ',' + (flip ? '.2' : '.16') + ')');
   setLit('--hover',    'rgba(' + ink + ',' + (flip ? '.04' : '.035') + ')');
   setLit('--hover-hi', 'rgba(' + ink + ',' + (flip ? '.08' : '.07') + ')');

@@ -107,39 +107,73 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   block is generated (don't hand-edit between the markers), `desktop/toast.py`/trays read it directly, and
   `android/.../ui/Theme.kt` is hand-copied but checked by `tests/test_theme_kt.py`.
   `tests/test_design.py` also rejects off-scale font sizes/spacing in `style.css`.
-- PC design grammar (2026-11 "XX", from the Claude Design board `design/handoff` · `LazyScheduler XX.html`): one paper
-  colour for every pane; depth only twice — the 4px groove between panes (`--bg`) and the lens under the next task
-  (`--lensa`: the one inverted surface - graphite `lens-a` by day with paper text, light paper `lens-a-n` by night with
-  ink text; `sky.js` sets `--lensa-text/-text2/-teal/-late` from its brightness); the header floats with one soft shadow. Four type sizes (28 clock in weight 300 · 18 the lens
-  task · 13 task names · 11 everything else; 2026-11 polish, one step down from 24 · 20 · 14 · 12, hierarchy by weight
-  and tracking rather than size, after the Junghans max bill dial); Korean and digits in Paperlogy (its digits are already equal-width, so time columns line up),
+- PC design grammar (2026-11 "XX", from the Claude Design board `design/handoff` · `LazyScheduler XX.html`; 2026-11 readability
+  pass = board D "절충" on the canvas "LazyScheduler 가독성"): readability is a contrast hierarchy region > head > row > glyph,
+  each carried by a different means. Regions by depth: every pane is a white card (`--surface`, `--card` shadow tinted by
+  `--shade`) floating on a sky-mist ground (`--ground` = `--bg-top` → `--bg`, `fixed`, shared by body and header), 8px
+  `--gut` around and between them; the shelves are one step bluer (`--shelfbg`). The header has no bar of its own - it sits
+  on the clearest part of the ground. The lens under the next task is the one inverted surface (`--lensa`: sky-tinted
+  graphite `lens-a` by day with paper text, light sky paper `lens-a-n` by night with ink text; `sky.js` sets
+  `--lensa-text/-text2/-teal/-late` from its brightness). Four type sizes (26 clock in weight 300 · 16 the lens
+  task · 13 task names and the day in date labels · 11 everything else, the floor for Hangul and the pane heads; 2.9 took
+  one step off each - separation comes from the head band, day rules and label columns, not size); Korean and digits in Paperlogy (its digits are already equal-width, so time columns line up),
   Latin letters only in Inter (`web/fonts/inter-latin.woff2`, `unicode-range` letters A–Z a–z + Latin-1, `size-adjust` to
   Paperlogy's cap height; built by `tools/build_fonts.py` from `assets/fonts/Inter[opsz,wght].ttf`). English pane heads
-  and dates stay ("TODAY", "FRI 6 NOV", "TUE 3"), uppercase, weight 400, .1em tracking (date labels .06em). Corners are 0 everywhere; the only round thing is the task dot (empty ring = open, red ring = late,
-  filled = done, dashed = being typed). One red (late = holiday = danger), one teal in two roles: `--accent`
-  (surfaces and lines - now line, the + square, underlines, picked-row edge, focus; 3:1 is enough, so it is light and soft)
-  and `--teal` (teal text and white-on-teal fills: parsed words, links, the primary button, today's date square; kept at
-  4.5:1 with low saturation). 2026-11 palette: warm paper #fbfaf7, charcoal ink #3b3e43, slate night #353840 - softer than
-  the old #fdfdfc / #303236 / #2a2c30; important = a yellow highlighter under the name (also the Form's 중요 value: the word 보통 / 중요,
-  no switch). No shadows on controls: a picked segment is a 1px `--text2` ring, buttons a flat 1px hairline.
-  Lines: 1px `--text2` under pane/group heads, 1px `--hair` between rows, running edge to edge of the pane (rows,
+  and dates stay ("TODAY", "FRI 6 NOV", "TUE 3"), uppercase, .1em tracking (date labels .06em); pane and group heads are
+  weight 500 in ink with a count of what is left beside them (`.pc`, empty at 0). Corners are 0 everywhere; the only round thing is the task dot (empty ring = open, red ring = late,
+  filled = done, dashed = being typed). One red (late = holiday = danger). The signature is the sky
+  `teal-lit` #9ccbcd and every other colour comes from its hue (183°): sky itself where it sits on graphite (the lens's
+  time / time left / now line, the + square's cross - the + is a small lens), `--accent` #529fa3 for lines and fills
+  (underlines, picked-row edge, focus; 3:1), `--teal` #347074 for text and white-on-teal fills (parsed words, links, the
+  primary button, today's date square; 4.5:1), and the faint sky of the ground and shelves. Ink #283034 (13:1 on the cards),
+  ink2 #5c6569; important = a yellow highlighter under the name (also the Form's 중요 value: the word 보통 / 중요,
+  no switch). No shadows on controls: a picked segment is a 1px `--text2` ring, buttons a flat 1px hairline - except the view
+  tabs, which are a segmented well on the ground whose picked chip rises as a white card (the depth grammar: card · lens · tab).
+  Materials (2026-11 "재료와 대답", canvas boards 질감 넷 · 움직임 여섯): one light from above. Cards are porcelain - a 1px
+  top highlight (`--hi`), a faint top-to-bottom face (`--face`) and a two-layer shadow (`--card`); the lens stays matte (one
+  surface, one sky line, one shadow - a gloss / digit glow / gauge / glint layer was tried and removed as cheap); the ground
+  carries a 3% grain only under `.main` (never under text) and a sundial light behind the header whose x follows the day from
+  `brief_time` to `day_end` in 10-min steps, warming for the last hour (`sunTo`, `--sun-x` · `--sun`). Motion answers only
+  a person or the clock, ≤ 0.5 s, never looping, off with reduced motion (`calm()`): the clock's changed digits roll up
+  (`clockTo`), 끝냄 fills the ring sky with a white check and one ripple (`donef`), the view tabs' 2px ink bar slides to the picked
+  word (`.tabline`, hidden on settings), and the first open of the day deals the three cards in 80 ms apart (`.deal`, in `morningDoor`).
+  Use frequency drives the layout (2026-11 UX pass): finishing and scanning are daily, adding and editing are occasional.
+  So a click on any home row (today, lens, Anytime, Upcoming, the day sheet) is 끝냄 with the undo line; editing is Enter,
+  the context menu's 고치기, or the 고치기 text button at the end of the hover read-out strip. Calendar items and 전체 keep
+  click = edit / select (planning views).
+  Pane heads (40) are inverted like the lens: a `--lensa` band with `--lensa-text` names, `--lensa-text2` counts and
+  `--lensa-late` (graphite + white by day, light paper + ink by night). Their text is never sky - sky stays the lens's own
+  light (time, now line), which with its 16 type keeps the lens the signature (faint sky / grey / 12% graphite bands were
+  tried and didn't separate heads from the ground). The signature (graphite + sky) marks only what the eye is on: the lens, the + square, today's date in
+  the calendar and the undo line are small lenses (graphite, sky text); a hovered row and the selected row in 전체 take a
+  sky tint (accent 8% / 13%, the selected one with a 2px sky edge); the hover read-out strip has the lens's 2px sky top line.
+  In Upcoming the rule above each day is ink 38% (rows between are `--hair`).
+  Lines: 1px `--hair` between rows, running edge to edge of the pane (rows,
   settings, details). Hover has one grammar: a 1px line drawn once from the left (`--t-move`) - under a row its
-  hairline darkens to `--text2`, under a tab from the centre, under the lens words in teal; calendar cells get a ring.
-- PC layout (XX): header 56, weight at the centre and light things at the ends: + (teal square) on the left text
-  column | date · clock (28, weight 300) right-aligned on the left pane's text-column end, facing | 오늘 · 달력 · 전체 on
-  the right text column | settings as a sliders glyph in a 46 slot joined to the window buttons 46×56 (views are words,
-  settings is window chrome). Two panes split at 50% with a 4px groove; text columns sit `--doc` (24) from the outer
-  edge and `--doc` + 4 from the groove. In the capture window the sentence field spans the header instead. Rows are 40 = time column `--tmw` 52 (measured: "MON 30" at 11px) | 12 | dot `--dotw` 10 | 12 |
+  hairline darkens to `--text2`, under the lens words in teal; calendar cells get a ring.
+- PC layout (XX): header 56, weight at the centre and light things at the ends: + (graphite square, sky cross) on the left
+  text column (the time column's place) | clock (28, weight 300), 16, date - starting on the left card's name column
+  (`--namex`), so the header is set in the same two columns as a row; 2px low (digits sit high in their line box) | 오늘 · 달력 · 전체 as bare words 24 apart from the right text column,
+  the picked one ink 500 over a word-wide 2px ink bar (boxes - a well, a white chip - read as a button strip and looked cheap) | settings as a sliders glyph in a 46 slot joined to the window buttons 46×56 (views are words,
+  settings is window chrome). Two cards split at 50% with the 8 `--gut` between and around them; text columns sit
+  `--doc` (24) inside each card on both sides (so 32 from the window edge and 28 from the centre; the Form's two columns too). In the capture window the sentence field spans the header instead. Rows are 36 (`--rh`, JS `RH`) = time column `--tmw` 56 (measured: Upcoming's "30 MON") | 12 | dot `--dotw` 10 | 12 |
   name, so names stand at `--namex` from the text column (the read-out strip, Details and the Form's values use it too).
-  Date labels: weekday in a fixed slot, day number right-aligned in 16 so the units line up. Anytime / Notes rows
-  have no time column (the dot stands on the text column). Pane, shelf, group heads and the read-out strip are all
+  Date labels are one form everywhere (`lblOf` = {day, weekday}): the day first, 14, right-aligned in 16 so the units line up,
+  8, then the weekday 11 in `--text2` - numerals that differ in shape from the Hangul names, in a fixed column, are why
+  Today's time column reads well. In Upcoming each day's first row carries a `--hair2` line above; a day with items has an
+  ink date, an empty day a grey one, a day off a faint one (no shaded band); folded days off repeat the same label.
+  Anytime rows have no time column (the dot stands on the text column). Pane, shelf, group heads and the read-out strip are all
   `--ph` 40 (JS `PH`).
-  Every row in both upper panes sits on one 40 grid (ruled like a notebook across the groove): the lens is 80 (two rows),
-  Upcoming's empty days are 40, Upcoming scrolls with `scroll-snap` per row, and the drum moves one row (40) per wheel
+  Every row in both upper cards sits on one 36 grid (ruled like a notebook across the gap): the lens is 72 (two rows),
+  Upcoming's empty days are 36, Upcoming fills the whole right column, looks `upcoming_days` (28) ahead and scrolls with `scroll-snap` per row
+  (clicking a date or an empty day opens that day's sheet with its routines - `openDay` - never a new item), and the drum moves one row (36) per wheel
   step on a flat track (`proj` is linear since 2026-11; the old 320px cylinder bent rows off the right pane's lines).
   Today = the drum: the next task sits on the lens (its top edge is the 2px "now" line; its name wraps to two lines
   rather than being cut - `w2`, time · dot then stand on the first line), past tasks above, remaining ones below.
-  Anytime / Notes are shelves whose height the horizontal groove drags in 40 steps (per device, localStorage). Hovering a
+  Anytime is one shelf card under Today holding today's untimed items and the dateless memos (Notes was folded in,
+  2026-11); five rows tall by default (less if Today would lose its lens and two rows each side), or what the gap above
+  it was dragged to (row steps, per device, localStorage). Scrollbars are one 2px line in an 8px gutter, shown only on the
+  hovered pane (`::-webkit-scrollbar`; never `scrollbar-width`, which makes Chromium drop back to the stock bar). Hovering a
   row drops the 40-high read-out strip over the pane heads with every value of that task as label · value pairs (the
   same words as 전체's Details); lists show names only. Spans: in Upcoming a vertical line per span in the left margin
   (overlaps step 6 left, ends turn toward the row); in the calendar one labelled strand per week under the date row
@@ -172,9 +206,8 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   something was learned). In the capture window's sentence field a one-row panel
   (`paintPop`) shows an item with that name (Tab opens it) or the last time used for it (Tab appends), ↑↓ nudge.
   New items and edits open the `Form` sheet (2026-11: sentence-only entry misread dates too often). `+`, Ctrl N, typing
-  anywhere (the key lands in the name), an empty calendar day and clicking a name all open it. Its layout is the 2.7 form
-  in XX grammar (opened with the date of the place the pointer was resting on - an Upcoming day, a calendar cell, Notes =
-  memo: `addHere`; a time used before for the same name is pre-filled in teal: `guessTime`; the 반복 row offers "매주 X" when
+  anywhere (the key lands in the name), and an empty calendar day open it (a row click is 끝냄). Its layout is the 2.7 form
+  in XX grammar (opened with the date of the place the pointer was resting on - an Upcoming day, a calendar cell: `addHere`; a time used before for the same name is pre-filled in teal: `guessTime`; the 반복 row offers "매주 X" when
   the same name was added on that weekday twice in five weeks: `sugWeek`): left column = name (18) + the value list (rows 40: label 11 in the `--namex` column = home's time column · 12 · dot
   · 12, so values stand on the list's name line, value 13, relative day / × at the end; the picked row is shaded with a 2px teal left edge), right column = the
   tool for the picked row under a 40 head with a 1px `--text2` line (calendar "2026년 11월" · 일 월 … · days 14, quick

@@ -73,7 +73,7 @@ The window talks to the service only through the HTTP API, and any other client
 - `GET /api/overview` → today's view. It also carries `hotkey: {spec, ok}` (whether the global
   "sentence field anywhere" key could be registered on this PC; `ok: null` = not used / not supported), `durations`
   (`{name key: minutes}` this PC learned, only names with 3+ samples) and `holiday_state: {until, got}` (last year the
-  business-day calendar knows, last download of the holiday table). Items in `tasks` carry only
+  business-day calendar knows, last download of the holiday table). `upcoming` looks `upcoming_days` (28) ahead. Items in `tasks` carry only
   `store.PUBLIC_TASK_FIELDS`; storage-only fields such as `done_dates` stay on disk.
 - `GET /api/occurrences?from=YYYY-MM-DD&to=YYYY-MM-DD[&kind=routine,...]` →
   `{rev, items: [{id, date, time, done}]}`. Join with overview items by `id`.
