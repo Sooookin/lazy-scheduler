@@ -123,7 +123,7 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   weight 500 in ink with a count of what is left beside them (`.pc`, empty at 0). Corners are 0 everywhere; the only round thing is the task dot (empty ring = open, red ring = late,
   filled = done, dashed = being typed). One red (late = holiday = danger). The signature is the sky
   `teal-lit` #9ccbcd and every other colour comes from its hue (183°): sky itself where it sits on graphite (the lens's
-  time / time left / now line, the + square's cross - the + is a small lens), `--accent` #529fa3 for lines and fills
+  time / time left / now line), `--accent` #529fa3 for lines and fills
   (underlines, picked-row edge, focus; 3:1), `--teal` #347074 for text and white-on-teal fills (parsed words, links, the
   primary button, today's date square; 4.5:1), and the faint sky of the ground and shelves. Ink #283034 (13:1 on the cards),
   ink2 #5c6569; important = a yellow highlighter under the name (also the Form's 중요 value: the word 보통 / 중요,
@@ -137,6 +137,16 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   a person or the clock, ≤ 0.5 s, never looping, off with reduced motion (`calm()`): the clock's changed digits roll up
   (`clockTo`), 끝냄 fills the ring sky with a white check and one ripple (`donef`), the view tabs' 2px ink bar slides to the picked
   word (`.tabline`, hidden on settings), and the first open of the day deals the three cards in 80 ms apart (`.deal`, in `morningDoor`).
+  2026-11 "통합 2" (canvas "LazyScheduler 깊이와 움직임", board 통합 2) adds one physics, one curve (`--move`; 0.26 s for what follows
+  the hand, 0.48 s for the rest), nothing new on the resting screen: the hand's ruler (`ruleTo`: in #drum / #any-list / #up one `.ruler`
+  - accent 8% + a 1px accent line under the hovered row - glides from row to row instead of each row lighting up; hidden on the lens and
+  day heads; `patchKids` leaves it in place); lifted and settled cards (`liftTo`, today view only: the hovered card's shadow deepens, the
+  others flatten and take a 16% `--bg` veil - shadows and a veil only, text never moves; a mouse-following light, tilt, blur and scale
+  were tried and dropped as invisible or shaky); the fuse (`fuseTick`: when the lens task is ≤ 10 min away the now line splits into a
+  faint track and a sky line of the minutes left with a 2 × 8 needle at its end, burning from the right; at its time the full line
+  breathes for a minute; the breathing is a class `fuseTick` flips every 1.2 s from a timer that skips hidden windows, never a CSS
+  loop); head counts roll their changed digits like the clock, down when they shrink (`countTo`); and the TODAY head's bottom edge is a
+  2px sky gauge of today's timed items done (`#t-prog`). The drum still rolls back to now 3.2 s after a wheel.
   Use frequency drives the layout (2026-11 UX pass): finishing and scanning are daily, adding and editing are occasional.
   So a click on any home row (today, lens, Anytime, Upcoming, the day sheet) is 끝냄 with the undo line; editing is Enter,
   the context menu's 고치기, or the 고치기 text button at the end of the hover read-out strip. Calendar items and 전체 keep
@@ -144,15 +154,33 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   Pane heads (40) are inverted like the lens: a `--lensa` band with `--lensa-text` names, `--lensa-text2` counts and
   `--lensa-late` (graphite + white by day, light paper + ink by night). Their text is never sky - sky stays the lens's own
   light (time, now line), which with its 16 type keeps the lens the signature (faint sky / grey / 12% graphite bands were
-  tried and didn't separate heads from the ground). The signature (graphite + sky) marks only what the eye is on: the lens, the + square, today's date in
+  tried and didn't separate heads from the ground). The signature (graphite + sky) marks only what the eye is on: the lens, today's date in
   the calendar and the undo line are small lenses (graphite, sky text); a hovered row and the selected row in 전체 take a
   sky tint (accent 8% / 13%, the selected one with a 2px sky edge); the hover read-out strip has the lens's 2px sky top line.
-  In Upcoming the rule above each day is ink 38% (rows between are `--hair`).
+  In Upcoming (D3, canvas "LazyScheduler 깊이와 움직임") each day is a `section.ud` = a 28-high day head (`.dh`: day 13 ·
+  weekday 11, both days of a folded weekend, holiday names) + its rows, which carry no date label. Only days with items
+  get a band (ground-mixed frosted glass, lines above and below, a soft shade); empty days and days off are a bare top line, so a band
+  reads as "a day with work"; a Monday head's top line is ink 55% (`.wk`), cutting the four weeks into four. Heads are sticky under
+  the pane head (`top:0` - Chromium measures sticky from the scroller's padding, which holds the 40 for the pane head) and the
+  next day's section pushes them out; heads are faint frosted glass, the pane head is graphite glass (`--lensa` 93% +
+  backdrop blur) with the list sliding under it. A head click opens the day sheet; heads are drop targets. Rows still press
+  and fold (D6): `:active` sinks a row 1px with an inner shade (release elsewhere = no click = cancelled), and outside the
+  drum a finished row folds to height 0 after its ripple (`.fold`), the drum's rows slide to the past instead. Head counts always say what they count, in the "늦음 n" voice:
+  TODAY / ANYTIME "남은 n", UPCOMING carries no count at all - a bare "20", "이번 주 n" and a scrolling "3주 뒤 7"
+  were all tried and gave the reader nothing to do.
+  When today's timed items are done the lens stays on today ("언제든 n 남음" / "오늘 남은 일 없음"); it no longer jumps to
+  Upcoming's first item, which skipped tomorrow's daily routines. Instead that item is the lens's echo in Upcoming
+  (`.nx`: sky left edge, faint sky tint, "내일" / "n일 뒤" at the row end like the lens's "4시간 뒤").
+  A row click is 끝냄 anywhere on the row, so hovering a row (not the lens's time or handles) fills its dot solid sky (`--lensa-teal` on
+  the lens; a check inside a 10px dot read as a smudge) - the dot speaks for the whole row. Clicking the
+  Today or Upcoming pane head returns that pane to its rest: the drum to the lens (next task), Upcoming to the top ("늦음 n" keeps its door). Ink is a matte grey (#4a5156 8:1, ink2 #6a7277 4.85:1).
   Lines: 1px `--hair` between rows, running edge to edge of the pane (rows,
   settings, details). Hover has one grammar: a 1px line drawn once from the left (`--t-move`) - under a row its
   hairline darkens to `--text2`, under the lens words in teal; calendar cells get a ring.
-- PC layout (XX): header 56, weight at the centre and light things at the ends: + (graphite square, sky cross) on the left
-  text column (the time column's place) | clock (28, weight 300), 16, date - starting on the left card's name column
+- PC layout (XX): header 56, weight at the centre and light things at the ends: + as a thin glyph (14 × 1.5,
+  ink; hover fills its 28 square with accent 12% and turns it teal) whose left end stands on the left text column, centred at 28 like the
+  view words, settings glyph and window buttons - everything else in the header is type and hairline glyphs, so a filled graphite
+  square (and then a tab hanging into the Today head) floated alone in the sky; adding is occasional (Ctrl N, typing anywhere) | clock (28, weight 300), 16, date - starting on the left card's name column
   (`--namex`), so the header is set in the same two columns as a row; 2px low (digits sit high in their line box) | 오늘 · 달력 · 전체 as bare words 24 apart from the right text column,
   the picked one ink 500 over a word-wide 2px ink bar (boxes - a well, a white chip - read as a button strip and looked cheap) | settings as a sliders glyph in a 46 slot joined to the window buttons 46×56 (views are words,
   settings is window chrome). Two cards split at 50% with the 8 `--gut` between and around them; text columns sit
@@ -165,7 +193,8 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   Anytime rows have no time column (the dot stands on the text column). Pane, shelf, group heads and the read-out strip are all
   `--ph` 40 (JS `PH`).
   Every row in both upper cards sits on one 36 grid (ruled like a notebook across the gap): the lens is 72 (two rows),
-  Upcoming's empty days are 36, Upcoming fills the whole right column, looks `upcoming_days` (28) ahead and scrolls with `scroll-snap` per row
+  Upcoming's empty days are 36, Upcoming fills the whole right column, looks `upcoming_days` (28) ahead and scrolls one stop per wheel step
+  like the drum (`upStops`: each day section's top and each row standing just under its stuck day head; 480 ms, `upScrollTo`)
   (clicking a date or an empty day opens that day's sheet with its routines - `openDay` - never a new item), and the drum moves one row (36) per wheel
   step on a flat track (`proj` is linear since 2026-11; the old 320px cylinder bent rows off the right pane's lines).
   Today = the drum: the next task sits on the lens (its top edge is the 2px "now" line; its name wraps to two lines
@@ -184,7 +213,7 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   hints, no key names on screen (keys only in the ? sheet), no question heads ("언제까지?"), settings rows are a bare name
   (a second line only for a problem/status). They live in places that already exist:
   the lens has no word handles at rest: its time is set like the name (18, weight 300) and is the 미루기 control (click,
-  hover draws a teal underline), its dot (14) is 끝냄 (every dot shows a thin check on hover). The lens's light: its time and the time left at its right
+  hover draws a teal underline), its dot (14) is 끝냄 (every dot fills solid on hover). The lens's light: its time and the time left at its right
   end ("4시간 뒤", `leftWord`) are in lume teal (`--lensa-teal`: `teal-lit` on graphite, `teal-deep` on the night paper).
   Door and lens keys only act on the 오늘 view. Settings closes back to the view it was opened from (`PREV_V`): 닫기 at the
   bottom right, the settings glyph again, or Esc; 앱 종료 is a quiet text link beside the version (it still confirms). 미루기 opens destinations
@@ -215,7 +244,7 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   The two columns sit on the home panes' text columns (gap 2 × 38). A sentence typed in the name still fills date / time
   / rule visibly in the rows (one text button "이름에 두기" undoes it). The header sentence field (`readSentence`, kind by
   shape: no date = memo, time only = today, date = deadline, range = span, rule = routine, `!` = important) now lives
-  only in the global-hotkey capture window; in the main window the header shows just the + square. Spacing still comes only from
+  only in the global-hotkey capture window; in the main window the header shows just the + glyph. Spacing still comes only from
   `tokens.SPACE`; optical exceptions are `calc()` with the reason.
 - The phone has not moved to XX yet: `Theme.kt` copies `tokens.LIGHT_PHONE` / `TYPE_PHONE` / `COLOR` (the 2026-10
   "덜어냄" grammar: five sizes 44 · 20 · 15 · 13 · 11, 6.dp corners, 48dp rows). When the phone follows, fold those

@@ -483,6 +483,17 @@ function clockTo(el, v, was){
   if(!was || calm() || document.hidden || was.length !== v.length){ el.textContent = v; return; }
   el.innerHTML = [...v].map((c, k) => c === was[k] ? c : '<span class="dg"><i data-o="' + was[k] + '">' + c + '</i></span>').join('');
 }
+/* 머리말 옆의 수 (E1): 바뀐 자리의 숫자만 시계처럼 굴러간다 - 줄면 위에서 내려오고, 늘면 아래에서 올라온다.
+   keep 이면 0 일 때도 말은 남긴다 (다가올 날의 '다음 주' 처럼 지금 보는 곳을 알리는 말) */
+function countTo(el, w, n, keep){
+  if(el._w === w && el._n === n) return;
+  const was = el._w === w && el._n ? String(el._n) : '', v = String(n), up = n > el._n;
+  el._w = w; el._n = n;
+  if(!n){ el.innerHTML = keep ? w : ''; return; }
+  const b = !was || was.length !== v.length || calm() || document.hidden ? v
+    : [...v].map((c, k) => c === was[k] ? c : '<span class="dg' + (up ? '' : ' dn') + '"><i data-o="' + was[k] + '">' + c + '</i></span>').join('');
+  el.innerHTML = w + ' <b>' + b + '</b>';
+}
 /* 해시계 하늘: 머리 뒤 하늘의 가장 밝은 곳이 아침 브리핑 → 하루 끝 사이를 왼쪽에서 오른쪽으로 옮겨 간다.
    10분 단위로만 옮긴다 (뿌리 변수를 쓰면 화면 전체 스타일을 다시 센다). 하루 끝 한 시간 전부터는 옅게 따뜻한 빛 */
 let _sun = '';
@@ -2008,6 +2019,8 @@ function toggleDone(i, el){
   if(to){
     HOLD = {key:keyOf(i), until:Date.now() + 600};
     if(el) el.classList.add('done', 'pop');          /* 서버의 답을 기다리지 않고 동그라미부터 찬다 */
+    /* 원통 밖의 줄(언제든 · 다가올 날 · 그날 전체)은 물결이 퍼진 뒤 접힌다. 원통의 줄은 지나온 일로 미끄러져 올라가므로 그대로 */
+    if(el && !el.closest('.drum') && !calm()) setTimeout(() => el.classList.add('fold'), 300);
     setTimeout(repaint, 640);
   }
   setDone(i, to);
@@ -2042,10 +2055,11 @@ function todayModel(o, gh){
   const unt = tod.filter(i => !i.time).concat(ghT && !ghT.time ? [ghT] : []);
   let lens = fut[0] || null, alt = null;
   if(!lens){
-    const up = (o.upcoming || []).filter(i => !i.done)[0];
+    /* 2.10: 예전에는 다가올 날의 첫 일을 '다음 일' 로 올렸는데, 다가올 날에는 매일 도는 루틴이 없어 내일 아침의 루틴을 건너뛰고
+       며칠 뒤의 마감을 '다음' 이라 했다. 렌즈는 오늘에 머물고, 다음 일은 다가올 날 판에서 렌즈의 메아리(.nx)로 보인다 */
     const none = !o.todays.length && !o.overdue.length && !(o.upcoming || []).length && !(o.floating || []).length && !(o.routines || []).length;
-    alt = up ? Object.assign({}, up, {_alt:true})
-      : {id:'', title:none ? '적어 둔 일 없음' : '오늘 남은 일 없음', _alt:true, _inert:true, _none:none};
+    const left = unt.filter(i => !i.ghost && !doneNow(i)).length + (o.floating || []).length;   /* 언제든 판 머리의 '남은 n' 과 같은 수 */
+    alt = {id:'', title:none ? '적어 둔 일 없음' : left ? '언제든 ' + left + ' 남음' : '오늘 남은 일 없음', _alt:true, _inert:true, _none:none};
   }
   const past = pastDone.concat(pastLate), tc = triCur();
   if(tc){ const k = keyOf(tc.i); return {past:past.filter(x => keyOf(x) !== k), fut, unt, lens:Object.assign({}, tc.i, {_tri:TRI.mode}), alt:true}; }
@@ -2222,6 +2236,7 @@ function drawDrum(m){
   lb.style.cssText = 'top:' + lp.y.toFixed(1) + 'px; transform:' + lp.tf + '; opacity:' + lp.op.toFixed(3);
   nl.style.cssText = 'top:' + (np.y - 1).toFixed(1) + 'px; transform:' + np.tf + '; opacity:' + np.op.toFixed(3);
   box.classList.toggle('rolled', OFFT !== 0);
+  fuseTick();
 }
 
 $('#drum').addEventListener('wheel', e => {
@@ -2230,7 +2245,7 @@ $('#drum').addEventListener('wheel', e => {
   let st = 0;
   while(_wAcc >= 100){ st++; _wAcc -= 100; }
   while(_wAcc <= -100){ st--; _wAcc += 100; }
-  if(st){ OFFT = Math.max(DRUM_ROWS.min, Math.min(DRUM_ROWS.max, OFFT + st)); drawToday(); }
+  if(st){ ruleTo(null); OFFT = Math.max(DRUM_ROWS.min, Math.min(DRUM_ROWS.max, OFFT + st)); drawToday(); }
   clearTimeout(_wBack);
   _wBack = setTimeout(() => { _wAcc = 0; if(OFFT){ OFFT = 0; drawToday(); } }, 3200);
 }, {passive:false});
@@ -2243,8 +2258,10 @@ function fillList(box, list, opt){
 }
 /* 새로 지은 줄을 목록에 옮긴다 - 글자 하나까지 같은 줄은 그대로 둔다 (포커스 · 움직임이 끊기지 않게) */
 function patchKids(node, frag){
-  const b = [...frag.childNodes], a = [...node.children];
-  if(a.length !== b.length){ node.replaceChildren(...b); return; }
+  /* 손의 자(.ruler)는 줄이 아니다 - 세지 않고 그 자리에 둔다 */
+  const ru = node.querySelector(':scope > .ruler');
+  const b = [...frag.childNodes], a = [...node.children].filter(x => x !== ru);
+  if(a.length !== b.length){ node.replaceChildren(...(ru ? [ru] : []), ...b); return; }
   a.forEach((x, k) => { if(x.outerHTML !== b[k].outerHTML) node.replaceChild(b[k], x); else x._it = b[k]._it; });
 }
 
@@ -2287,6 +2304,17 @@ function placeShelf(){
    왼쪽 여백에 가는 세로선으로 잇는다 (마우스를 올리면 청록). */
 const EXP = new Set();
 const upLab = lblOf;
+/* 다가올 날의 날 머리 (D3): [날 · 요일] (이어지는 쉬는 날은 둘째 날까지 · 공휴일 이름). 판 머리 바로 아래에 붙어 서고(sticky),
+   다음 날의 머리가 올라와 덮는다 - 지금 보는 줄이 며칠의 일인지 늘 맨 위에 쓰여 있다. 누르면 그날 전체, 끌어다 놓을 자리도 된다 */
+function dayHead(d, cls, last, hol){
+  const el = document.createElement('div'), l = upLab(d), L = last && upLab(last);
+  el.className = 'dh ' + cls; el.dataset.drop = d;
+  el.innerHTML = '<span class="tm"><span>' + esc(l.a) + '</span><span>' + l.b + '</span></span>' +
+    (L ? '<span class="tm"><span>' + esc(L.a) + '</span><span>' + L.b + '</span></span>' : '') +
+    (hol && hol.length ? '<span class="hn">' + esc(hol.join(' · ')) + '</span>' : '');
+  el.onclick = () => openDay(d);
+  return el;
+}
 /* 그날 전체: 그날의 할 일 · 루틴 회차 · 걸친 기간. 루틴 회차는 다가올 날 범위를 한 번에 불러 둔다 */
 function openDay(d){
   ensureRoutines(addDay(STATE.today, 1), addDay(STATE.today, STATE.upcoming_days || 7));
@@ -2298,47 +2326,37 @@ function drawUp(o, gh){
   const by = {};
   items.forEach(i => (by[i.date] = by[i.date] || []).push(i));
   if(gh && gh.date && gh.date > o.today) (by[gh.date] = by[gh.date] || []).push(gh);
+  /* 날마다 묶음(section) 하나: [날 머리 · 그날의 줄]. 날 머리는 묶음 안에서만 붙어 있어서, 다음 날의 묶음이 올라오면 밀려난다 */
   const f = document.createDocumentFragment();
   const rowAt = {}, dayAt = {};
-  let k = 1;
-  const add = el => { f.appendChild(el); return el; };
+  let k = 1, sec = null;
+  const day = d => { sec = document.createElement('section'); sec.className = 'ud'; sec.dataset.drop = d; f.appendChild(sec); dayAt[d] = sec; return sec; };
+  const add = el => { sec.appendChild(el); return el; };
   const UPD = o.upcoming_days || 7;
   while(k <= UPD){
     const d = addDay(o.today, k), its = (by[d] || []).slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
       (a.ghost ? 1 : 0) - (b.ghost ? 1 : 0) || (a.time || '99:99').localeCompare(b.time || '99:99'));
-    const biz = isBiz(d);
+    const biz = isBiz(d), wk = k > 1 && dObj(d).getDay() === 1 ? ' wk' : '';
     if(!its.length){
       if(!biz){
         let e = k;
         while(e + 1 <= UPD && !isBiz(addDay(o.today, e + 1)) && !(by[addDay(o.today, e + 1)] || []).length) e++;
         const hol = [];
-        for(let j = k; j <= e; j++){ const x = addDay(o.today, j); dayAt[x] = f.childNodes.length; const h = (STATE.holiday_names || {})[x]; if(h && !hol.includes(h)) hol.push(h); }
-        const el = document.createElement('div');
-        el.className = 'r day off ds'; el.dataset.drop = d;
-        const l = upLab(d), last = e > k ? upLab(addDay(o.today, e)) : null;
-        el.innerHTML = '<span class="tm"><span>' + esc(l.a) + '</span><span>' + l.b + '</span></span><span class="dot nd"></span>' +
-          '<div class="nm"><div class="n1">' + (last ? '<span class="tm"><span>' + esc(last.a) + '</span><span>' + last.b + '</span></span>' : '') +
-          (hol.length ? '<span class="hn">' + esc(hol.join(' · ')) + '</span>' : '') + '</div></div>';
-        el.onclick = () => openDay(d);
-        add(el); k = e + 1; continue;
+        day(d);
+        for(let j = k; j <= e; j++){ const x = addDay(o.today, j); dayAt[x] = sec; const h = (STATE.holiday_names || {})[x]; if(h && !hol.includes(h)) hol.push(h); }
+        add(dayHead(d, 'off' + wk, e > k ? addDay(o.today, e) : null, hol)); k = e + 1; continue;
       }
-      dayAt[d] = f.childNodes.length;
-      const el = document.createElement('div');
-      el.className = 'r day blank ds'; el.dataset.drop = d;
-      const l = upLab(d);
-      el.innerHTML = '<span class="tm"><span>' + esc(l.a) + '</span><span>' + l.b + '</span></span><span class="dot nd"></span><div class="nm"></div>';
-      el.onclick = () => openDay(d);
-      add(el); k++; continue;
+      day(d);
+      add(dayHead(d, 'blank' + wk)); k++; continue;
     }
-    dayAt[d] = f.childNodes.length;
+    day(d);
+    add(dayHead(d, (biz ? 'has' : 'off has') + wk));
     const many = its.length > 3, open = EXP.has(d);
     const shown = open || !many ? its : its.slice(0, 2);
-    shown.forEach((i, n) => {
-      const el = rowEl(i, {lab:n ? {a:'', b:''} : upLab(d), cls:(biz ? '' : 'offday') + (n === 0 ? ' first ds' : '')});
+    shown.forEach(i => {
+      const el = rowEl(i, {cls:biz ? '' : 'offday'});
       el.dataset.drop = d;
-      /* 날짜를 누르면 그날 전체 (루틴 포함). 줄의 나머지는 다른 줄처럼 끝냄 */
-      if(n === 0) el.querySelector('.tm').addEventListener('click', e => { e.stopPropagation(); openDay(d); });
-      rowAt[i.id] = f.childNodes.length;
+      rowAt[i.id] = el;
       add(el);
     });
     if(many){
@@ -2350,16 +2368,24 @@ function drawUp(o, gh){
     }
     k++;
   }
-  /* 기간 업무의 세로선: 그리기를 마친 뒤 줄의 자리를 재서 */
-  patchKids(box, f);
+  const nx = items.filter(i => !i.done && !i.ghost)[0];
+  if(nx && rowAt[nx.id]){
+    const el = rowAt[nx.id], dd = dayDiff(o.today, nx.date);
+    el.classList.add('nx');
+    el.insertAdjacentHTML('beforeend', '<span class="rel">' + (dd === 1 ? '내일' : dd + '일 뒤') + '</span>');
+  }
+  /* 기간 업무의 세로선: 그리기를 마친 뒤 줄의 자리를 재서. 묶음을 다시 그렸으면(patchKids) 새로 놓인 줄을 id 로 다시 찾는다 */
   box.querySelectorAll('.lane').forEach(x => x.remove());
+  patchKids(box, f);
+  const live = el => el && (el.isConnected ? el : box.querySelector('[data-k="' + el.dataset.k + '"]'));
+  const liveDay = s => s && (s.isConnected ? s : box.querySelector('section[data-drop="' + s.dataset.drop + '"]'));
   /* 겹치는 선은 왼쪽으로 6씩 비켜 선다 (먼저 시작한 것이 안쪽) - 같은 자리에 겹쳐 하나로 보이지 않게 */
   const ends = [];
-  items.filter(i => i.start && rowAt[i.id] != null).map(i => {
-    const rows = box.children, end = rows[rowAt[i.id]];
-    const sIdx = dayAt[i.start];
-    const top = sIdx != null ? rows[sIdx].offsetTop + rows[sIdx].offsetHeight / 2 : 0;
-    return {i, cap:sIdx != null, top, bot:end.offsetTop + end.offsetHeight / 2};
+  items.filter(i => i.start && live(rowAt[i.id])).map(i => {
+    const end = live(rowAt[i.id]), s = liveDay(dayAt[i.start]);
+    /* 시작한 날은 그 묶음의 머리 가운데 (머리는 붙어 다니므로 묶음의 자리로 잰다) */
+    const top = s ? s.offsetTop + 14 : 0;
+    return {i, cap:!!s, top, bot:end.offsetTop + end.offsetHeight / 2};
   }).sort((a, b) => a.top - b.top || b.bot - a.bot).forEach(({i, cap, top, bot}) => {
     let n = ends.findIndex(e => e < top);
     if(n < 0){ n = ends.length; ends.push(0); }
@@ -2391,13 +2417,123 @@ function drawToday(){
   $('#t-late').classList.toggle('act', !!moveable);
   $('#t-late').title = moveable ? '지난 날의 일 ' + moveable + '개를 오늘로' : '';
   fillList($('#any-list'), any, () => ({}));
-  /* 머리말 옆의 개수: 남은 것만 (끝낸 것 · 쓰는 중인 것은 세지 않는다) */
-  const cnt = (id, n) => { $(id).textContent = n || ''; };
-  cnt('#c-today', o.todays.filter(i => i.time && !doneNow(i)).length);
-  cnt('#c-any', any.filter(i => !i.ghost && !doneNow(i)).length);
-  cnt('#c-up', (o.upcoming || []).filter(i => !i.done).length);
+  /* 머리말 옆의 수: 늘 [무엇 · 수] 로 - '늦음 n' 과 같은 말투. 오늘 · 언제든은 남은 것.
+     다가올 날에는 수를 두지 않는다 (2026-11: '20' · '이번 주 n' · '3주 뒤 7' 모두 읽는 사람에게 할 일을 주지 않았다) */
+  countTo($('#c-today'), '남은', o.todays.filter(i => i.time && !doneNow(i)).length);
+  countTo($('#c-any'), '남은', any.filter(i => !i.ghost && !doneNow(i)).length);
+  /* 오늘의 눈금 (E2): TODAY 머리 밑 2px 하늘 선이 오늘 시각 있는 일 중 끝낸 만큼 찬다 */
+  const tt = o.todays.filter(i => i.time && !i.ghost);
+  $('#t-prog').style.width = (tt.length ? tt.filter(i => i.done).length / tt.length * 100 : 0).toFixed(1) + '%';
   drawUp(o, gh);
 }
+/* 다가올 날도 줄 단위로 (2026-11): 휠 한 칸에 한 줄(또는 빈 날의 머리 하나)씩, 오늘 판의 원통과 같은 길이 · 곡선으로 미끄러진다.
+   멈출 자리는 날 묶음의 윗변(그날 머리가 판 머리에 닿는 곳)과, 그날의 각 줄이 붙어 선 날 머리 바로 밑에 오는 곳 -
+   멈추면 머리 밑에 늘 온전한 줄이 선다. 스크롤 막대를 끄는 것은 그대로 자유롭다 */
+const DH = 28;   /* 날 머리 높이 (CSS 의 .dh) */
+let _uAcc = 0, _uTo = null, _uRaf = 0;
+function upStops(box){
+  const max = box.scrollHeight - box.clientHeight, s = [0];
+  for(const sec of box.children){
+    if(sec.tagName !== 'SECTION') continue;
+    s.push(sec.offsetTop - PH);
+    for(const r of sec.children) if(r.classList.contains('r') && !r.classList.contains('fold')) s.push(r.offsetTop - PH - DH);
+  }
+  return s.map(v => Math.min(max, Math.max(0, v))).sort((a, b) => a - b).filter((v, k, a) => !k || v - a[k - 1] > 1);
+}
+function upScrollTo(box, y){
+  cancelAnimationFrame(_uRaf);
+  if(calm()){ box.scrollTop = y; _uTo = null; return; }
+  _uTo = y;
+  const y0 = box.scrollTop, t0 = performance.now(), D = 480;
+  const step = now => {
+    const t = Math.min(1, (now - t0) / D);
+    box.scrollTop = y0 + (y - y0) * (1 - Math.pow(1 - t, 4));
+    if(t < 1) _uRaf = requestAnimationFrame(step); else _uTo = null;
+  };
+  _uRaf = requestAnimationFrame(step);
+}
+$('#up').addEventListener('wheel', e => {
+  if(e.ctrlKey || !e.deltaY) return;
+  e.preventDefault();
+  const box = e.currentTarget;
+  _uAcc += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+  let st = 0;
+  while(_uAcc >= 100){ st++; _uAcc -= 100; }
+  while(_uAcc <= -100){ st--; _uAcc += 100; }
+  if(!st) return;
+  ruleTo(null);
+  const S = upStops(box), cur = _uTo != null ? _uTo : box.scrollTop;
+  let k = st > 0 ? S.findIndex(v => v > cur + 1) + st - 1 : (S.length - 1 - [...S].reverse().findIndex(v => v < cur - 1)) + st + 1;
+  if(st > 0 && S.findIndex(v => v > cur + 1) < 0) return;
+  if(st < 0 && !S.some(v => v < cur - 1)) return;
+  k = Math.max(0, Math.min(S.length - 1, k));
+  upScrollTo(box, S[k]);
+}, {passive:false});
+/* 판 머리를 누르면 처음 자리로 (2026-11): 오늘은 원통이 다음 일(렌즈)로, 다가올 날은 맨 위로 - 어디까지 굴려 두었든 한 번에.
+   '늦음 n' 은 제 일(아침 문)을 한다 */
+$('#v-today .pane.L .card > .ph').addEventListener('click', e => {
+  if(e.target.closest('#t-late')) return;
+  clearTimeout(_wBack); _wAcc = 0;
+  if(OFFT){ ruleTo(null); OFFT = 0; drawToday(); }
+});
+$('#v-today .pane.R .card > .ph').addEventListener('click', () => { _uAcc = 0; ruleTo(null); upScrollTo($('#up'), 0); });
+
+/* ══════════ 손 · 깊이 · 남은 시간 (2026-11 통합, 캔버스 '깊이와 움직임' 통합 2) ══════════
+   한 물리: 곡선은 하나(--move), 손을 따라가는 것은 0.26초, 나머지는 0.48초. 화면에 더하는 것은 없고 이미 있는 것이 움직인다 */
+
+/* 손의 자 (D1′): 손이 머문 줄 밑에 옅은 하늘 바탕과 1px 하늘 선. 줄마다 새로 칠하지 않고 한 물건이 미끄러져 옮겨 간다 -
+   줄을 따라 읽는 눈의 자. 오늘 · 언제든 · 다가올 날에만 (렌즈 · 날 머리 위에서는 숨는다) */
+const RULED = '#drum, #any-list, #up';
+let RULE_BOX = null;
+function ruleTo(r){
+  const box = r && r.closest(RULED);
+  const ok = !!box && !r.classList.contains('lens') && !r.classList.contains('fold');
+  if(RULE_BOX && RULE_BOX !== (ok ? box : null)){ const o = RULE_BOX.querySelector(':scope > .ruler'); if(o) o.classList.remove('on'); }
+  RULE_BOX = ok ? box : null;
+  if(!ok) return;
+  let ru = box.querySelector(':scope > .ruler');
+  if(!ru){ ru = document.createElement('i'); ru.className = 'ruler'; box.prepend(ru); }
+  /* 손이 판 밖에서 들어오면 미끄러지지 않고 그 자리에 놓인다 */
+  const jump = !ru.classList.contains('on') || calm();
+  if(jump) ru.style.transition = 'none';
+  ru.style.top = r.offsetTop + 'px'; ru.style.height = r.offsetHeight + 'px';
+  if(jump){ void ru.offsetWidth; ru.style.transition = ''; }
+  ru.classList.add('on');
+}
+document.addEventListener('mouseover', e => ruleTo(e.target.closest ? e.target.closest('.r') : null));
+$$(RULED).forEach(b => b.addEventListener('mouseleave', () => ruleTo(null)));
+
+/* 든 카드와 내려앉은 카드 (D2): 손이 든 카드는 그림자가 깊고 길어지고, 나머지는 바닥에 붙으며 바탕빛이 얇게 덮여 물러난다.
+   기울기 · 크기 · 흐림은 없다 - 글자는 한 픽셀도 움직이지 않는다 */
+function liftTo(c){
+  $$('#v-today .lift').forEach(x => { if(x !== c) x.classList.remove('lift'); });
+  if(c) c.classList.add('lift');
+  $('#v-today').classList.toggle('focusing', !!c);
+}
+$$('#v-today .card, #v-today .shelf').forEach(c => {
+  c.addEventListener('mouseenter', () => liftTo(c));
+  c.addEventListener('mouseleave', () => liftTo(null));
+});
+
+/* 남은 시간의 심지 (D5): 렌즈의 일이 10분 안으로 들어오면 지금 선이 남은 만큼만 남아 오른쪽부터 타들어 가고, 끝에 바늘 하나.
+   그 시각이 되면 선이 다시 차서 1분 동안 '지금'. 숨(빛이 번졌다 잦아듦)은 CSS 고리가 아니라 이 타이머가 1.2초마다 한 번 바꾼다 -
+   창이 숨으면 멈춘다 */
+function fuseTick(){
+  const box = $('#drum');
+  if(!STATE || view !== 'today') return;
+  const ln = box.querySelector('.r.lens'), i = ln && ln._it;
+  let st = '', fw = 1;
+  if(i && i.time && i.date === STATE.today && !i.done && !i.ghost && !i._alt && !i._inert && !i._tri && !i._eve && !OFFT){
+    const n = new Date(), d = mins(i.time) - (n.getHours() * 60 + n.getMinutes() + n.getSeconds() / 60);
+    if(d > 0 && d <= 10){ st = 'near'; fw = d / 10; }
+    else if(d <= 0 && d > -1) st = 'now';
+  }
+  box.classList.toggle('near', st === 'near');
+  box.classList.toggle('now', st === 'now');
+  box.style.setProperty('--fw', (fw * 100).toFixed(2) + '%');
+  box.classList.toggle('br', !!st && !calm() && !box.classList.contains('br'));
+}
+setInterval(() => { if(onScreen()) fuseTick(); }, 1200);
 /* 선이 걸친 기간 업무에 마우스를 올리면 그 선이 청록이 된다 */
 $('#up').addEventListener('mouseover', e => {
   const r = e.target.closest('.r'), id = r && r.dataset.id;

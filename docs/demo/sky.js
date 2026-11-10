@@ -77,8 +77,8 @@ function applyLight(dk){
   setLit('--imp',     flip ? LIT['imp-lit'] : LIT.imp);
   setLit('--on-teal', flip ? LIT.night : '#fff');
   const ink = hx(txt).join(',');
-  setLit('--hair',     'rgba(' + ink + ',' + (flip ? '.12' : '.08') + ')');
-  setLit('--hair2',    'rgba(' + ink + ',' + (flip ? '.2' : '.16') + ')');
+  setLit('--hair',     'rgba(' + ink + ',' + (flip ? '.12' : '.09') + ')');
+  setLit('--hair2',    'rgba(' + ink + ',' + (flip ? '.2' : '.18') + ')');
   setLit('--hover',    'rgba(' + ink + ',' + (flip ? '.04' : '.035') + ')');
   setLit('--hover-hi', 'rgba(' + ink + ',' + (flip ? '.08' : '.07') + ')');
   document.body.classList.toggle('night-ink', flip === 1);
