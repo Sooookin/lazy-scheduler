@@ -21,13 +21,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "design", "shots")
 PORT = 8798
-W, H = 960, 592                                 # 실제 창과 같은 규격으로 찍는다
+W, H = 1120, 760                                # 처음 뜨는 창과 같은 규격 (ui.DEFAULT_W/H, 배율 1)
 
 # 찍을 화면. 이름은 app.js 의 shotHook 과 같아야 한다.
 SHOTS = [
-    ("home",     "오늘 · 원통"),
+    ("home",     "오늘"),
     ("type",     "새 항목 · 이름에 문장"),
-    ("hover",    "읽기 띠"),
+    ("hover",    "떠오르는 두 줄"),
     ("night",    "오늘 · 밤"),
     ("morning",  "아침 문"),
     ("evening",  "저녁 문"),

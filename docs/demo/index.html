@@ -13,14 +13,15 @@
 <body>
 
 <!-- ══════════ 머리 (56) ══════════
-     한 줄: 시각 · 날짜 (시각이 앞 - 큰 것이 먼저 읽힌다) | 문장 칸 (＋ 이름과 언제를 한 줄로) | 오늘 · 달력 · 전체 | 설정 | 창 단추.
+     먹 띠 하나에 구역 넷: 지금(시각 · 날짜) | 화면 넘기기(오늘 · 달력 · 전체, 창 가운데) | 할 일(새 항목 · 설정) | 창 단추.
+     (작은 새 항목 창에서는 문장 칸이 머리를 통째로 쓴다)
      머리 전체가 창의 제목줄이다 (끌어서 옮기기 · 두 번 눌러 최대화). 문장 칸은 늘 여기 있다 -
      아무 글자나 치면 이리로 들어온다. 친 말 중 날짜 · 시각 · 반복으로 읽힌 말은 청록으로 칠해지고,
      오른쪽에 무엇이 만들어질지(FRI 30 OCT 15:00)가 선다. -->
 <header class="head" id="titlebar">
   <div class="clk" aria-label="지금 시각"><b id="clock">--:--</b><span id="date">—</span></div>
   <div class="field" id="field">
-    <button class="plus" id="plus" type="button" title="새 항목 · Ctrl N" aria-label="새 항목 · Ctrl N"><i></i><i></i></button>
+    <button class="plus" id="plus" type="button" title="새 항목 · Ctrl N" aria-label="새 항목 · Ctrl N"><i></i><i></i><span>새 항목</span></button>
     <div class="fbox"><div class="fhl" id="fhl" aria-hidden="true"></div>
       <input id="say" autocomplete="off" spellcheck="false" aria-label="새 항목 - 이름과 언제를 한 줄로 (예: 보고서 금요일 3시)"></div>
     <span class="fsum" id="fsum" aria-live="polite"></span>
@@ -28,11 +29,11 @@
     <button class="fx bad" id="f-del" type="button" hidden>삭제</button>
   </div>
   <nav class="tabs" id="tabs" aria-label="화면">
-    <button type="button" data-v="today">오늘</button>
-    <button type="button" data-v="cal">달력</button>
-    <button type="button" data-v="all">전체</button>
+    <button type="button" data-v="today"><span class="tn" data-t="오늘">오늘</span></button>
+    <button type="button" data-v="cal"><span class="tn" data-t="달력">달력</span></button>
+    <button type="button" data-v="all"><span class="tn" data-t="전체">전체</span></button>
   </nav>
-  <button type="button" class="tab-set" data-v="set" title="설정" aria-label="설정"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5h13M1.5 11.5h13" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="2.5" width="3" height="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9.5" width="3" height="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.2"/></svg></button>
+  <button type="button" class="tab-set" data-v="set" title="설정" aria-label="설정"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"><path d="M13.22 6.27L15.06 6.57L15.06 9.43L13.22 9.73L12.92 10.47L14.00 11.98L11.98 14.00L10.47 12.92L9.73 13.22L9.43 15.06L6.57 15.06L6.27 13.22L5.53 12.92L4.02 14.00L2.00 11.98L3.08 10.47L2.78 9.73L0.94 9.43L0.94 6.57L2.78 6.27L3.08 5.53L2.00 4.02L4.02 2.00L5.53 3.08L6.27 2.78L6.57 0.94L9.43 0.94L9.73 2.78L10.47 3.08L11.98 2.00L14.00 4.02L12.92 5.53Z"/><circle cx="8" cy="8" r="2.2"/></svg></button>
   <i class="tabline" id="tabline" aria-hidden="true"></i>
   <div class="wins">
     <button class="wbtn" id="w-min" title="최소화" aria-label="최소화"><i class="w-min"></i></button>
@@ -42,7 +43,6 @@
 </header>
 
 <!-- 줄에 마우스를 올리면 머리 아래로 내려오는 읽기 띠: 그 일의 날짜 · 시각 · 반복 · 알림 · 상태 -->
-<div class="ro" id="ro" aria-hidden="true"></div>
 <div class="rop" id="rop" role="menu"></div>
 
 <!-- 연결 끊김 · 데이터 복구 같은 알림 띠. 평소에는 숨어 있다 (app.js 의 strip) -->
