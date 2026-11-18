@@ -27,7 +27,48 @@ function replay(el, cls){
   const off = e => { if(e.target !== el) return; el.classList.remove(cls); el.removeEventListener('animationend', off); };
   el.addEventListener('animationend', off);
 }
-const EASE = 'cubic-bezier(.2,.8,.2,1)', EASE_EXIT = 'cubic-bezier(.4,0,1,1)';
+const EASE = 'cubic-bezier(.2,.8,.2,1)', EASE_EXIT = 'cubic-bezier(.4,0,1,1)', MOVE = 'cubic-bezier(.16,1,.3,1)';
+/* 장 넘기기 (2026-11-18): 내용이 통째로 바뀌는 곳(달력의 달, 그날 시트의 날)은 옛 장과 새 장이 함께 지나간다 - 옛 장의
+   사본이 제자리에서 진행 반대쪽으로 빠지며 흐려지고 (0.2초), 새 장이 진행 쪽에서 들어와 앉는다 (0.3초, MOVE). 둘이 엇갈려
+   지나가서 '다음 장으로 간다' 가 읽힌다. 거리는 칸마다 (목록 · 칸 48, 이름 16). 사본은 같은 부모(위치가 있는 상자) 안에 떠서
+   그 상자의 가림 안에서만 보이고, 누를 수 없다. 이어서 넘기면 앞의 사본은 곧바로 치운다.
+   (앞서는 나간 뒤에 들어왔다 - 순서는 맞지만 한 장씩 깜빡여 '넘긴다' 가 약했다) */
+const _ghost = new Map();
+function pageTurn(els, dir, draw, dists){
+  els = els.filter(Boolean);
+  if(calm() || !els.length || !els[0].offsetParent){ draw(); return; }
+  const gs = els.map(el => {
+    const old = _ghost.get(el.id);
+    if(old) old.remove();
+    const g = el.cloneNode(true);
+    g.removeAttribute('id'); g.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    g.setAttribute('aria-hidden', 'true');
+    Object.assign(g.style, {position:'absolute', left:el.offsetLeft + 'px', top:el.offsetTop + 'px', width:el.offsetWidth + 'px',
+      height:el.offsetHeight + 'px', margin:'0', overflow:'hidden', pointerEvents:'none', zIndex:'1'});
+    el.offsetParent.appendChild(g);
+    g.scrollTop = el.scrollTop;
+    _ghost.set(el.id, g);
+    return g;
+  });
+  draw();
+  els.forEach((el, k) => {
+    const g = gs[k], d = dists[k] || 48;
+    g.animate([{opacity:1, transform:'none'}, {opacity:0, transform:'translateX(' + (-d * dir) + 'px)'}], {duration:200, easing:EASE_EXIT, fill:'forwards'})
+      .onfinish = () => drop();
+    /* 끝남 알림이 오지 않아도 (창이 가려져 그리기가 멈춘 때 등) 시간으로 치운다 */
+    const drop = () => { g.remove(); if(_ghost.get(el.id) === g) _ghost.delete(el.id); };
+    setTimeout(drop, 260);
+    el.animate([{opacity:0, transform:'translateX(' + (d * dir) + 'px)'}, {opacity:1, transform:'none'}], {duration:300, easing:MOVE});
+  });
+}
+/* 높이가 바뀌는 그리기를 감싼다: 바뀌기 전 높이에서 새 높이로 0.24초 (넘치는 것은 그동안 가린다) */
+function smoothH(el, draw){
+  const h0 = el.offsetHeight;
+  draw();
+  const h1 = el.offsetHeight;
+  if(calm() || h0 === h1 || !el.offsetParent) return;
+  el.animate([{height:h0 + 'px', overflow:'hidden'}, {height:h1 + 'px', overflow:'hidden'}], {duration:240, easing:MOVE});
+}
 
 const TOKEN = (document.querySelector('meta[name="tm-token"]') || {}).content || '';
 /* 실패하면 서버가 보낸 문장으로 reject 한다. 예전에는 500 도 성공처럼 처리해서
@@ -548,6 +589,7 @@ function undoToast(verb, title, undo){
   const el = $('#undo');
   const stop = () => { clearTimeout(undoToast._t); clearInterval(undoToast._c); };
   const hide = () => { el.classList.remove('on'); stop(); };
+  if(el.classList.contains('on') && !calm()) el.querySelectorAll('.u-v, .u-msg, .u-btn').forEach(x => x.animate([{opacity:0}, {opacity:1}], {duration:180, easing:EASE}));
   $('#undo-verb').textContent = verb || '';
   $('#undo-verb').hidden = !verb;
   $('#undo-msg').textContent = title || '';
@@ -585,11 +627,11 @@ function openM(id){
   const el = $(id);
   if(!el.classList.contains('sheet')) $('#veil').classList.add('on');
   el.classList.add('on');
-  roHide(); riseClose(true);
+  roHide(); slideClose(true);
 }
 function closeM(id){
   if(id === '#m-update') updSeen();
-  if(id === '#m-day') riseClose(true);
+  if(id === '#m-day') slideClose(true);
   $(id).classList.remove('on');
   if(!$$('.modal.on:not(.sheet)').length) $('#veil').classList.remove('on');
 }
@@ -839,7 +881,13 @@ function ctxMenu(x, y, rows, on){
 }
 function ctxClose(){ if(SHOT_MIN != null) return; $('#ctx').classList.remove('on'); }
 const ctxShown = () => $('#ctx').classList.contains('on');
-$('#t-late').addEventListener('click', () => { if(TRI) return; triStart('am', amPool()); });
+/* 하나씩 보는 줄 (아침 문) 의 머리에 '모두 오늘로': 남은 지난 일을 한 번에 오늘로, 되돌리기 한 줄이 모두를 되돌린다 (2026-11-18) */
+const triRest = () => !TRI || TRI.mode !== 'am' ? [] :
+  TRI.ks.map(k => amPool().find(i => keyOf(i) === k)).filter(i => i && i.id && i.kind !== 'routine');
+$('#t-late').addEventListener('click', e => {
+  if(e.target.closest('.all')){ const rest = triRest(); TRI = null; drawToday(); moveAll(rest, STATE.today); return; }
+  if(TRI) return; triStart('am', amPool());
+});
 document.addEventListener('mousedown', e => { if(ctxShown() && !e.target.closest('#ctx')) ctxClose(); });
 document.addEventListener('scroll', ctxClose, true);
 addEventListener('resize', ctxClose);
@@ -1362,6 +1410,12 @@ function Form(win, pre){
     svg.querySelectorAll('.d-hn').forEach(t => t.classList.toggle('on', c != null && +t.dataset.k === h));
     svg.querySelectorAll('.d-mn').forEach(t => t.classList.toggle('on', c != null && +t.dataset.k === mi));
   }
+  function monthGo(n){
+    const t = new Date(MC.y, MC.m + n, 1); MC.y = t.getFullYear(); MC.m = t.getMonth();
+    smoothH(cal, drawCal);
+    const g = cal.querySelector('.grid');
+    if(g && !calm()) g.animate([{opacity:0, transform:'translateX(' + (n > 0 ? 12 : -12) + 'px)'}, {opacity:1, transform:'none'}], {duration:200, easing:MOVE});
+  }
   function drawCal(){
     const first = new Date(MC.y, MC.m, 1, 12), from = addDay(iso(first), -first.getDay());
     let rg = null;
@@ -1580,7 +1634,7 @@ function Form(win, pre){
     else if(ds.mute != null) S.muted = ds.mute === '1';
     else if(ds.y != null) S.early = +ds.y;
     else if(ds.ap != null){ apLock = true; const c = S.time ? mins(S.time) : 9 * 60; setT((c % 720) + (+ds.ap) * 720); return; }
-    else if(ds.mc){ const t = new Date(MC.y, MC.m + +ds.mc, 1); MC.y = t.getFullYear(); MC.m = t.getMonth(); drawCal(); return; }
+    else if(ds.mc){ monthGo(+ds.mc); return; }
     else return;
     draw();
   });
@@ -1637,7 +1691,7 @@ function Form(win, pre){
   cal.addEventListener('wheel', e => {
     if(!e.deltaY) return;
     e.preventDefault();
-    const t = new Date(MC.y, MC.m + (e.deltaY > 0 ? 1 : -1), 1); MC.y = t.getFullYear(); MC.m = t.getMonth(); drawCal();
+    monthGo(e.deltaY > 0 ? 1 : -1);
   }, {passive:false});
 
   /* ---------- 열기 · 읽기 ---------- */
@@ -1955,9 +2009,9 @@ function rowEl(i, opt){
   el.innerHTML =
     '<span class="tm"><span>' + esc(lab.a) + '</span><span>' + esc(lab.b) + '</span></span>' +
     (opt.noDot ? '<span class="dot nd"></span>' : '<span class="dot" role="checkbox" tabindex="-1" aria-checked="' + (i.done ? 'true' : 'false') + '" aria-label="' + (i.done ? '끝냄 취소' : '끝냄') + '"></span>') +
-    '<div class="nm"><div class="n1"><span class="nt">' + esc(i.title) + '</span></div>' +
+    '<div class="nm"><div class="n1">' + (opt.ti && i.time ? '<span class="ti">' + esc(i.time) + '</span>' : '') + '<span class="nt">' + esc(i.title) + '</span></div>' +
     (opt.meta ? '<div class="meta">' + opt.meta + '</div>' : '') + '</div>';
-  if(RISE.k && RISE.k === keyOf(i) && !/lens/.test(opt.cls || '') && !i.ghost){ el.classList.add('rise'); el.insertAdjacentHTML('beforeend', exHTML(i)); }
+  if(SLIDE.k && SLIDE.k === keyOf(i) && !/lens/.test(opt.cls || '') && !i.ghost){ el.classList.add('slid'); el.insertAdjacentHTML('beforeend', exHTML(i)); slideMark(el); }
   el._it = i;
   if(!i.ghost && !opt.inert) wireRow(el);
   return el;
@@ -1981,7 +2035,7 @@ function wireRow(el){
   };
   /* 두 번 누르면 고치기 (어디서나 같다). 첫 번째 누름이 끝낸 것은 되돌린다 - 두 번 누른 사람은 끝내려던 것이 아니다 */
   el.addEventListener('dblclick', e => {
-    if(e.target.closest('.ex, .dot, [data-la], .la')) return;
+    if(e.target.closest('.ex, .dot, [data-la], [data-e], .la')) return;
     const i = I(), t = LAST_TOG;
     if(t && t.k === keyOf(i) && Date.now() - t.at < 700){
       LAST_TOG = null; HOLD = null;
@@ -2201,7 +2255,7 @@ function rulerModel(m){
   const endOf = i => mins(i.time) + (durOf(i) || 30);
   const L = [];
   let y = 0, yNow = 0, prevEnd = null, nowSet = false;
-  days.forEach(i => { L.push({i, y, h:liftH(i, RH), lab:lblOf(i.date)}); y += L[L.length - 1].h; });
+  days.forEach(i => { L.push({i, y, h:RH, lab:lblOf(i.date)}); y += L[L.length - 1].h; });
   /* 앞의 일이 끝나고 t 까지 두 시간 넘게 비면 틈 하나. 지금이 그 사이면 지금 선은 틈 안에 */
   const gapTo = (t, nowHere) => {
     if(prevEnd == null || t - prevEnd < GAP_MIN) return false;
@@ -2223,7 +2277,7 @@ function rulerModel(m){
     const t = mins(i.time);
     if(!nowSet && t >= nowM) putNow(t);
     else gapTo(t, false);
-    const lens = keyOf(i) === lensK, h = lens ? WH : liftH(i, RH);
+    const lens = keyOf(i) === lensK, h = lens ? WH : RH;
     L.push({i, y, h, lens, lab:{a:'', b:i.time}});
     y += h; prevEnd = Math.max(prevEnd || 0, endOf(i));
   });
@@ -2252,7 +2306,7 @@ function drawDrum(m){
   const OFF = Math.max(0, Math.min(max, top0 + OFFT * RH));
 
   const keep = new Map();
-  [...box.querySelectorAll('.r, .gp')].forEach(el => keep.set(el.dataset.k, el));
+  [...box.querySelectorAll('.r:not(.gone), .gp:not(.gone)')].forEach(el => keep.set(el.dataset.k, el));
   const seen = new Set(), fresh = [];
   R.L.forEach(e => {
     let el, k;
@@ -2288,8 +2342,13 @@ function drawDrum(m){
     else { el.classList.add('in'); box.appendChild(el); fresh.push(el); }
     seen.add(k);
   });
-  keep.forEach((el, k) => { if(!seen.has(k)) el.remove(); });
-  const lr = box.querySelector('.r.lens'), lzt = lr && lr.querySelector('.nt');
+  keep.forEach((el, k) => {
+    if(seen.has(k)) return;
+    if(calm()) return el.remove();
+    el.classList.add('gone');
+    setTimeout(() => el.remove(), 260);
+  });
+  const lr = box.querySelector('.r.lens:not(.gone)'), lzt = lr && lr.querySelector('.nt');
   if(lzt) lr.classList.toggle('w2', lzt.offsetHeight > 30);
   requestAnimationFrame(() => fresh.forEach(el => { el.classList.remove('in'); el.style.transition = ''; }));
   /* 렌즈의 바탕과 지금 선 */
@@ -2315,10 +2374,16 @@ $('#drum').addEventListener('wheel', e => {
   let st = 0;
   while(_wAcc >= 100){ st++; _wAcc -= 100; }
   while(_wAcc <= -100){ st--; _wAcc += 100; }
-  if(st){ ruleTo(null); riseClose(true); OFFT = Math.max(DRUM_ROWS.min, Math.min(DRUM_ROWS.max, OFFT + st)); drawToday(); }
+  if(st){ ruleTo(null); slideClose(true); OFFT = Math.max(DRUM_ROWS.min, Math.min(DRUM_ROWS.max, OFFT + st)); drawToday(); }
   clearTimeout(_wBack);
-  _wBack = setTimeout(() => { _wAcc = 0; if(OFFT){ OFFT = 0; drawToday(); } }, 3200);
+  if(!drumCard().matches(':hover')) drumBack();
 }, {passive:false});
+/* 굴려 둔 오늘 판은 손이 판(카드) 위에 있는 동안 그 자리 - 읽는 중에 끌고 가지 않는다. 손이 떠나고 1.5초 뒤에 지금으로
+   (2026-11-18: 휠을 멈추고 3.2초면 손이 아직 위에 있어도 돌아갔다) */
+const drumCard = () => $('#drum').closest('.card');
+function drumBack(){ clearTimeout(_wBack); _wBack = setTimeout(() => { _wAcc = 0; if(OFFT){ OFFT = 0; drawToday(); } }, 1500); }
+drumCard().addEventListener('mouseleave', () => { if(OFFT) drumBack(); });
+drumCard().addEventListener('mouseenter', () => clearTimeout(_wBack));
 
 /* ══════════ 선반 (언제든 · 메모) ══════════ */
 function fillList(box, list, opt){
@@ -2330,9 +2395,14 @@ function fillList(box, list, opt){
 function patchKids(node, frag){
   /* 손의 자(.ruler)는 줄이 아니다 - 세지 않고 그 자리에 둔다 */
   const ru = node.querySelector(':scope > .ruler');
+  const ks = new Set([...node.querySelectorAll('.r[data-k]')].map(x => x.dataset.k));
   const b = [...frag.childNodes], a = [...node.children].filter(x => x !== ru);
-  if(a.length !== b.length){ node.replaceChildren(...(ru ? [ru] : []), ...b); return; }
-  a.forEach((x, k) => { if(x.outerHTML !== b[k].outerHTML) node.replaceChild(b[k], x); else x._it = b[k]._it; });
+  if(a.length !== b.length) node.replaceChildren(...(ru ? [ru] : []), ...b);
+  else a.forEach((x, k) => { if(x.outerHTML !== b[k].outerHTML) node.replaceChild(b[k], x); else x._it = b[k]._it; });
+  /* 새로 든 줄 (이전에 없던 열쇠): 높이 0 에서 펼쳐진다 - 아래 줄이 뚝 밀리지 않고 미끄러져 내려간다 */
+  if(!ks.size || calm() || !node.offsetParent) return;
+  const nw = [...node.querySelectorAll('.r[data-k]')].filter(x => !ks.has(x.dataset.k));
+  if(nw.length && nw.length <= 3) nw.forEach(x => x.animate([{height:'0px', opacity:0}, {height:x.offsetHeight + 'px', opacity:1}], {duration:240, easing:MOVE}));
 }
 
 /* 선반 높이: 머리 PH + 줄 RH × n. 가운데 홈을 끌어 바꾸고, 이 PC 에만 기억한다. PH = CSS 의 --ph (판 · 선반 머리) */
@@ -2424,7 +2494,7 @@ function drawUp(o, gh){
     const many = its.length > 3, open = EXP.has(d);
     const shown = open || !many ? its : its.slice(0, 2);
     shown.forEach(i => {
-      const el = rowEl(i, {cls:biz ? '' : 'offday'});
+      const el = rowEl(i, {cls:biz ? '' : 'offday', ti:true});
       el.dataset.drop = d;
       rowAt[i.id] = el;
       add(el);
@@ -2433,7 +2503,16 @@ function drawUp(o, gh){
       const el = document.createElement('div');
       el.className = 'r more'; el.dataset.drop = d;
       el.innerHTML = '<span class="tm"></span><span class="dot nd"></span><div class="nm"><span class="mono">' + (open ? '접기' : '+' + (its.length - 2)) + '</span></div>';
-      el.onclick = () => { open ? EXP.delete(d) : EXP.add(d); drawToday(); };
+      el.onclick = () => {
+        const sec = el.closest('section');
+        if(open){
+          /* 접기: 셋째 줄부터 높이 0 으로 접힌 뒤에 다시 그린다 */
+          const rs = [...sec.querySelectorAll('.r[data-id]')].slice(2);
+          if(calm() || !rs.length){ EXP.delete(d); return drawToday(); }
+          rs.forEach(r => r.animate([{height:RH + 'px', opacity:1}, {height:'0px', opacity:0}], {duration:200, easing:MOVE, fill:'forwards'}));
+          setTimeout(() => { EXP.delete(d); drawToday(); }, 200);
+        } else { EXP.add(d); drawToday(); }
+      };
       add(el);
     }
     k++;
@@ -2482,7 +2561,14 @@ function drawToday(){
   drawDrum(m);
   const late = o.overdue.length + o.todays.filter(i => isLate(i)).length;
   const tc = TRI && triCur();
-  $('#t-late').innerHTML = tc ? '<b>' + tc.at + '</b> / ' + TRI.n : late ? '늦음 <b>' + late + '</b>' : '';
+  const lh = tc ? (triRest().length > 1 ? '<button type="button" class="all">모두 오늘로</button>' : '') + '<span><b>' + tc.at + '</b> / ' + TRI.n + '</span>'
+    : late ? '늦음 <b>' + late + '</b>' : '';
+  /* 머리 오른끝의 말이 다른 말로 바뀌면 (늦음 n ↔ 1 / n) 흐려졌다 든다 - 수만 바뀌면 그대로 */
+  const tl = $('#t-late'), was = tl.textContent.replace(/\d+/g, '#');
+  if(tl.innerHTML !== lh){
+    tl.innerHTML = lh;
+    if(!calm() && was && was !== tl.textContent.replace(/\d+/g, '#')) tl.animate([{opacity:0}, {opacity:1}], {duration:180, easing:EASE});
+  }
   const moveable = o.overdue.filter(i => i.id && i.kind !== 'routine').length;
   $('#t-late').classList.toggle('act', !!moveable);
   $('#t-late').title = moveable ? '지난 날의 일 ' + moveable + '개를 오늘로' : '';
@@ -2531,7 +2617,7 @@ $('#up').addEventListener('wheel', e => {
   while(_uAcc >= 100){ st++; _uAcc -= 100; }
   while(_uAcc <= -100){ st--; _uAcc += 100; }
   if(!st) return;
-  ruleTo(null); riseClose(true);
+  ruleTo(null); slideClose(true);
   const S = upStops(box), cur = _uTo != null ? _uTo : box.scrollTop;
   let k = st > 0 ? S.findIndex(v => v > cur + 1) + st - 1 : (S.length - 1 - [...S].reverse().findIndex(v => v < cur - 1)) + st + 1;
   if(st > 0 && S.findIndex(v => v > cur + 1) < 0) return;
@@ -2591,7 +2677,7 @@ $$('#v-today .card, #v-today .shelf').forEach(c => {
 function fuseTick(){
   const box = $('#drum');
   if(!STATE || view !== 'today') return;
-  const ln = box.querySelector('.r.lens'), i = ln && ln._it;
+  const ln = box.querySelector('.r.lens:not(.gone)'), i = ln && ln._it;
   let st = '', fw = 1;
   if(i && i.time && i.date === STATE.today && !i.done && !i.ghost && !i._alt && !i._inert && !i._tri && !i._eve && !OFFT){
     const n = new Date(), d = mins(i.time) - (n.getHours() * 60 + n.getMinutes() + n.getSeconds() / 60);
@@ -2611,112 +2697,125 @@ $('#up').addEventListener('mouseover', e => {
 });
 $('#up').addEventListener('mouseleave', () => $$('#up .lane').forEach(l => l.classList.remove('hi')));
 
-/* ══════════ 떠오르는 두 줄 (2026-11, 캔버스 '읽기 띠 대안' C) ══════════
-   홈의 세 목록(오늘 · 언제든 · 다가올 날)과 그날 전체에서 한 줄에 손이 머물면 그 줄이 카드로 떠오르며 두 줄이 되고, 둘째 줄에 줄이
-   말하지 않던 값(날짜 · 시각 · 반복 · 걸림 · 알림 · 설명)과 고치기가 선다. 예전의 읽기 띠는 판 머리(TODAY · UPCOMING)를 덮고,
-   이미 보이는 값을 되풀이하고, 눈을 위로 끌고 갔다.
-   덮지 않는다: 떠오른 줄이 36 만큼 자라고 아래 줄들이 한 줄(36) 밀려 내려간다 - 모든 줄이 격자 위에 그대로이고, 손에 닿지
-   않는 줄이 없다. 줄은 아래로만 자라서 손이 놓인 첫 줄은 움직이지 않는다.
-   기다림은 시간이 아니라 손의 속도로 정한다: 손이 느려지는 순간(0.35px/ms 아래) 곧바로 떠오르고, 빠르게 스쳐 가는 동안에는
-   떠오르지 않다가 멈추면 0.05초 뒤에. 손이 다른 줄로 옮겨 가면 앞의 줄이 내려앉고 새 줄이 동시에 떠오른다. 아래로 옮길 때는
-   그 줄이 손 밑에서 한 줄 올라오지만 둘째 줄이 손 밑에 오므로 손은 늘 같은 줄 위에 있다 (어느 쪽으로 가도 다른 줄로 튀지 않는다).
-   스쳐 지나가는 줄은 떠오르지 않는다. 판 밖으로 손이 나가면 0.28초 뒤에, 휠을 굴리면 곧바로 내려앉는다.
-   둘째 줄을 누르는 것은 끝냄이 아니다 (값을 고치려다 끝내지 않게). 렌즈는 떠오르지 않는다 (이미 떠 있다) */
-const RISEN = '#drum, #any-list, #up, #day-list';
-const RISE = {k:null, t:0, c:0, pin:false};
+/* ══════════ 미끄러지는 줄 (2026-11, 캔버스 '손에 붙는 느낌' A′) ══════════
+   홈의 세 목록(오늘 · 언제든 · 다가올 날)과 그날 전체에서 손이 머문 줄은 시각 열이 빠지고 동그라미 · 이름이 그 자리로 미끄러져
+   ('언제든' 줄과 같은 자리), 비켜 난 끝에 끝 칸 하나가 선다: 언제 · 둘째 · 고치기 (모양과 차례는 style.css). 시각은 두 번 나오지
+   않고 끝 칸의 첫 칸으로 옮겨 가 그 자리에서 고치는 값이 된다. 줄 높이 · 이웃 줄 · 판은 움직이지 않는다.
+   (지나온 것: 두 줄로 떠올라 아래 줄을 36 밀어내기 - 손 밑에서 과녁이 움직이고 판이 출렁였다. 줄 끝에만 값 - 시각이 두 번 나왔다.)
+   기다림은 시간이 아니라 손의 속도로 정한다: 손이 느려지는 순간(0.35px/ms 아래) 곧바로, 빠르게 스쳐 가는 동안에는 멈추고 0.05초
+   뒤에. 손이 다른 줄로 옮겨 가면 앞의 줄이 돌아오고 새 줄이 동시에 미끄러진다. 판 밖으로 손이 나가면 0.2초 뒤에, 휠을 굴리면
+   곧바로 돌아온다. 끝 칸을 누르는 것은 끝냄이 아니다 (값을 고치려다 끝내지 않게). 렌즈는 미끄러지지 않는다 (이미 모두 말한다) */
+const SLIDN = '#drum, #any-list, #up, #day-list';
+const SLIDE = {k:null, t:0, c:0, pin:false};
 /* 손의 속도 (px/ms, 반씩 섞어 고르게). 0.1초 넘게 멈췄다 움직이면 0 에서 다시 */
 const PTR = {x:0, y:0, t:0, v:0};
 document.addEventListener('mousemove', e => {
   const dt = e.timeStamp - PTR.t, d = Math.hypot(e.clientX - PTR.x, e.clientY - PTR.y);
   PTR.v = dt > 100 ? 0 : dt > 0 ? PTR.v * .5 + d / dt * .5 : PTR.v;
   PTR.x = e.clientX; PTR.y = e.clientY; PTR.t = e.timeStamp;
-  const r = e.target.closest && e.target.closest('.r'), box = r && r.closest(RISEN);
-  if(box && (view === 'today' || box.id === 'day-list')) riseHover(r);
+  const r = e.target.closest && e.target.closest('.r'), box = r && r.closest(SLIDN);
+  if(box && (view === 'today' || box.id === 'day-list')) slideHover(r);
 }, {passive:true});
-function liftH(i, h){ return RISE.k && RISE.k === keyOf(i) ? h + RH : h; }
+/* 끝 칸 (2026-11-18 C 제자리): [값 | 고치기]. 줄에 이미 보이는 것(왼쪽 열의 시각 · 날짜, 다가올 날 줄의 시각)은 다시 쓰지 않는다 -
+   그것은 제자리에서 고치는 값이 된다 (whenEl). 값 = 하나만: 반복 > 직접 정한 알림 (끔 · 몇 분 전) > 걸림 > 설명의 첫머리,
+   그것도 없는 기간이면 처음 – 끝. 칸 전체에 걸린 풍선(title)이 모든 값을 말한다 */
 function exHTML(i){
-  const {kv, ed} = roKV(i, true);
-  return '<div class="ex">' + kvHTML(kv, ed) + (i.id ? '<button type="button" class="e go" data-e="edit">고치기</button>' : '') + '</div>';
+  let c2 = i.rule_text || '', m = '';
+  if(!c2 && i.time && !i.done && (i.muted || i.notify_min != null)) c2 = '알림 ' + (i.muted ? '끔' : hhmm(Math.max(0, mins(i.time) - i.notify_min)));
+  if(!c2 && durOf(i)) c2 = '걸림 약 ' + durWord(durOf(i));
+  if(!c2 && i.note) c2 = i.note.split('\n')[0];
+  if(!c2 && i.start){ c2 = shortE(i.start) + ' – ' + shortE(i.date); m = ' m'; }
+  const all = roKV(i, true).kv.map(([k, v]) => (k ? k + ' ' : '') + v).join(' · ');
+  return '<div class="ex" title="' + esc(all) + '"><span class="c2' + m + '">' + esc(c2) + '</span>' +
+    (i.id ? '<button type="button" class="e go" data-e="edit">고치기</button>' : '<span></span>') + '</div>';
 }
-function riseHover(r){
-  clearTimeout(RISE.c);
+/* 줄이 이미 보이는 '언제' - 할 일이면 그 자리에서 고치는 값: 다가올 날 줄의 시각(.ti), 아니면 왼쪽 열 (날짜표면 날짜, 시각이면 시각) */
+function whenEl(el){
+  const i = el._it;
+  if(!i || !i.id || (i.kind || 'deadline') !== 'deadline' || i.done || i.start) return null;
+  const ti = el.querySelector('.ti');
+  if(ti) return [ti, 'time'];
+  const tm = el.querySelector(':scope > .tm');
+  if(!tm || !tm.textContent.trim()) return null;
+  return [tm, i.time && tm.textContent.includes(i.time) ? 'time' : 'date'];
+}
+function slideMark(el){
+  const w = whenEl(el);
+  if(w) w[0].dataset.e = w[1];
+}
+function slideHover(r){
+  clearTimeout(SLIDE.c);
   const i = r._it, k = r.dataset.k;
-  if(RISE.k === keyOf(i)){ clearTimeout(RISE.t); return; }
-  clearTimeout(RISE.t);
-  if(DRAG || ROP || (!r.closest('.modal') && $$('.modal.on').length) || i._inert || i.ghost || r.classList.contains('lens')) return riseLeave();
-  RISE.pin = false;
+  if(SLIDE.k === keyOf(i)){ clearTimeout(SLIDE.t); return; }
+  clearTimeout(SLIDE.t);
+  if(DRAG || ROP || (!r.closest('.modal') && $$('.modal.on').length) || i._inert || i.ghost || r.classList.contains('lens')) return slideLeave();
+  SLIDE.pin = false;
   const go = () => {
-    const box = r.closest(RISEN), el = box && [...box.querySelectorAll('.r')].find(x => x.dataset.k === k);
-    if(el && el.matches(':hover') && !DRAG && !ROP) riseOpen(el);
+    const box = r.closest(SLIDN), el = box && [...box.querySelectorAll('.r')].find(x => x.dataset.k === k);
+    if(el && el.matches(':hover') && !DRAG && !ROP) slideOpen(el);
   };
   if(PTR.v < .35) return go();
-  RISE.t = setTimeout(go, 50);
+  SLIDE.t = setTimeout(go, 50);
 }
-function riseLeave(){
-  clearTimeout(RISE.t);
-  if(!RISE.k || ROP || RISE.pin) return;
-  clearTimeout(RISE.c);
-  RISE.c = setTimeout(() => riseClose(), 280);
+function slideLeave(){
+  clearTimeout(SLIDE.t);
+  if(!SLIDE.k || ROP || SLIDE.pin) return;
+  clearTimeout(SLIDE.c);
+  SLIDE.c = setTimeout(() => slideClose(), 200);
 }
-/* 제자리에서 바꾼다 (새로 그리면 높이가 단번에 바뀌어 움직임이 없다): 둘째 줄을 달고 한 박자 뒤에 자라게 한다 */
-function riseOpen(el){
-  const prev = $$('.r.rise');
-  prev.forEach(x => { x.classList.remove('rise'); const ex = x.querySelector('.ex'); if(ex) ex.remove(); });
-  RISE.k = keyOf(el._it);
-  ruleTo(null);
-  const box = el.closest(RISEN), k = el.dataset.k;
-  el.insertAdjacentHTML('beforeend', exHTML(el._it));
+/* 끝 칸을 달고 한 박자(reflow) 뒤에 slid - 처음부터 slid 로 그리면 값이 떠오르는 투명도 전환이 없다 */
+function slideOpen(el){
+  $$('.r.slid').forEach(x => { if(x !== el) slideOff(x); });
+  SLIDE.k = keyOf(el._it);
+  if(!el.querySelector('.ex')) el.insertAdjacentHTML('beforeend', exHTML(el._it));
+  slideMark(el);
   void el.offsetWidth;
-  el.classList.add('rise');
-  if(box.id === 'drum' || prev.some(x => x.closest('#drum'))){ drawToday(); el = [...box.querySelectorAll('.r')].find(x => x.dataset.k === k) || el; }
-  /* 판 아래 끝에 걸려 둘째 줄이 잘리면 한 줄만큼 올려 보인다 (손은 여전히 같은 줄 위 - 둘째 줄이 손 밑에 온다) */
-  const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
-  if(r.top + 2 * RH > b.bottom + 1){
-    if(box.id === 'drum'){ if(OFFT < DRUM_ROWS.max){ OFFT++; clearTimeout(_wBack); drawToday(); } }
-    else if(box.id === 'up') upScrollTo(box, box.scrollTop + RH);
-    else box.scrollBy({top:RH, behavior:calm() ? 'auto' : 'smooth'});
-  }
+  el.classList.add('slid');
 }
-function riseClose(now){
-  clearTimeout(RISE.t); clearTimeout(RISE.c);
-  if(!RISE.k) return;
+function slideOff(x){
+  x.classList.remove('slid');
+  x.querySelectorAll('[data-e]:not(.e)').forEach(t => { delete t.dataset.e; t.classList.remove('on'); });
+  const ex = x.querySelector('.ex');
+  if(ex) setTimeout(() => { if(!x.classList.contains('slid')) ex.remove(); }, 200);
+}
+function slideClose(now){
+  clearTimeout(SLIDE.t); clearTimeout(SLIDE.c);
+  if(!SLIDE.k) return;
   if(ROP && !now) return;
-  RISE.k = null; RISE.pin = false;
-  const was = $$('.r.rise');
-  was.forEach(x => { x.classList.remove('rise'); const ex = x.querySelector('.ex'); if(ex) setTimeout(() => { if(!x.classList.contains('rise')) ex.remove(); }, 260); });
-  if(was.some(x => x.closest('#drum'))) drawToday();
+  SLIDE.k = null; SLIDE.pin = false;
+  $$('.r.slid').forEach(slideOff);
 }
 document.addEventListener('mouseover', e => {
-  const r = e.target.closest && e.target.closest('.r'), box = r && r.closest(RISEN);
-  if(box && (view === 'today' || box.id === 'day-list')) return riseHover(r);
-  if(e.target.closest && e.target.closest('#rop')) return clearTimeout(RISE.c);
-  riseLeave();
+  const r = e.target.closest && e.target.closest('.r'), box = r && r.closest(SLIDN);
+  if(box && (view === 'today' || box.id === 'day-list')) return slideHover(r);
+  if(e.target.closest && e.target.closest('#rop')) return clearTimeout(SLIDE.c);
+  slideLeave();
 });
-document.addEventListener('mouseleave', () => riseLeave());
-/* 둘째 줄: 날짜 · 시각은 그 자리에서 고치고 (작은 판), 고치기는 자세히 종이. 줄의 끝냄으로 새지 않는다 */
+document.addEventListener('mouseleave', () => slideLeave());
+/* 끝 칸: 날짜 · 시각은 그 자리에서 고치고 (작은 판), 고치기는 자세히 종이. 줄의 끝냄으로 새지 않는다 */
 document.addEventListener('click', e => {
-  const x = e.target.closest && e.target.closest('.r .ex');
+  const x = e.target.closest && (e.target.closest('.r .ex') || e.target.closest('.r.slid .tm[data-e], .r.slid .ti[data-e]'));
   if(!x) return;
   e.stopPropagation();
-  const b = e.target.closest('.e'), i = x.closest('.r')._it;
+  const b = x.matches('[data-e]') ? x : e.target.closest('.e'), i = x.closest('.r')._it;
   if(!b || !i) return;
-  if(b.dataset.e === 'edit'){ riseClose(true); return startEdit(i); }
+  if(b.dataset.e === 'edit'){ slideClose(true); return startEdit(i); }
   if(ROP && ROP.kind === b.dataset.e) return ropClose();
   ropOpen(b, i);
 }, true);
 document.addEventListener('wheel', e => {
-  const b = e.target.closest && e.target.closest('.r .ex .e[data-e="time"]'), i = b && b.closest('.r')._it;
+  const b = e.target.closest && e.target.closest('.r.slid [data-e="time"]'), i = b && b.closest('.r')._it;
   if(!b || !i || OFFLINE) return;
   e.preventDefault(); e.stopPropagation();
   const v = hhmm(((mins(i.time) + ((e.deltaY || e.deltaX) < 0 ? STEP : -STEP)) % 1440 + 1440) % 1440);
-  i.time = v; b.textContent = v;
+  i.time = v; (b.querySelector('span:last-child') || b).textContent = v;
   clearTimeout(ropOpen._w);
   ropOpen._w = setTimeout(() => change(taskUrl(i), {due_time:v}), 500);
 }, {passive:false, capture:true});
 
 /* ══════════ 한 일의 값 ══════════
    2026-11: 머리 아래로 내려오던 읽기 띠를 걷었다 (판 머리를 덮고, 보이는 값을 되풀이하고, 눈을 위로 끌고 갔다).
-   값은 이제 어디서나 떠오른 줄의 둘째 줄(위의 riseOpen)에서 말한다 */
+   값은 이제 어디서나 미끄러진 줄의 끝 칸(위의 exHTML)에서 말한다 */
 /* 한 일의 값: [이름표, 값, 값의 모양, 고치는 손잡이] - 이름표는 자세히(전체)와 같은 낱말.
    rise: 떠오른 줄의 둘째 줄 - 줄이 이미 말하는 늦음 · 끝냄은 빼고, 할 일의 날짜는 오늘이어도 (그 자리에서 옮기게) 둔다 */
 function roKV(i, rise){
@@ -2741,9 +2840,9 @@ const kvHTML = (kv, ed) => kv.map(([k, v, c, e]) => '<span>' + (k ? '<i>' + k + 
   (ed && e ? '<button type="button" class="e ' + c + '" data-e="' + e + '">' + esc(v) + '</button>' : '<span class="' + c + '">' + esc(v) + '</span>') + '</span>').join('');
 /* 값의 작은 판을 닫는다 (메뉴 · 종이 · 끌기가 시작될 때) */
 function roHide(){ ropClose(); }
-/* 둘째 줄의 값을 누르면 그 아래 작은 판: 시각은 앞뒤 30분 · 1시간 (휠로 5분씩), 날짜는 오늘 · 내일 · 다음 영업일 · 한 주 뒤 */
+/* 끝 칸의 값을 누르면 그 아래 작은 판: 시각은 앞뒤 30분 · 1시간 (휠로 5분씩), 날짜는 오늘 · 내일 · 다음 영업일 · 한 주 뒤 */
 let ROP = null;
-function ropClose(){ if(!ROP) return; ROP = null; $('#rop').classList.remove('on'); }
+function ropClose(){ if(!ROP) return; if(ROP.b) ROP.b.classList.remove('on'); ROP = null; $('#rop').classList.remove('on'); }
 function ropOpen(b, i){
   const kind = b.dataset.e;
   if(!i) return;
@@ -2759,8 +2858,12 @@ function ropOpen(b, i){
   const cur = kind === 'time' ? i.time : i.date;
   const el = $('#rop');
   el.innerHTML = opts.map(([v, l]) => '<button type="button" data-v="' + v + '"' + (v === cur ? ' class="on"' : '') + '>' + esc(l) + '</button>').join('');
-  ROP = {i, kind};
+  if(ROP && ROP.b) ROP.b.classList.remove('on');
+  ROP = {i, kind, b};
+  b.classList.add('on');
   const r = b.getBoundingClientRect();
+  /* 이미 떠 있던 판이 다른 값 밑으로 옮겨 가면 그 자리에서 다시 떠오른다 (순간 이동하지 않게) */
+  if(el.classList.contains('on')){ el.style.transition = 'none'; el.classList.remove('on'); void el.offsetWidth; el.style.transition = ''; }
   el.classList.add('on');
   el.style.left = Math.max(8, Math.min(r.left - 12, innerWidth - el.offsetWidth - 8)) + 'px';
   /* 그 값 바로 밑에 (화면 아래 끝이면 위로) */
@@ -2771,13 +2874,13 @@ $('#rop').addEventListener('click', e => {
   const b = e.target.closest('[data-v]');
   if(!b || !ROP) return;
   const {i, kind} = ROP, v = b.dataset.v;
-  roHide(); riseClose(true);
+  roHide(); slideClose(true);
   if(kind === 'date') return moveTo(i, v);
   if(v === i.time) return;
   const was = i.time;
   change(taskUrl(i), {due_time:v}).then(() => undoToast(toWord(v), i.title, () => change(taskUrl(i), {due_time:was})));
 });
-document.addEventListener('mousedown', e => { if(ROP && !e.target.closest('#rop, .ex')){ roHide(); } });
+document.addEventListener('mousedown', e => { if(ROP && !e.target.closest('#rop, .ex, [data-e]')){ roHide(); } });
 document.addEventListener('keydown', e => { if(ROP && e.key === 'Escape'){ e.stopPropagation(); roHide(); } }, true);
 
 /* ══════════ 끌어서 옮기기 ══════════
@@ -2792,7 +2895,7 @@ document.addEventListener('pointermove', e => {
   if(!d) return;
   if(!d.moved){
     if(Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
-    d.moved = true; roHide(); riseClose(true);
+    d.moved = true; roHide(); slideClose(true);
     d.ghost = document.createElement('div'); d.ghost.className = 'dragg';
     d.ghost.innerHTML = '<i></i><span>' + esc(d.i.title.length > 26 ? d.i.title.slice(0, 26) + '…' : d.i.title) + '</span>';
     document.body.appendChild(d.ghost); d.el.classList.add('lift');
@@ -3150,7 +3253,7 @@ function setView(v){
   closeSheets();
   roHide();
   if(v === 'today'){ OFFT = 0; drawToday(); }
-  if(v === 'cal') drawCal();
+  if(v === 'cal'){ if(was === 'cal' && calCur) return $('#cal-now').click(); drawCal(); }
   if(v === 'all') drawAll();
   if(v === 'set'){ fillSettings(); refreshSync().catch(() => {}); }
   if(was !== v) replay($('#v-' + v), 'view-in');
@@ -3181,12 +3284,34 @@ function shiftMonth(n){
   if(!calCur){ const d = dObj(STATE.today); calCur = {y:d.getFullYear(), m:d.getMonth()}; }
   const t = new Date(calCur.y, calCur.m + n, 1);
   calCur = {y:t.getFullYear(), m:t.getMonth()};
-  drawCal();
-  if(n && !calm()) $('#cal-grid').animate([{opacity:0, transform:'translateX(' + (n > 0 ? 16 : -16) + 'px)'}, {opacity:1, transform:'none'}], {duration:240, easing:EASE});
+  if(!n) return drawCal();
+  pageTurn([$('#cal-grid'), $('#cal-ym')], n > 0 ? 1 : -1, drawCal, [48, 16]);
+}
+/* 달 이름 칸의 폭은 가장 긴 달(SEPTEMBER)에 맞춰 둔다 - 이름 길이에 따라 옆의 것이 움직이지 않게. 글꼴이 다 들어온 뒤 한 번 잰다 */
+let _ymW = 0;
+function calYmFit(){
+  const el = $('#cal-ym');
+  if(_ymW || !el.offsetParent) return;
+  const keep = el.textContent, y = (calCur || {y:dObj(STATE.today).getFullYear()}).y;
+  let w = 0;
+  el.style.minWidth = '';
+  MONTH.forEach(m => { el.textContent = m + ' ' + y; w = Math.max(w, el.getBoundingClientRect().width); });
+  el.textContent = keep;
+  el.style.minWidth = Math.ceil(w) + 'px';
+  if(document.fonts && document.fonts.status === 'loaded') _ymW = w;
 }
 $('#cal-prev').onclick = () => shiftMonth(-1);
 $('#cal-next').onclick = () => shiftMonth(1);
-$('#cal-now').onclick = () => { calCur = null; drawCal(); };
+$('#cal-now').onclick = () => { if(!calCur) return; const t0 = dObj(STATE.today), d = (t0.getFullYear() - calCur.y) * 12 + t0.getMonth() - calCur.m; calCur = null; d ? pageTurn([$('#cal-grid'), $('#cal-ym')], d > 0 ? 1 : -1, drawCal, [48, 16]) : drawCal(); };
+/* 달력 위 어디서나 휠 한 칸 = 한 달 (새 항목 종이의 달력과 같은 손버릇). 빨리 굴려도 0.28초에 한 달씩 - 휙 지나쳐 길을 잃지 않게 */
+let _cAcc = 0, _cAt = 0;
+$('#v-cal').addEventListener('wheel', e => {
+  if($$('.modal.on').length) return;
+  e.preventDefault();
+  _cAcc += e.deltaY || e.deltaX;
+  if(Math.abs(_cAcc) < 50 || e.timeStamp - _cAt < 280) return;
+  _cAt = e.timeStamp; const n = _cAcc > 0 ? 1 : -1; _cAcc = 0; shiftMonth(n);
+}, {passive:false});
 let _calT = 0;
 addEventListener('resize', () => { clearTimeout(_calT); _calT = setTimeout(() => { if(view === 'cal') drawCal(); }, 120); });
 
@@ -3195,7 +3320,8 @@ function drawCal(){
   const t0 = dObj(STATE.today);
   const cur = calCur || {y:t0.getFullYear(), m:t0.getMonth()};
   $('#cal-ym').textContent = MONTH[cur.m] + ' ' + cur.y;
-  $('#cal-now').hidden = !calCur || (cur.y === t0.getFullYear() && cur.m === t0.getMonth());
+  calYmFit();
+  $('#cal-now').classList.toggle('on', !!calCur && !(cur.y === t0.getFullYear() && cur.m === t0.getMonth()));
   const f1 = new Date(cur.y, cur.m, 1, 12), off0 = f1.getDay(), dim = new Date(cur.y, cur.m + 1, 0).getDate();
   const W = Math.ceil((off0 + dim) / 7);
   const from = iso(new Date(cur.y, cur.m, 1 - off0, 12)), to = iso(new Date(cur.y, cur.m, W * 7 - off0, 12));
@@ -3298,8 +3424,43 @@ function dayModal(key, list, pick){
   $('#day-add').onclick = () => { closeM('#m-day'); fieldDay(key); };
   openM('#m-day');
   const r = pick && [...box.querySelectorAll('.r')].find(x => x.dataset.k === keyOf(pick));
-  if(r){ riseOpen(r); RISE.pin = true; r.scrollIntoView({block:'nearest'}); }
+  if(r){ slideOpen(r); SLIDE.pin = true; r.scrollIntoView({block:'nearest'}); }
+  dayPg();
 }
+/* 그날 시트의 옆날 (2026-11-18): 시트 양옆의 넓은 기둥 (시트 높이 전체) · 시트 위 휠 한 칸 · ← →. 28 상자 단추는 겨누기 어렵다.
+   휠: 목록이 넘쳐 굴러야 하면 목록이 구르고, 머리(날짜) 위에서는 늘 하루씩 */
+function dayPg(){
+  const m = $('#m-day');
+  [['#day-prev', m.offsetLeft - 8 - 48], ['#day-next', m.offsetLeft + m.offsetWidth + 8]].forEach(([id, x]) => {
+    const b = $(id); b.style.left = x + 'px'; b.style.top = m.offsetTop + 'px'; b.style.height = m.offsetHeight + 'px';
+  });
+}
+function dayStep(n){
+  if(!DAY_KEY || !$('#m-day').classList.contains('on')) return;
+  ropClose();
+  DAY_KEY = addDay(DAY_KEY, n);
+  const k = DAY_KEY;
+  pageTurn([$('#day-list'), $('#day-title')], n > 0 ? 1 : -1, () => dayModal(DAY_KEY, dayItems(DAY_KEY)), [48, 16]);
+}
+$('#day-prev').onclick = () => dayStep(-1);
+$('#day-next').onclick = () => dayStep(1);
+let _dAcc = 0, _dAt = 0;
+const dayWheel = e => {
+  const l = $('#day-list');
+  if(!e.target.closest('#day-title, .dpg') && l.scrollHeight > l.clientHeight + 1) return;
+  e.preventDefault();
+  _dAcc += e.deltaY || e.deltaX;
+  if(Math.abs(_dAcc) < 50 || e.timeStamp - _dAt < 220) return;
+  _dAt = e.timeStamp; const n = _dAcc > 0 ? 1 : -1; _dAcc = 0; dayStep(n);
+};
+['#m-day', '#day-prev', '#day-next'].forEach(id => $(id).addEventListener('wheel', dayWheel, {passive:false}));
+document.addEventListener('keydown', e => {
+  if(!/^Arrow(Left|Right)$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || ROP) return;
+  if(!$('#m-day').classList.contains('on') || $$('.modal.on').length > 1) return;
+  if(e.target.closest && e.target.closest('.r, input, textarea, select')) return;
+  e.preventDefault(); dayStep(e.key === 'ArrowLeft' ? -1 : 1);
+});
+addEventListener('resize', () => { if($('#m-day').classList.contains('on')) dayPg(); });
 
 /* ══════════ 전체 ══════════
    왼쪽: 모든 항목을 넷으로 - Routines · Tasks · Notes · Done. 오른쪽: 고른 하나의 값 전부와, 그것을 문장으로 적으면
@@ -3319,7 +3480,7 @@ function allGroups(){
 function allLab(i){
   if(i.kind === 'routine') return {a:'', b:i.time || ''};
   if(!i.date) return {a:'', b:''};
-  if(i.date === STATE.today) return i.time ? {a:'', b:i.time} : {a:'TODAY', b:''};
+  if(i.date === STATE.today && i.time) return {a:'', b:i.time};
   return lblOf(i.date);
 }
 function drawAll(){
@@ -3334,7 +3495,7 @@ function drawAll(){
     h.innerHTML = '<span>' + name + '</span><span class="gc">' + list.length + '</span>';
     f.appendChild(h);
     list.forEach(i => {
-      const el = rowEl(i, {lab:allLab(i), cls:i.id === ALL_SEL ? 'sel' : ''});
+      const el = rowEl(i, {lab:allLab(i), cls:(i.id === ALL_SEL ? 'sel' : '') + (i.date === STATE.today && i.kind !== 'routine' ? ' tdy' : '')});
       el.addEventListener('click', e => {
         if(e.target.closest('.dot')) return;
         e.stopImmediatePropagation();
@@ -3627,7 +3788,7 @@ function shotHook(){
   $('#clock')._v = HHMM; $('#clock').textContent = HHMM;
   repaint();
   const first = () => (STATE.todays || []).find(i => !i.done && i.time) || (STATE.todays || [])[0] || (STATE.overdue || [])[0];
-  const firstRow = () => $('#drum .r.lens') || $('#drum .r');
+  const firstRow = () => $('#drum .r.lens:not(.gone)') || $('#drum .r:not(.gone)');
   const go = {
     home:       () => {},
     night:      () => relight(),
@@ -3635,7 +3796,7 @@ function shotHook(){
     all:        () => setView('all'),
     settings:   () => setView('set'),
     type:       () => { openAdd('deadline', {}); const n = $('#a-title'); n.value = '분기 운용보고서 초안 다음주 화요일 3시'; n.dispatchEvent(new Event('input')); },
-    hover:      () => { const el = $('#up .r[data-id]'); if(el) riseOpen(el); },
+    hover:      () => { const el = $('#up .r[data-id]'); if(el) slideOpen(el); },
     add:        () => { openAdd('deadline', {date:addDay(STATE.today, 2)}); $('#a-title').value = '분기 운용보고서 초안'; },
     'add-rt':   () => { openAdd('routine', {}); $('#a-title').value = '월말 결산'; },
     'add-say':  () => { openAdd('deadline', {}); $('#a-title').value = '분기 운용보고서 초안';

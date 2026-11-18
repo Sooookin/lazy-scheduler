@@ -72,9 +72,9 @@
   <!-- ══════════ 달력 ══════════ -->
   <section class="v v-cal" id="v-cal" hidden>
     <div class="calh">
-      <b class="cal-ym" id="cal-ym">—</b>
       <button class="sq" id="cal-prev" type="button" title="이전 달 · ←" aria-label="이전 달">‹</button>
       <button class="sq" id="cal-next" type="button" title="다음 달 · →" aria-label="다음 달">›</button>
+      <b class="cal-ym" id="cal-ym">—</b>
       <button class="lnk" id="cal-now" type="button">이번 달</button>
     </div>
     <div class="calw" id="cal-head"></div>
@@ -167,6 +167,7 @@
     <div><button class="ghost" data-close>닫기</button></div>
   </div>
 </div>
+<button type="button" class="dpg" id="day-prev" aria-label="앞날"><svg viewBox="0 0 16 32" width="16" height="32" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 6 3 16l8 10"/></svg></button><button type="button" class="dpg" id="day-next" aria-label="다음 날"><svg viewBox="0 0 16 32" width="16" height="32" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 6l8 10-8 10"/></svg></button>
 
 <!-- ── 단축키 한 장 (?) ── -->
 <div class="modal" id="m-keys" role="dialog" aria-modal="true" aria-labelledby="keys-title">

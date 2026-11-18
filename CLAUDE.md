@@ -120,8 +120,9 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   Latin letters only in Inter (`web/fonts/inter-latin.woff2`, `unicode-range` letters A–Z a–z + Latin-1, `size-adjust` to
   Paperlogy's cap height; built by `tools/build_fonts.py` from `assets/fonts/Inter[opsz,wght].ttf`). English pane heads
   and dates stay ("TODAY", "FRI 6 NOV", "TUE 3"), uppercase, .1em tracking (date labels .06em); pane and group heads are
-  weight 500 in ink with a count of what is left beside them (`.pc`, empty at 0). Corners are 0 everywhere; the only round thing is the task dot (empty ring = open, red ring = late,
-  filled = done, dashed = being typed). One red (late = holiday = danger). The signature is the sky
+  weight 500 in ink with a count of what is left beside them (`.pc`, empty at 0). Corners are 0 everywhere; the only round thing is the task dot (12, an `--accent` ring = open - the one sky
+  mark per row that says "press here" (2026-11 P1: a 10 grey ring read like the text around it), red ring = late, half
+  filled on hover, filled = done, dashed = being typed; pressing a row squeezes it to .92). One red (late = holiday = danger). The signature is the sky
   `teal-lit` #9ccbcd and every other colour comes from its hue (183°): sky itself where it sits on graphite (the lens's
   time / time left / now line), `--accent` #529fa3 for lines and fills
   (underlines, picked-row edge, focus; 3:1), `--teal` #347074 for text and white-on-teal fills (parsed words, links, the
@@ -134,26 +135,41 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   with grey and the line goes soft); the lens stays matte (one
   surface, one sky line, one shadow - a gloss / digit glow / gauge / glint layer was tried and removed as cheap); the ground
   carries a 3% grain only under `.main` (never under text) and a sundial light (now a faint sky glow inside the header band) whose x follows the day from
-  `brief_time` to `day_end` in 10-min steps, warming for the last hour (`sunTo`, `--sun-x` · `--sun`). Motion answers only
+  `brief_time` to `day_end` in 10-min steps, warming for the last hour (`sunTo`, `--sun-x` · `--sun`). Layout never jumps because of content (2026-11-18 motion audit): controls sit before variable text or the text gets a
+  fixed width (the calendar's ‹ › come before the month name, whose width is the longest month's - `calYmFit`; "이번 달" keeps
+  its place and fades), panels that page through content keep one size (the day sheet's list is ten rows high and scrolls;
+  the undo line is 440 wide, its text ellipsizes and cross-fades when replaced), and where a size must change it moves
+  instead of snapping (`smoothH`: the Form's calendar 5 ↔ 6 weeks; Upcoming's +n / 접기 unfold and fold rows; rows newly
+  in a list unfold from 0 in `patchKids`; rows leaving the drum fade out over 0.26 s - `.gone` - so a lens changing mode
+  cross-fades). Content that is replaced whole (a month, a day) turns like a page (`pageTurn`): a copy of the old page slides
+  48 (a name 16) against the direction and fades in 0.2 s while the new one comes in from the direction in 0.3 s on `MOVE` -
+  both at once, so "next" reads (old-out-then-new-in blinked one page at a time); the copy floats inside the same positioned
+  box, is never clickable and is cleared by the next turn. The day sheet itself never scrolls (only its list, gutter kept),
+  so a page turned aside can't grow it; the pager chevrons lean 4 toward their side on hover, 8 on press. A popup moving to a
+  new target rises again rather than teleporting (`#rop`); the TODAY head's right end fades when its words change
+  (늦음 n ↔ 1 / n). Motion answers only
   a person or the clock, ≤ 0.5 s, never looping, off with reduced motion (`calm()`): the clock's changed digits roll up
   (`clockTo`), 끝냄 fills the ring sky with a white check and one ripple (`donef`), the view tabs' 2px ink bar slides to the picked
   tab (`.tabline`, to the settings glyph on settings), and the first open of the day deals the three cards in 80 ms apart (`.deal`, in `morningDoor`).
   2026-11 "통합 2" (canvas "LazyScheduler 깊이와 움직임", board 통합 2) adds one physics, one curve (`--move`; 0.26 s for what follows
   the hand, 0.48 s for the rest), nothing new on the resting screen: the hand's ruler (`ruleTo`: in #drum / #any-list / #up one `.ruler`
-  - accent 8% + a 1px accent line under the hovered row - glides from row to row instead of each row lighting up; hidden on the lens and
+  - accent 8% + a 1px accent line under the hovered row - glides from row to row in 0.1 s (0.26 s left it a row behind a fast hand) instead of each row lighting up; hidden on the lens and
   day heads; `patchKids` leaves it in place); lifted and settled cards (`liftTo`, today view only: the hovered card's rim and shade darken (short - long ones spill
   onto the neighbour across a 3px gut), the others flatten and take a 16% `--bg` veil - shadows and a veil only, text never moves; a mouse-following light, tilt, blur and scale
   were tried and dropped as invisible or shaky); the fuse (`fuseTick`: when the lens task is ≤ 10 min away the now line splits into a
   faint track and a sky line of the minutes left with a 2 × 8 needle at its end, burning from the right; at its time the full line
   breathes for a minute; the breathing is a class `fuseTick` flips every 1.2 s from a timer that skips hidden windows, never a CSS
   loop); head counts roll their changed digits like the clock, down when they shrink (`countTo`); and the TODAY head's bottom edge is a
-  2px sky gauge of today's timed items done (`#t-prog`). The drum still rolls back to now 3.2 s after a wheel.
+  2px sky gauge of today's timed items done (`#t-prog`). The drum rolls back to now 1.5 s after the pointer leaves its card (never while the pointer is still on it, reading).
   Use frequency drives the layout (2026-11 UX pass): finishing and scanning are daily, adding and editing are occasional.
   So a click on any home row (today, lens, Anytime, Upcoming, the day sheet) is 끝냄 with the undo line; editing is a double click
   (anywhere a row is; if the first click of it finished the task, the double click takes that back - `LAST_TOG`), Enter, the
-  context menu's 고치기, or 고치기 at the end of a risen row. 전체 keeps click = select (its Details pane is the detail view).
+  context menu's 고치기, or 고치기 in a slid row's end cell. 전체 keeps click = select (its Details pane is the detail view); its date column uses one label form, today's in teal (`.tdy`).
   The calendar is an overview: clicking a date (or +n) opens that day's sheet - never a new item, the same as an Upcoming day
-  head; clicking an item or a span strand opens its day's sheet with that row already risen and pinned (`dayModal(k, list,
+  head; one wheel step anywhere on it is one month (≥ 0.28 s apart, like the Form's calendar), ← → too, "이번 달" shows only
+  away from this month, and clicking 달력 again returns to it. The day sheet steps a day at a time (`dayStep`): two 48-wide
+  columns the sheet's full height 8 off its sides (`.dpg`), a wheel step over its head (or anywhere if its list doesn't
+  scroll), ← → when no row has focus; clicking an item or a span strand opens its day's sheet with that row already slid and pinned (`dayModal(k, list,
   pick)`), so its values and 고치기 are one look away. New items for a day: the sheet's "이 날에 추가", or + / Ctrl N while
   the pointer is over the cell.
   Pane heads (40) are inverted like the lens: a `--lensa` band with `--lensa-text` names, `--lensa-text2` counts and
@@ -161,7 +177,7 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   light (time, now line), which with its 16 type keeps the lens the signature (faint sky / grey / 12% graphite bands were
   tried and didn't separate heads from the ground). The signature (graphite + sky) marks only what the eye is on: the lens, today's date in
   the calendar and the undo line are small lenses (graphite, sky text); a hovered row and the selected row in 전체 take a
-  sky tint (accent 8% / 13%, the selected one with a 2px sky edge); a risen row has a 2px sky left edge.
+  sky tint (accent 8% / 13%, the selected one with a 2px sky edge); a slid row keeps the ruler's tint.
   In Upcoming (D3, canvas "LazyScheduler 깊이와 움직임") each day is a `section.ud` = a 28-high day head (`.dh`: day 13 ·
   weekday 11, both days of a folded weekend, holiday names) + its rows, which carry no date label. Only days with items
   get a band (ground-mixed frosted glass, lines above and below, a soft shade); empty days and days off are a bare top line, so a band
@@ -189,27 +205,32 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
 - PC layout (XX): header 56 is one graphite band edge to edge (2026-11, canvas "LazyScheduler 머리" board D): `--lensa`
   like the pane heads and the lens, so it turns light paper at night with them; text `--lensa-text` / `-text2` (header-local
   `--hk` · `--hk2` · `--hhair` · `--hhov`), the sundial kept as a 9% sky glow at `--sun-x`. On the sky ground it was built
-  not to be looked at, and clock, views and + all sank. Zones split by two full-height (56) 1px partitions around the
-  views, 96 from them on each side (64 below 1040 wide) so the middle cell is symmetric: now - clock (26, weight 300),
+  not to be looked at, and clock, views and + all sank. Zones split by two full-height (56) 1px partitions, the edges of the
+  centred view cell: now - clock (26, weight 300),
   16, date, starting 16 inside the left card's text column (big digits need more side margin to look as inset), 2px low | the view switch centred in the window (the most-clicked thing in the
-  header sits at its centre): bare words 오늘 · 달력 · 전체, 48 apart, picked = paper 500 over a 2px paper bar, hover draws a
-  1px line from the left, words reserve their bold width (`.tn::after`) | "+ 새 항목" (a 1px framed button, only the cross
-  in sky) and a gear (8 teeth, 1.1 stroke; the sliders glyph read as a smudge at 16) | the window buttons 46×56 with no partition before them (a third one chopped the band). The bar
+  header sits at its centre): one 360 cell split into three equal 120 × 56 buttons (104 below 1040 wide) - each whole third is
+  the target (word-wide targets were 27 × 56 with dead gaps between), its edges are the partitions; bare words 오늘 · 달력 ·
+  전체, picked = paper 500 over a 2px paper bar under the word, hover fills the whole third (`--hhov`), press a step darker,
+  words reserve their bold width (`.tn::after`) | "+ 새 항목" (a 1px framed button, only the cross
+  in sky) and a gear (8 teeth, 1.1 stroke; the sliders glyph read as a smudge at 16; its target is a 46 × 56 column like the
+  window buttons) | the window buttons 46×56 with no partition before them (a third one chopped the band). The bar
   slides to the gear while settings is open. Tried and dropped: glyph + word tabs (read as a stock nav, the glyph repeating the
   word), the clock centred, a white or graphite plate inside the gut. Two cards split at 50% with the 3 `--gut` between and around them (and between the header and the cards); text columns sit
   `--doc` (24) inside each card on both sides (so 32 from the window edge and 28 from the centre; the Form's two columns too). In the capture window the sentence field spans the header instead. Rows are 36 (`--rh`, JS `RH`) = time column `--tmw` 56 (measured: Upcoming's "30 MON") | 12 | dot `--dotw` 10 | 12 |
-  name, so names stand at `--namex` from the text column (a risen row's second line, Details and the Form's values use it too).
+  name, so names stand at `--namex` from the text column (Details and the Form's values use it too).
   Date labels are one form everywhere (`lblOf` = {day, weekday}): the day first, 14, right-aligned in 16 so the units line up,
   8, then the weekday 11 in `--text2` - numerals that differ in shape from the Hangul names, in a fixed column, are why
   Today's time column reads well. In Upcoming each day's first row carries a `--hair2` line above; a day with items has an
   ink date, an empty day a grey one, a day off a faint one (no shaded band); folded days off repeat the same label.
-  Anytime rows have no time column (the dot stands on the text column). Pane, shelf and group heads are all
+  Anytime and Upcoming rows have no time column (the dot stands on the text column - in Upcoming right under the day's digits,
+  the name on the weekday's line, 2026-11-18 U1: the empty 56 pushed the dot 68 in); an Upcoming item with a time carries it
+  before its name (`.ti`, 11). Pane, shelf and group heads are all
   `--ph` 40 (JS `PH`).
   Every row in both upper cards sits on one 36 grid (ruled like a notebook across the gap): the lens is 72 (two rows),
   Upcoming's empty days are 36, Upcoming fills the whole right column, looks `upcoming_days` (28) ahead and scrolls one stop per wheel step
   like the drum (`upStops`: each day section's top and each row standing just under its stuck day head; 480 ms, `upScrollTo`)
   (clicking a date or an empty day opens that day's sheet with its routines - `openDay` - never a new item), and Today moves one row (36) per wheel
-  step (`OFFT`, back to the default 3.2 s after the wheel stops or on a head click).
+  step (`OFFT`, back to the default 1.5 s after the pointer leaves the card - `drumBack` - or on a head click).
   Today (`rulerModel` · `drawDrum`, element still `#drum`): past days' leftovers with date labels, then today's timed
   items packed in time order (done and late ones stay in place), the next task on the lens (72; its name wraps to two lines
   rather than being cut - `w2`, time · dot then stand on the first line). Where two neighbouring items leave ≥ 2 h free
@@ -223,16 +244,21 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   2026-11); five rows tall by default (less if Today would lose its lens and two rows each side), or what the gap above
   it was dragged to (row steps, per device, localStorage). Scrollbars are one 2px line in an 8px gutter, shown only on the
   hovered pane (`::-webkit-scrollbar`; never `scrollbar-width`, which makes Chromium drop back to the stock bar). Lists show
-  names only. In the three home lists and the day sheet a row the pointer rests on rises (2026-11, canvas "읽기 띠 대안" C; `riseHover` ·
-  `riseOpen` · `riseClose`): as soon as the pointer slows below 0.35 px/ms over it (pointer speed `PTR`, from mousemove),
-  else 50 ms after it stops - a fast sweep raises nothing - it becomes a lifted card (surface, 2px
-  sky left edge, deep shadow) grown downward to 72 with a second line at the name column - the values the row doesn't say
-  (`roKV(i, true)`: date and time as in-place edit buttons for deadlines, 반복, 걸림, 알림, 설명) and 고치기 at the end. It
-  pushes the rows below down one row instead of covering them (the earlier strip covered the pane heads), the first line
-  never moves (height and padding-bottom grow together), and a swap closes the old row while the new one opens, so the
-  pointer always stays on the row it chose; a row cut off at the bottom scrolls one row up. Clicks on the second line never
-  finish the task. It drops at once on a wheel or a drag and 280 ms after the pointer leaves; the lens never rises. The 40-high read-out
-  strip that dropped over the pane heads is gone everywhere (2026-11) - no view shows values any other way. Spans: in Upcoming a vertical line per span in the left margin
+  names only. In the three home lists and the day sheet the row the pointer rests on opens in place (2026-11-18, canvas "LazyScheduler
+  손에 붙는 느낌" board C; `slideHover` · `slideOpen` · `slideClose`, class `.slid` - the name is from the dropped slide; `.sl` is
+  taken by settings rows): as soon as the pointer slows below 0.35 px/ms over it (pointer speed `PTR`), else 50 ms after it
+  stops - a fast sweep opens nothing. Nothing moves: the value the row already shows on its left (the time column's date
+  label or time; an Upcoming row's `.ti` time) becomes the in-place edit target where it stands (`whenEl` sets `data-e`;
+  sky underline, red on a late row, hit area 8 wider each side and near row height), and an end cell (`.ex`, `exHTML`)
+  fades in at the row's right end: 값 104 · 고치기 40, the same x in every row. 값 = one value the row doesn't show: 반복 > a set
+  alert (끔 / n분 전) > 걸림 > the note's first line > a span's first – last; the cell's title lists every value; a long name
+  fades out 12 before the cell. Colour and opacity only, all at once in 0.16 s (leaving 0.12 s). Clicks on the cell or the
+  edit target never finish the task; the cell's buttons are 36 high. It returns at once on a wheel or a drag and 200 ms
+  after the pointer leaves; the lens never slides. Tried and dropped: a 40-high read-out strip over the pane heads (covered
+  them, repeated visible values), rows rising to two lines and pushing the rows below down 36 (the target moved under the
+  pointer, the pane heaved), values only at the row end (the time showed twice), A′ - the time column fading out while dot
+  + name slid 68 left and three slots came in one after another in 0.37 s (seven things moved every time the hand crossed
+  a row: hectic). Spans: in Upcoming a vertical line per span in the left margin
   (overlaps step 6 left, ends turn toward the row); in the calendar one labelled strand per week under the date row
   (name ─── end tick), at most two, the rest listed by name on their start day; a strand starting in the narrow Sunday
   column writes its name from Monday, a one-day continuation has no name.
@@ -249,17 +275,19 @@ compositing at 60fps); slow ambient motion is stepped from JS timers that stop w
   today (`gapAfter`: each timed item holds its learned length, else 30 min; first gap that fits the moved item, ≥ 30 min
   after max(now, its time), none past `day_end`), 내일 only when it differs from the next business day, and the next business day (`laterDate`).
   Morning door: the first open of the day (localStorage `ls.morn`) or a click on "늦음 n" turns the lens into a one-by-one
-  queue of past-day items (`TRI`, head shows "1 / 4"; 오늘 · next business day · 끝냄, keys T → Space Esc).
+  queue of past-day items (`TRI`, head shows "1 / 4"; 오늘 · next business day · 끝냄, keys T → Space Esc); with two or more
+  movable ones left the head also offers "모두 오늘로" (`triRest` → `moveAll`, one undo). "늦음 n" is clickable over the head's whole
+  right end (40 high, to the card edge).
   Evening door: after `day_end` (setting, default 18:00) with no timed item left, the lens offers "남은 n" → next business
   day for all (`moveAll`, one undo) · 하나씩 (the same queue) · ×; once a day (`ls.eve`). Moving shows no red next day.
-  A risen row edits in place: a deadline's date and time are buttons (`.ex .e`) opening a one-row
+  A slid row edits in place: a deadline's date or time where the row shows it (`[data-e]`) opens a one-row
   picker (`#rop`; time ±30/60, wheel ±5; dates 오늘 · 내일 · next business day · +7) right under the value; while it is open the
-  row stays up. The context menu keeps 오늘로 · 다음 영업일로 · 내일로, keys on a
+  row stays slid. The context menu keeps 오늘로 · 다음 영업일로 · 내일로, keys on a
   focused row ↑↓ Space Enter → ⇧→ T S ! Del (`rowKey`); for a routine its moves sit under one grey "이번 회차" head row.
   Learned lengths (`store.learn_done` on every `set_done`, device-local `state.json` `dur`/`last`, never synced): a timed
   item done today took from max(its time, the previous done today) to now; 3–180 min kept, the median of the last 5 per
   `dur_key(name)` once there are 3 (`store.durations`, 5-min steps, cap 120), sent as overview `durations`. Used by
-  `gapAfter` / `app.next_gap`, a risen row ("걸림 · 약 25분") and the evening lens ("약 2시간 40분", only if
+  `gapAfter` / `app.next_gap`, a slid row's end cell ("걸림 약 25분") and the evening lens ("약 2시간 40분", only if
   something was learned). In the capture window's sentence field a one-row panel
   (`paintPop`) shows an item with that name (Tab opens it) or the last time used for it (Tab appends), ↑↓ nudge.
   New items and edits open the `Form` sheet (2026-11: sentence-only entry misread dates too often). `+`, Ctrl N, typing
